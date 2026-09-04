@@ -1,0 +1,13 @@
+# Planning documents: contain infrastructure details that must not be public.
+plans/
+
+# Secrets and runtime state: never committed.
+.env
+.env.*
+!.env.example
+data/
+
+# Build output and dependencies.
+node_modules/
+dist/
+*.log
