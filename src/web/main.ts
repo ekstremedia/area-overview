@@ -8,6 +8,7 @@ import './styles/tokens.css';
 import './styles/fonts.css';
 import './styles/base.css';
 import './shell/shell.css';
+import './components/components.css';
 
 import './core/router.js'; // side effect: starts listening for hashchange and seeds `currentRoute`
 
