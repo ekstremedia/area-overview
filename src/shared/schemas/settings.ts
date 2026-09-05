@@ -21,6 +21,9 @@ const HomeViewSchema = z.object({
 
 const PageIdSchema = z.enum(['map', 'weather', 'aurora', 'tide', 'cameras']);
 
+/** One of the five toggleable main-nav pages -- `enabledPages`' element type. Excludes `settings`, which is never toggleable (see `SettingsSchema.enabledPages`'s doc comment on this file). */
+export type PageId = z.infer<typeof PageIdSchema>;
+
 const NightModeSchema = z.object({
     enabled: z.boolean().default(false),
     from: z.string().default('23:00'),
