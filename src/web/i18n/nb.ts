@@ -34,6 +34,43 @@ export const nb = {
 
     'unit.minutes': 'min',
     'unit.seconds': 's',
+    'unit.metersPerSecond': 'm/s',
+    'unit.millimeters': 'mm',
+
+    'map.unplacedLink': '{count} kamera uten plassering →',
+    'map.popupClose': 'Lukk',
+    'map.noImage': 'Intet bilde ennå',
+    'map.cameraImageAlt': 'Bilde fra {name}',
+    'map.openCamera': 'Åpne kamera →',
+    'map.pointForecastLabel': 'Punktvarsel',
+    'map.pointForecastLoading': 'Henter …',
+    'map.pointForecastError': 'Kunne ikke hente værvarsel.',
+    'map.pointForecastRetry': 'Prøv igjen',
+    'map.pointForecastCondition': '{condition}, {direction}',
+    'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+
+    'symbol.clearsky': 'klarvær',
+    'symbol.fair': 'lettskyet',
+    'symbol.partlycloudy': 'delvis skyet',
+    'symbol.cloudy': 'skyet',
+    'symbol.fog': 'tåke',
+    'symbol.rain': 'regn',
+    'symbol.lightrain': 'lett regn',
+    'symbol.heavyrain': 'kraftig regn',
+    'symbol.rainshowers': 'regnbyger',
+    'symbol.sleet': 'sludd',
+    'symbol.snow': 'snø',
+    'symbol.lightsnow': 'lett snø',
+    'symbol.heavysnow': 'kraftig snø',
+
+    'compass.n': 'nord',
+    'compass.ne': 'nordøst',
+    'compass.e': 'øst',
+    'compass.se': 'sørøst',
+    'compass.s': 'sør',
+    'compass.sw': 'sørvest',
+    'compass.w': 'vest',
+    'compass.nw': 'nordvest',
 } as const;
 
 export type TranslationKey = keyof typeof nb;
