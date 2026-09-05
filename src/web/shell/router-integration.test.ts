@@ -22,23 +22,43 @@ vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 // This test's whole job is proving `AppShell.ts` disposes the PREVIOUS
 // page on every navigation, generically, across every route -- not
-// exercising any one page's own internals (Phase 6's `MapPage.ts` has its
-// own unit tests for that under `pages/map/`). `MapPage.ts` mounts real
-// Leaflet via a dynamic `import('leaflet')`, which is exactly the kind of
-// real-network/real-DOM dependency this generic shell test should stay
-// decoupled from -- mocked back to the same synchronous placeholder shape
-// every other route still has, so the technique below (capture a title
-// element, change language, assert only the live page's title moved)
-// keeps working unchanged for every route, map included. The mock
+// exercising any one page's own internals (each real page has its own
+// unit tests: `pages/map/` for the map, and each of `WeatherPage.test.ts`/
+// `AuroraPage.test.ts`/`TidePage.test.ts`/`CamerasPage.test.ts` for the
+// Phase 8 content pages). Every page module here mounts real network
+// polling (`resource()`) or, for the map, real Leaflet via a dynamic
+// `import('leaflet')` -- exactly the kind of real-network/real-DOM
+// dependency this generic shell test should stay decoupled from --
+// mocked back to the same synchronous placeholder shape, so the technique
+// below (capture a title element, change language, assert only the live
+// page's title moved) keeps working unchanged for every route. Each mock
 // factory imports `createPlaceholderPage` itself, dynamically, rather
 // than this file doing so at the top: a static top-level import here
 // would eagerly pull in `i18n/index.js` -> `settings-resource.js` (the
 // mocked module) *before* `mockSettings` above finishes initializing,
 // hitting a temporal-dead-zone `ReferenceError` (mocks are hoisted above
-// regular top-level statements, imports included).
+// regular top-level statements, imports included). `CameraViewerPage.js`
+// needs no mock here: `ROUTE_HASHES` below never navigates to
+// `#/cameras/<id>`, only plain `#/cameras`.
 vi.mock('../pages/MapPage.js', async () => {
     const { createPlaceholderPage } = await import('../pages/placeholder.js');
     return { render: createPlaceholderPage('nav.map', 'locality.map') };
+});
+vi.mock('../pages/WeatherPage.js', async () => {
+    const { createPlaceholderPage } = await import('../pages/placeholder.js');
+    return { render: createPlaceholderPage('nav.weather', 'locality.weather') };
+});
+vi.mock('../pages/AuroraPage.js', async () => {
+    const { createPlaceholderPage } = await import('../pages/placeholder.js');
+    return { render: createPlaceholderPage('nav.aurora', 'locality.aurora') };
+});
+vi.mock('../pages/TidePage.js', async () => {
+    const { createPlaceholderPage } = await import('../pages/placeholder.js');
+    return { render: createPlaceholderPage('nav.tide', 'locality.tide') };
+});
+vi.mock('../pages/CamerasPage.js', async () => {
+    const { createPlaceholderPage } = await import('../pages/placeholder.js');
+    return { render: createPlaceholderPage('nav.cameras', 'locality.cameras') };
 });
 
 const { mountAppShell } = await import('./AppShell.js');
