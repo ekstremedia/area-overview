@@ -9,7 +9,7 @@ import type { SettingsStore } from '../../settings/sharedStore.js';
 const camerasState = signal<ResourceState<CameraListResponse>>({ status: 'idle' });
 vi.mock('../../camera-resource.js', () => ({ camerasResource: { state: camerasState } }));
 
-const { mount } = await import('./Cameras.js');
+const { mount, buildRow } = await import('./Cameras.js');
 
 function camera(overrides: Partial<Camera> = {}): Camera {
     return {
@@ -269,6 +269,22 @@ describe('Cameras section', () => {
         expect(setPlacement).toHaveBeenCalledWith('sigerfjord_01', { lat: 68.72, lng: 15.9 });
 
         dispose();
+    });
+
+    it('returns a live isPlaced property, not a value snapshotted at row creation', () => {
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const row = buildRow(camera(), null, { store, loggedIn: true });
+
+        expect(row.isPlaced).toBe(false);
+
+        row.update(camera(), { lat: 68.72, lng: 15.42 }, true);
+
+        // A stale, snapshotted `isPlaced` (the pre-fix bug) would still read
+        // `false` here even though `update()` just recorded a placement.
+        expect(row.isPlaced).toBe(true);
+
+        row.dispose();
+        row.el.remove();
     });
 
     it('renders lat/lng disabled and the remove button disabled when logged out', () => {
