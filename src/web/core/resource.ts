@@ -29,6 +29,9 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
     let lastData: T | undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
     let disposed = false;
+    // Incremented at the start of every `load()` call so a slower, older call can
+    // detect it has been superseded by a newer one before publishing its result.
+    let generation = 0;
     // Read through a function, not the bare `disposed` variable, at every check below: `disposed`
     // can flip to `true` from `dispose()` while a `load()` call is suspended on `await fetcher()`,
     // and TS's control-flow narrowing can't see that closure-based mutation -- reading it directly
@@ -51,10 +54,19 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
 
     async function load(): Promise<void> {
         if (isDisposed()) return;
-        state.set({ status: 'loading' });
+        // Only the first load may show `loading`. A refresh poll keeps the current
+        // `ready`/`error` state on screen while it fetches, so consumers never flap
+        // back to defaults between polls.
+        if (lastData === undefined) state.set({ status: 'loading' });
+        // Guard against out-of-order resolution: if a later `load()` call has already
+        // started (and possibly already resolved) by the time this call resolves,
+        // this call's result is stale and must be discarded entirely, even from
+        // `lastData`.
+        generation += 1;
+        const thisGeneration = generation;
         try {
             const result = await fetcher();
-            if (isDisposed()) return;
+            if (isDisposed() || thisGeneration !== generation) return;
             if (result.ok) {
                 lastData = result.value;
                 state.set({ status: 'ready', data: result.value, fetchedAt: new Date() });
@@ -62,7 +74,7 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
                 setError(new Error(result.error.message));
             }
         } catch (cause) {
-            if (isDisposed()) return;
+            if (isDisposed() || thisGeneration !== generation) return;
             setError(cause instanceof Error ? cause : new Error(String(cause)));
         }
     }
