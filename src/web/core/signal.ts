@@ -107,7 +107,9 @@ export function effect(fn: () => (() => void) | undefined): () => void {
 
     function run(): void {
         if (disposed) return;
-        cleanup?.();
+        const previousCleanup = cleanup;
+        cleanup = undefined; // never invoke the same cleanup twice if fn() throws below
+        previousCleanup?.();
         runTracked(run, subscriptions, () => {
             cleanup = fn();
         });

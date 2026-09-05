@@ -113,6 +113,38 @@ describe('effect', () => {
         expect(spy).toHaveBeenCalledTimes(1); // no re-run after disposal
     });
 
+    it('does not double-invoke a stale cleanup when a later run throws before producing a new one', () => {
+        const count = signal(1);
+        const cleanupCalls: number[] = [];
+
+        const dispose = effect(() => {
+            const value = count.get();
+            if (value === 2) {
+                throw new Error('boom');
+            }
+            return () => cleanupCalls.push(value);
+        });
+
+        expect(cleanupCalls).toEqual([]);
+
+        // The re-run for value 2 invokes run:1's cleanup once, then throws before
+        // `fn()` returns a new cleanup -- `cleanup` must be cleared up front, not
+        // left pointing at the already-invoked run:1 cleanup.
+        expect(() => {
+            count.set(2);
+        }).toThrow('boom');
+        expect(cleanupCalls).toEqual([1]);
+
+        // A subsequent successful re-run must not re-invoke the stale run:1
+        // cleanup a second time; it should only register run:3's cleanup.
+        count.set(3);
+        expect(cleanupCalls).toEqual([1]);
+
+        // Disposal invokes only the current (run:3) cleanup.
+        dispose();
+        expect(cleanupCalls).toEqual([1, 3]);
+    });
+
     it('does not leak subscriptions: 100 create+dispose cycles leave the signal exactly as responsive as before', () => {
         const source = signal(0);
         let controlRuns = 0;
