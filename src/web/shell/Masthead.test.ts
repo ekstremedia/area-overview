@@ -73,6 +73,31 @@ describe('mountMasthead', () => {
         dispose();
     });
 
+    it('aligns the first clock tick to the next wall-clock minute boundary, not 60s after mount', () => {
+        vi.useFakeTimers();
+        try {
+            vi.setSystemTime(new Date('2026-01-01T12:00:47.000Z'));
+            const container = document.createElement('div');
+            const dispose = mountMasthead(container);
+
+            const clock = container.querySelector<HTMLElement>('.masthead-clock');
+            const initialText = clock?.textContent;
+
+            // Mounted at :47 -- the boundary is 13s away. Advancing by less than
+            // that must not tick the clock forward yet.
+            vi.advanceTimersByTime(12_000);
+            expect(clock?.textContent).toBe(initialText);
+
+            // Crossing the boundary (13s after mount) ticks to the new minute.
+            vi.advanceTimersByTime(1_000);
+            expect(clock?.textContent).not.toBe(initialText);
+
+            dispose();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('shows the stale banner only once the active page is actually stale', () => {
         pageFreshness.set(null);
         navigate('#/map');

@@ -89,10 +89,22 @@ export function mountMasthead(container: HTMLElement): () => void {
     );
 
     const tick = signal(Date.now());
-    const clockTimer = setInterval(() => {
-        tick.set(Date.now());
-    }, CLOCK_TICK_MS);
+    // The first tick is scheduled to land on the next wall-clock minute
+    // boundary, not 60s after whenever the shell happened to mount --
+    // otherwise the displayed clock's minute can lag the real one by up to
+    // 59s for the entire session (the masthead mounts once, for the app's
+    // lifetime, and never remounts).
+    let clockTimer: ReturnType<typeof setTimeout> = setTimeout(
+        () => {
+            tick.set(Date.now());
+            clockTimer = setInterval(() => {
+                tick.set(Date.now());
+            }, CLOCK_TICK_MS);
+        },
+        CLOCK_TICK_MS - (Date.now() % CLOCK_TICK_MS),
+    );
     disposers.push(() => {
+        clearTimeout(clockTimer);
         clearInterval(clockTimer);
     });
     disposers.push(
