@@ -238,3 +238,38 @@ describe('mapOpenSkyStatesToAircraft (best-effort, documented-only shape)', () =
         expect(mapOpenSkyStatesToAircraft([state])).toHaveLength(0);
     });
 });
+
+describe('fetchAircraft (opensky provider) -- schema tolerance for trailing fields', () => {
+    it('accepts a state vector with an extra trailing element (e.g. the real API\'s "category" field) rather than rejecting the whole payload', async () => {
+        const stateWithCategory = [
+            '4ac9eb',
+            'SAS69L  ',
+            'Sweden',
+            1_788_582_820,
+            1_788_582_821,
+            16.700592,
+            68.240067,
+            10897.0,
+            false,
+            232.5,
+            204.86,
+            0,
+            null,
+            10500.0,
+            '4204',
+            false,
+            0,
+            0, // 18th element: `category`, undocumented at the time this schema was first written
+        ];
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ time: 1_788_582_820, states: [stateWithCategory] }));
+
+        const result = await fetchAircraft(testBbox, { provider: 'opensky', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value).toHaveLength(1);
+            expect(result.value[0]?.icao).toBe('4ac9eb');
+            expect(result.value[0]?.callsign).toBe('SAS69L');
+        }
+    });
+});

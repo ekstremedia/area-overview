@@ -199,25 +199,27 @@ const OPENSKY_TOKEN_URL = 'https://auth.opensky-network.org/auth/realms/opensky-
  * Validated loosely (each element's *type*, not a strict tuple length)
  * since OpenSky has documented adding trailing fields over time.
  */
-const OpenSkyStateSchema = z.tuple([
-    z.string(), // icao24
-    z.string().nullable(), // callsign
-    z.string().nullable(), // origin_country
-    z.number().nullable(), // time_position
-    z.number().nullable(), // last_contact
-    z.number().nullable(), // longitude
-    z.number().nullable(), // latitude
-    z.number().nullable(), // baro_altitude
-    z.boolean(), // on_ground
-    z.number().nullable(), // velocity
-    z.number().nullable(), // true_track
-    z.number().nullable(), // vertical_rate
-    z.unknown(), // sensors
-    z.number().nullable(), // geo_altitude
-    z.string().nullable(), // squawk
-    z.boolean(), // spi
-    z.number().nullable(), // position_source
-]);
+const OpenSkyStateSchema = z
+    .tuple([
+        z.string(), // icao24
+        z.string().nullable(), // callsign
+        z.string().nullable(), // origin_country
+        z.number().nullable(), // time_position
+        z.number().nullable(), // last_contact
+        z.number().nullable(), // longitude
+        z.number().nullable(), // latitude
+        z.number().nullable(), // baro_altitude
+        z.boolean(), // on_ground
+        z.number().nullable(), // velocity
+        z.number().nullable(), // true_track
+        z.number().nullable(), // vertical_rate
+        z.unknown(), // sensors
+        z.number().nullable(), // geo_altitude
+        z.string().nullable(), // squawk
+        z.boolean(), // spi
+        z.number().nullable(), // position_source
+    ])
+    .rest(z.unknown()); // tolerate trailing fields OpenSky has added since (e.g. `category`)
 
 const OpenSkyResponseSchema = z.object({
     time: z.number(),
