@@ -1,0 +1,25 @@
+/**
+ * Self-hosted Source Serif 4 Variable, regular + italic, Latin subset
+ * only (U+0000-00FF -- covers Norwegian å/æ/ø/Å/Æ/Ø, so no other subset
+ * is needed for nb or en). No Google Fonts / no external font CDN: the
+ * kiosk has a deliberately tiny external-URL allowlist. Files copied
+ * from `@fontsource-variable/source-serif-4` into `src/web/public/fonts/`
+ * (Vite's `publicDir`) so they're served at a stable, unhashed path both
+ * in `npm run dev` and in the production build -- `index.html` preloads
+ * these exact paths.
+ */
+@font-face {
+    font-family: 'Source Serif 4 Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 900;
+    src: url('/fonts/source-serif-4-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+    font-family: 'Source Serif 4 Variable';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 200 900;
+    src: url('/fonts/source-serif-4-latin-wght-italic.woff2') format('woff2-variations');
+}

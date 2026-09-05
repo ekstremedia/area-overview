@@ -1,0 +1,117 @@
+/**
+ * A minimal CSS reset plus the couple of document-level rules every page
+ * needs (color-scheme, base font, no horizontal scroll). Component CSS
+ * lives beside its component, not here.
+ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    color-scheme: dark light;
+    font-size: calc(1rem * var(--font-scale-multiplier, 1));
+    -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    /* The app never scrolls sideways at any supported viewport (800x480
+       kiosk worst case, 1024x600 designed size, or a desktop browser
+       window) -- layout is fluid (clamp()/%/vw), never a fixed width
+       wider than the viewport. This is a backstop, not the mechanism. */
+    overflow-x: hidden;
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    margin: 0;
+}
+
+p {
+    margin: 0;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+}
+
+a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+img {
+    display: block;
+    max-width: 100%;
+}
+
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+::selection {
+    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* Chrome (masthead, footer, any status indicator) is not selectable --
+   a long-press on the touchscreen must not pop a text-selection handle
+   over navigation. Actual page content is deliberately NOT covered by
+   this rule; it opts in per-component, not via a blanket document rule. */
+.chrome {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* The newsprint dot-screen every camera image takes (design/README.md:
+   "camera images take the .halftone newsprint dot screen"). A generic
+   image-treatment utility, not tied to one page -- Phase 6's map popup is
+   the first consumer, Phase 8's camera grid/viewer reuse it verbatim.
+   Copied exactly from `design/broadsheet/styles.css`, with one deliberate
+   deviation: `.halftone` must be applied to a wrapper element, never
+   directly to an `<img>`. The dot-overlay below is a `::after`
+   pseudo-element, and `::after` cannot render on a replaced element like
+   `<img>` in any browser -- applying the class straight to the image would
+   silently keep the grayscale/contrast filter (a real CSS property) while
+   the dot overlay never appears. The filter itself is scoped to the `<img>`
+   child so both halves of the treatment render correctly. */
+.halftone {
+    position: relative;
+    overflow: hidden;
+}
+.halftone > img {
+    filter: grayscale(0.35) contrast(1.15);
+}
+.halftone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.22) 30%, transparent 32%);
+    background-size: 3px 3px;
+    mix-blend-mode: multiply;
+}

@@ -1,0 +1,185 @@
+/**
+ * Component CSS for the app shell (masthead, footer, placeholder pages,
+ * the night overlay). Every color/size here reads a token from
+ * `../styles/tokens.css` -- no hex value belongs in this file.
+ *
+ * Fluid at both 1024x600 (the designed size) and 800x480 (the documented
+ * worst case): no fixed-width elements, `clamp()` for the type that would
+ * otherwise overflow a narrow viewport, and the tab row's tap targets
+ * stay >= `--tap-min` at either size. Layer counts are dropped at the
+ * 800x480 breakpoint per the phase spec ("the masthead's right-hand
+ * layer counts may be dropped at this size, nothing else changes").
+ */
+
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.page {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    padding: var(--space-4) clamp(var(--space-3), 4vw, var(--space-6));
+}
+
+/* — masthead — */
+.masthead {
+    padding: var(--space-3) clamp(var(--space-3), 4vw, 28px) 0;
+    flex: none;
+}
+
+.masthead-top {
+    display: flex;
+    align-items: baseline;
+    gap: clamp(var(--space-2), 3vw, var(--space-4));
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.masthead-brand {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(20px, 3vw, var(--masthead-brand-size));
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+}
+
+.masthead-locality {
+    font-size: var(--masthead-locality-size);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.masthead-clock {
+    margin-left: auto;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(18px, 3vw, var(--masthead-clock-size));
+    white-space: nowrap;
+}
+
+.masthead-rule-thick {
+    height: var(--masthead-rule-thick);
+    background: var(--color-text);
+    margin-top: var(--space-3);
+}
+
+.masthead-rule-thin {
+    height: var(--masthead-rule-thin);
+    background: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+.masthead-tabs {
+    display: flex;
+    align-items: center;
+    gap: clamp(var(--space-3), 3vw, 30px);
+    height: var(--masthead-tab-row-height);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.masthead-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.masthead-tab,
+.masthead-settings-link {
+    font-size: clamp(15px, 2.4vw, var(--masthead-tab-size));
+    color: var(--color-muted);
+    display: inline-flex;
+    align-items: center;
+    height: var(--tap-min);
+    white-space: nowrap;
+}
+
+.masthead-tab--active {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    color: var(--color-accent);
+    box-shadow: inset 0 -3px 0 0 var(--color-accent);
+}
+
+.masthead-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: clamp(var(--space-3), 3vw, 26px);
+    font-size: var(--masthead-status-size);
+    color: var(--color-muted);
+    min-width: 0;
+}
+
+.masthead-layer-counts {
+    white-space: nowrap;
+}
+
+.masthead-stale-banner {
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-process-yellow);
+    white-space: nowrap;
+}
+
+/* Per the phase spec: the layer-count slot may be dropped at the 800x480
+   worst case; nothing else in the masthead changes. */
+@media (max-width: 850px) {
+    .masthead-layer-counts {
+        display: none !important;
+    }
+}
+
+/* — footer — */
+.footer-line {
+    flex: none;
+    padding: var(--space-2) clamp(var(--space-3), 4vw, 28px) var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--footer-size);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+
+.footer-attribution,
+.footer-updated,
+.footer-night-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* — placeholder pages (Phase 5 only; replaced page-by-page from Phase 6) — */
+.page-placeholder-title {
+    font-size: clamp(28px, 6vw, 52px);
+    letter-spacing: -0.02em;
+}
+
+.page-placeholder-locality {
+    font-size: 15px;
+    font-style: italic;
+    color: var(--color-muted);
+    margin-top: var(--space-2);
+}
+
+.page-placeholder-body {
+    font-size: 15px;
+    color: var(--color-muted);
+    margin-top: var(--space-3);
+}
+
+/* — night/brightness overlay — */
+.display-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-overlay);
+    pointer-events: none;
+    z-index: 1000;
+    transition: opacity 0.3s ease;
+}

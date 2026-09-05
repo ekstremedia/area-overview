@@ -1,0 +1,141 @@
+/**
+ * Design tokens -- the ONE file in this app allowed to contain a raw hex
+ * color value. Every other file references a `var(--...)` defined here.
+ *
+ * Adapted from `design/broadsheet/styles.css` (the vendored Broadsheet
+ * design system) plus this app's own additions (tap target size, masthead
+ * sizes, font-scale multiplier). Broadsheet's neutral ramp is *light-mode
+ * native* (paper `#f3f2f2` background, ink `#100f0f` text); this app is a
+ * kiosk display that defaults to dark ("night edition" per
+ * `design/README.md`), so `[data-theme="dark"]` inverts the neutral ramp
+ * (ink becomes the ground, paper becomes the text) and resolves the two
+ * accent roles to their 400 step -- see `design/README.md`'s "Light
+ * theme" section: the *light* theme is Broadsheet's own uninverted
+ * tokens at the 500 step, nothing redesigned for it.
+ */
+
+:root {
+    /* Broadsheet's neutral ramp, light/paper orientation (the default,
+       used by [data-theme="light"] and as the fallback before JS applies
+       a theme attribute at all). */
+    --color-neutral-100: #f8f4f4;
+    --color-neutral-200: #eae7e7;
+    --color-neutral-300: #d7d3d3;
+    --color-neutral-400: #bab6b6;
+    --color-neutral-500: #9b9797;
+    --color-neutral-600: #7d7979;
+    --color-neutral-700: #605d5d;
+    --color-neutral-800: #444141;
+    --color-neutral-900: #2d2b2b;
+
+    --color-accent-100: #e9f8ff;
+    --color-accent-200: #cbeeff;
+    --color-accent-300: #99e0ff;
+    --color-accent-400: #62c5ee;
+    --color-accent-500: #38a6cf;
+    --color-accent-600: #1186ac;
+    --color-accent-700: #006786;
+    --color-accent-800: #004961;
+    --color-accent-900: #0a303e;
+
+    --color-accent-2-100: #fff1f4;
+    --color-accent-2-200: #ffdee6;
+    --color-accent-2-300: #ffc0d0;
+    --color-accent-2-400: #ff90b1;
+    --color-accent-2-500: #ff458e;
+    --color-accent-2-600: #d82071;
+    --color-accent-2-700: #aa0b56;
+    --color-accent-2-800: #790e3d;
+    --color-accent-2-900: #4b1528;
+
+    /* Warnings only -- stale-data banner, NOAA alert, an old camera image,
+       the tide curve's now-line. Never body copy or chrome. */
+    --color-process-yellow: #edbb00;
+
+    /* Print-oriented ground/paper pair, named for what they mean rather
+       than their light/dark role, since which one is "background" and
+       which is "text" flips between themes below. */
+    --color-ink: #100f0f;
+    --color-paper: #f3f2f2;
+
+    /* Semantic roles -- these are what components should actually read.
+       Light theme (Broadsheet's own, uninverted): paper ground, ink text,
+       accents at the 500 step (readme: "the accent-to-ground pair is
+       tuned to at least 3:1 -- enough for icons, large text and interface
+       chrome, not for body copy"). */
+    --color-bg: var(--color-paper);
+    --color-text: var(--color-ink);
+    --color-accent: var(--color-accent-500);
+    --color-accent-2: var(--color-accent-2-500);
+    --color-muted: var(--color-neutral-700);
+    --color-divider: var(--color-neutral-300);
+
+    --font-heading: 'Source Serif 4 Variable', 'Source Serif 4', system-ui, sans-serif;
+    --font-heading-weight: 600;
+    --font-body: 'Source Serif 4 Variable', 'Source Serif 4', system-ui, sans-serif;
+
+    --space-1: 5px;
+    --space-2: 10px;
+    --space-3: 15px;
+    --space-4: 20px;
+    --space-6: 30px;
+    --space-8: 40px;
+
+    --radius-sm: 1px;
+    --radius-md: 2px;
+    --radius-lg: 4px;
+
+    /* This app's own tokens (not in Broadsheet). */
+    --tap-min: 44px;
+
+    /* The night/brightness overlay is pure black regardless of theme
+       (artboard 09), not the ink ground -- a separate token rather than
+       reusing `--color-ink` so the two can never accidentally drift apart. */
+    --color-overlay: #000;
+
+    /* Masthead. Sizes read from `design/artboards.html`'s masthead markup
+       (artboards 01-05), which is identical across pages. */
+    --masthead-brand-size: 26px;
+    --masthead-locality-size: 11px;
+    --masthead-clock-size: 26px;
+    --masthead-rule-thick: 3px;
+    --masthead-rule-thin: 1px;
+    --masthead-tab-row-height: 52px;
+    --masthead-tab-size: 21px;
+    --masthead-status-size: 13px;
+
+    /* Footer line. */
+    --footer-size: 11px;
+
+    /* Stat numerals -- reserved now, rendered from Phase 6+ (point
+       forecast 96px, Netatmo temperature 168px, Kp 150px, tide level
+       104px per `design/README.md`). */
+    --stat-size-xl: 168px;
+    --stat-size-lg: 150px;
+    --stat-size-md: 104px;
+    --stat-size-sm: 96px;
+
+    /* How much `fontScale` (device settings, 0.8-1.6) multiplies the root
+       font size by. Set from JS (`src/web/shell/theme.ts`); 1 is the
+       neutral default so the app renders sanely before that runs. */
+    --font-scale-multiplier: 1;
+
+    color-scheme: dark light;
+}
+
+/**
+ * The night edition: ink ground, paper text, accents resolved to their
+ * 400 step (`design/README.md`: "cyan `--color-accent-400` ... is
+ * everything interactive ... magenta `--color-accent-2-400` ... is the
+ * rarer second colour"). This is the default kiosk theme -- see
+ * `src/web/shell/theme.ts` for how `data-theme` gets set (device
+ * settings default to `dark`; a kiosk that's white at 3am is a lamp).
+ */
+[data-theme='dark'] {
+    --color-bg: var(--color-ink);
+    --color-text: var(--color-paper);
+    --color-accent: var(--color-accent-400);
+    --color-accent-2: var(--color-accent-2-400);
+    --color-muted: var(--color-neutral-600);
+    --color-divider: var(--color-neutral-800);
+}
