@@ -32,22 +32,54 @@ jobs:
 
             - name: Enforce initial JS bundle gzip budget
               run: |
-                  set -euo pipefail
-                  BUDGET_BYTES=61440 # 60 KB
-                  TOTAL=0
-                  shopt -s nullglob
-                  files=(dist/web/assets/*.js)
-                  if [ "${#files[@]}" -eq 0 ]; then
-                    echo "::error::Build produced no JavaScript assets"
-                    exit 1
-                  fi
-                  for f in "${files[@]}"; do
-                    SIZE=$(gzip -c "$f" | wc -c)
-                    echo "$f: ${SIZE} bytes gzipped"
-                    TOTAL=$((TOTAL + SIZE))
-                  done
-                  echo "Total initial JS gzipped: ${TOTAL} bytes (budget: ${BUDGET_BYTES})"
-                  if [ "$TOTAL" -gt "$BUDGET_BYTES" ]; then
-                    echo "::error::Initial JS bundle (${TOTAL} bytes gzipped) exceeds the ${BUDGET_BYTES} byte budget"
-                    exit 1
-                  fi
+                  node -e "
+                  const fs = require('fs');
+                  const path = require('path');
+                  const zlib = require('zlib');
+
+                  const BUDGET_BYTES = 61440; // 60 KB
+                  const MANIFEST_PATH = 'dist/web/.vite/manifest.json';
+
+                  // Load and parse manifest
+                  if (!fs.existsSync(MANIFEST_PATH)) {
+                    console.error('::error::Build manifest not found at ' + MANIFEST_PATH);
+                    process.exit(1);
+                  }
+
+                  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
+
+                  // Find all entry chunks (isEntry: true)
+                  const entryChunks = [];
+                  for (const [key, entry] of Object.entries(manifest)) {
+                    if (entry.isEntry === true && entry.file) {
+                      entryChunks.push(entry.file);
+                    }
+                  }
+
+                  if (entryChunks.length === 0) {
+                    console.error('::error::Build manifest contains no entry chunks');
+                    process.exit(1);
+                  }
+
+                  // Calculate total gzipped size of entry chunks
+                  let total = 0;
+                  for (const file of entryChunks) {
+                    const fullPath = path.join('dist/web', file);
+                    if (!fs.existsSync(fullPath)) {
+                      console.error('::error::Entry chunk file not found: ' + fullPath);
+                      process.exit(1);
+                    }
+                    const content = fs.readFileSync(fullPath);
+                    const gzipped = zlib.gzipSync(content);
+                    const size = gzipped.length;
+                    console.log(fullPath + ': ' + size + ' bytes gzipped');
+                    total += size;
+                  }
+
+                  console.log('Total initial JS gzipped: ' + total + ' bytes (budget: ' + BUDGET_BYTES + ')');
+
+                  if (total > BUDGET_BYTES) {
+                    console.error('::error::Initial JS bundle (' + total + ' bytes gzipped) exceeds the ' + BUDGET_BYTES + ' byte budget');
+                    process.exit(1);
+                  }
+                  "
