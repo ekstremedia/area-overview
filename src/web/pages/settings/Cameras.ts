@@ -49,7 +49,7 @@ function buildUnplacedDetail(): HTMLElement {
 
 function buildPlacedDetail(
     cameraId: string,
-    placement: Placement,
+    draft: Placement,
     loggedIn: boolean,
     write: (placement: Placement) => ReturnType<import('../../settings/sharedStore.js').SettingsStore['setPlacement']>,
     onRemove: () => void,
@@ -57,8 +57,10 @@ function buildPlacedDetail(
     const el = document.createElement('div');
     el.className = 'camera-row-fields';
 
-    const draft: Placement = { ...placement };
-
+    // `draft` is owned by the caller (`buildRow`), not copied here, so that
+    // `write()`'s retry closure can always read the CURRENT lat/lng values
+    // (including edits made to the other field after this write started)
+    // rather than closing over a stale snapshot.
     const latField = numberField({
         value: draft.lat,
         schema: PlacementSchema.shape.lat,
@@ -139,6 +141,16 @@ function buildRow(
     let isPlaced = placement !== null;
     let removedPlacement: Placement | null = null;
     let undoTimer: ReturnType<typeof setTimeout> | undefined;
+    // The live lat/lng draft for the currently-rendered placed detail, owned
+    // here (not inside `buildPlacedDetail`) so `write()`'s retry can always
+    // recompose from the CURRENT values rather than a stale snapshot.
+    let placementDraft: Placement | null = null;
+    // Monotonically increasing token: if a newer write (e.g. editing lng)
+    // starts while an older one (e.g. editing lat) is still in flight, the
+    // older one's eventual resolution must not clobber the shared
+    // `indicatorStatus` with its own (possibly out-of-order) result -- same
+    // pattern as `autosave.ts`'s `inFlightToken`.
+    let writeToken = 0;
     // While an undo affordance is showing, `update()` still tracks
     // `isPlaced` silently (so it knows the true state once the window
     // closes) but must not touch the DOM -- otherwise the very settings
@@ -153,20 +165,26 @@ function buildRow(
     let currentIdleLabel = '';
 
     function write(next: Placement): ReturnType<typeof store.setPlacement> {
+        const token = ++writeToken;
         indicatorStatus.set({ kind: 'saving' });
         const promise = store.setPlacement(camera.camera_id, next);
         void promise.then((result) => {
+            if (token !== writeToken) return; // superseded by a newer write to this row; ignore this stale result
+
             if (result.ok) {
                 indicatorStatus.set({ kind: 'saved' });
                 setTimeout(() => {
-                    indicatorStatus.set({ kind: 'idle' });
+                    if (token === writeToken) indicatorStatus.set({ kind: 'idle' });
                 }, 1500);
             } else {
                 indicatorStatus.set({
                     kind: 'error',
                     message: result.error.message,
                     retry: () => {
-                        void write(next);
+                        // Recompose from the CURRENT draft, not `next` -- the
+                        // other field may have been edited since this write
+                        // was originally issued.
+                        void write(placementDraft ? { ...placementDraft } : next);
                     },
                 });
             }
@@ -178,11 +196,13 @@ function buildRow(
         detailSlot.innerHTML = '';
         fields = undefined;
         if (placement2 === null) {
+            placementDraft = null;
             detailSlot.append(buildUnplacedDetail());
             setIndicatorIdleLabel(false);
             return;
         }
-        const built = buildPlacedDetail(camera.camera_id, placement2, loggedIn, write, () => {
+        placementDraft = { ...placement2 };
+        const built = buildPlacedDetail(camera.camera_id, placementDraft, loggedIn, write, () => {
             removedPlacement = placement2;
             showingUndo = true;
             void store.setPlacement(camera.camera_id, null);

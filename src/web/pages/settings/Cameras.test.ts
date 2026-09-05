@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, err } from '../../../shared/result.js';
+import { ok, err, type Result } from '../../../shared/result.js';
 import type { Camera, CameraListResponse } from '../../../shared/schemas/camera.js';
 import { SettingsSchema, type Settings } from '../../../shared/schemas/settings.js';
 import { signal } from '../../core/signal.js';
@@ -160,6 +160,113 @@ describe('Cameras section', () => {
         await vi.waitFor(() => {
             expect(container.querySelector('.save-indicator--error')).not.toBeNull();
         });
+
+        dispose();
+    });
+
+    it('overlapping lat/lng writes: an out-of-order-settling stale write must not clobber the shared indicator', async () => {
+        setCameras([camera()]);
+        const { store, setPlacement } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
+
+        let resolveLatWrite!: (result: Result<Settings>) => void;
+        let resolveLngWrite!: (result: Result<Settings>) => void;
+        setPlacement.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveLatWrite = resolve;
+                }),
+        );
+        setPlacement.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveLngWrite = resolve;
+                }),
+        );
+
+        const container = document.createElement('div');
+        document.body.append(container);
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const inputs = container.querySelectorAll<HTMLInputElement>('.number-field-input');
+        const latInput = inputs[0];
+        const lngInput = inputs[1];
+        if (!latInput || !lngInput) throw new Error('lat/lng inputs not found');
+
+        latInput.focus();
+        latInput.value = '68.72';
+        latInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await vi.advanceTimersByTimeAsync(500); // lat's debounce fires -- write #1 in flight
+
+        lngInput.focus();
+        lngInput.value = '15.5';
+        lngInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await vi.advanceTimersByTimeAsync(500); // lng's debounce fires -- write #2 in flight
+
+        expect(setPlacement).toHaveBeenCalledTimes(2);
+
+        // The SECOND write (lng, started later) settles FIRST, successfully.
+        resolveLngWrite(ok(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.72, lng: 15.5 } } })));
+        await vi.waitFor(() => {
+            expect(container.querySelector('.save-indicator--saved')).not.toBeNull();
+        });
+
+        // The FIRST write (lat, started earlier) settles LAST, with an error.
+        // Being superseded, it must not override the indicator that the
+        // newer (lng) write already reported as saved.
+        resolveLatWrite(err({ message: 'boom' }));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(container.querySelector('.save-indicator--error')).toBeNull();
+        expect(container.querySelector('.save-indicator--saved')).not.toBeNull();
+
+        dispose();
+    });
+
+    it('retry recomposes the placement from the current lat/lng draft, including a field edited after the failed write was issued', async () => {
+        setCameras([camera()]);
+        const { store, setPlacement } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
+        // Both the lat write AND its retry fail, so the retry affordance
+        // (and its closure) stays put through the whole sequence below.
+        setPlacement.mockResolvedValueOnce(err({ message: 'boom' })).mockResolvedValueOnce(err({ message: 'boom again' }));
+
+        const container = document.createElement('div');
+        document.body.append(container);
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const inputs = container.querySelectorAll<HTMLInputElement>('.number-field-input');
+        const latInput = inputs[0];
+        const lngInput = inputs[1];
+        if (!latInput || !lngInput) throw new Error('lat/lng inputs not found');
+
+        // Edit lat -- this write fails and shows a retry affordance.
+        latInput.focus();
+        latInput.value = '68.72';
+        latInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.save-indicator--error')).not.toBeNull();
+        });
+
+        // Edit lng too, and let ITS write also fail -- both fields are now
+        // reflected in the shared draft, and the retry shown is for lng's
+        // (later, still-current) failure.
+        lngInput.focus();
+        lngInput.value = '15.9';
+        lngInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.save-indicator-retry')).not.toBeNull();
+        });
+
+        setPlacement.mockClear();
+        setPlacement.mockResolvedValueOnce(ok({ lat: 68.72, lng: 15.9 }));
+        container.querySelector<HTMLButtonElement>('.save-indicator-retry')?.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Retry must resend the full, current placement -- both the earlier
+        // lat edit and the lng edit that triggered this specific failure.
+        expect(setPlacement).toHaveBeenCalledWith('sigerfjord_01', { lat: 68.72, lng: 15.9 });
 
         dispose();
     });

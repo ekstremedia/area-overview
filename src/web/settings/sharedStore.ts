@@ -17,6 +17,15 @@
  * ultimately touch top-level keys -- `placements` for the latter); every
  * incoming server snapshot is merged against it via `mergeServerSnapshot`,
  * so every *other* field updates normally while pending ones don't.
+ *
+ * `pendingFields` is a reference count (`Map<keyof Settings, number>`), not
+ * a `Set`: if two writes touch the same field and their in-flight windows
+ * overlap (e.g. two rapid edits to the same field before the first
+ * request resolves), the field must stay "pending" until *both* writes
+ * have settled, not just the first one to finish. A `Set` with an
+ * unconditional delete-on-settle would let the first write's completion
+ * clear the mark while the second is still in flight, exposing a window
+ * where a poll can clobber the second write's optimistic value.
  */
 import { err, ok, type Result } from '../../shared/result.js';
 import { SettingsSchema, type Placement, type Settings, type SettingsPatch } from '../../shared/schemas/settings.js';
@@ -75,7 +84,21 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
     // `state` instead avoids ever creating that cycle.
     let state: Settings = DEFAULT_SETTINGS;
     const current = signal<Settings>(state);
-    const pendingFields = new Set<keyof Settings>();
+    const pendingFields = new Map<keyof Settings, number>();
+
+    function incrementPending(field: keyof Settings): void {
+        pendingFields.set(field, (pendingFields.get(field) ?? 0) + 1);
+    }
+
+    /** Decrements the reference count for `field`, only actually clearing the pending mark once it reaches zero. */
+    function decrementPending(field: keyof Settings): void {
+        const count = pendingFields.get(field) ?? 0;
+        if (count <= 1) {
+            pendingFields.delete(field);
+        } else {
+            pendingFields.set(field, count - 1);
+        }
+    }
 
     function setState(next: Settings): void {
         state = next;
@@ -88,7 +111,7 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
             return;
         }
         const merged: Settings = { ...serverValue };
-        for (const field of pendingFields) {
+        for (const field of pendingFields.keys()) {
             (merged as Record<keyof Settings, unknown>)[field] = state[field];
         }
         setState(merged);
@@ -132,11 +155,22 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
         const previousValues: Record<string, unknown> = {};
         for (const field of fields) previousValues[field] = stateAsRecord[field];
 
-        for (const field of fields) pendingFields.add(field);
+        for (const field of fields) incrementPending(field);
         setState(withFields(state, fields, patch));
 
         function rollback(): void {
             setState(withFields(state, fields, previousValues));
+        }
+
+        // Ensures each field's pending reference count is decremented exactly
+        // once for this call, regardless of which return/throw path is taken
+        // below (the explicit call before `mergeServerSnapshot` on success,
+        // and the `finally` block for every other path).
+        let released = false;
+        function release(): void {
+            if (released) return;
+            released = true;
+            for (const field of fields) decrementPending(field);
         }
 
         try {
@@ -163,14 +197,14 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
                 return err({ message: 'PATCH /api/settings returned a payload that failed schema validation', cause: parsed.error });
             }
 
-            for (const field of fields) pendingFields.delete(field);
+            release();
             mergeServerSnapshot(parsed.data);
             return ok(parsed.data);
         } catch (cause) {
             rollback();
             return err({ message: 'Network error while saving settings', cause });
         } finally {
-            for (const field of fields) pendingFields.delete(field);
+            release();
         }
     }
 
@@ -181,11 +215,20 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
                 ? Object.fromEntries(Object.entries(previousPlacements).filter(([id]) => id !== cameraId))
                 : { ...previousPlacements, [cameraId]: placement };
 
-        pendingFields.add('placements');
+        incrementPending('placements');
         setState({ ...state, placements: optimisticPlacements });
 
         function rollback(): void {
             setState({ ...state, placements: previousPlacements });
+        }
+
+        // See the matching comment in `patchSettings` -- guards against a
+        // double decrement of the same reference count from this call.
+        let released = false;
+        function release(): void {
+            if (released) return;
+            released = true;
+            decrementPending('placements');
         }
 
         try {
@@ -215,14 +258,14 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
                 return err({ message: 'Placement write returned a payload that failed schema validation', cause: parsed.error });
             }
 
-            pendingFields.delete('placements');
+            release();
             mergeServerSnapshot(parsed.data);
             return ok(parsed.data);
         } catch (cause) {
             rollback();
             return err({ message: 'Network error while saving the camera placement', cause });
         } finally {
-            pendingFields.delete('placements');
+            release();
         }
     }
 

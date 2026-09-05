@@ -198,6 +198,57 @@ describe('createSettingsStore', () => {
         store.dispose();
     });
 
+    it('two overlapping writes to the same field: the first settling must not un-pend the field while the second is still in flight', async () => {
+        const initial = SettingsSchema.parse({ brightness: 50 });
+        let resolveFirstWrite!: (r: Response) => void;
+        let resolveSecondWrite!: (r: Response) => void;
+        const fetchMock = vi
+            .fn()
+            // initial GET
+            .mockResolvedValueOnce(jsonResponse(200, initial))
+            // first write to `brightness` -- resolves first, but should NOT
+            // clear the pending mark while the second write is still in flight
+            .mockImplementationOnce(
+                () =>
+                    new Promise<Response>((resolve) => {
+                        resolveFirstWrite = resolve;
+                    }),
+            )
+            // second, overlapping write to `brightness`
+            .mockImplementationOnce(
+                () =>
+                    new Promise<Response>((resolve) => {
+                        resolveSecondWrite = resolve;
+                    }),
+            );
+        vi.stubGlobal('fetch', fetchMock);
+
+        const store = createSettingsStore({ pollIntervalMs: 1000 });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(store.settings.get().brightness).toBe(50);
+
+        const firstWrite = store.patchSettings({ brightness: 60 });
+        const secondWrite = store.patchSettings({ brightness: 70 });
+        expect(store.settings.get().brightness).toBe(70); // second write's optimistic value wins locally
+
+        // The first write settles now, while the second is still in flight.
+        // A stale poll response landing right after must not clobber the
+        // second write's still-pending optimistic value.
+        fetchMock.mockResolvedValueOnce(jsonResponse(200, SettingsSchema.parse({ brightness: 60 })));
+        resolveFirstWrite(jsonResponse(200, SettingsSchema.parse({ brightness: 60 })));
+        await firstWrite;
+        await vi.advanceTimersByTimeAsync(1000); // let the poll fire and resolve
+
+        expect(store.settings.get().brightness).toBe(70); // still the second write's optimistic value, not the stale poll
+
+        resolveSecondWrite(jsonResponse(200, SettingsSchema.parse({ brightness: 70 })));
+        const secondResult = await secondWrite;
+        expect(secondResult.ok).toBe(true);
+        expect(store.settings.get().brightness).toBe(70);
+
+        store.dispose();
+    });
+
     it('sends the stored password as a Bearer header on every write', async () => {
         const initial = SettingsSchema.parse({});
         const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(200, initial)).mockResolvedValueOnce(jsonResponse(200, initial));
