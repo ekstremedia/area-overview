@@ -213,6 +213,24 @@ describe('PATCH /api/settings', () => {
 
         expect(response.statusCode).toBe(503);
     });
+
+    it('the 503 response never leaks the absolute settings file path or raw parse error', async () => {
+        const { writeFile } = await import('node:fs/promises');
+        await writeFile(settingsFile, '{ not valid json', 'utf8');
+        const app = buildApp();
+
+        const response = await app.inject({
+            method: 'PATCH',
+            url: '/api/settings',
+            headers: { authorization: `Bearer ${PASSWORD}` },
+            payload: { pollIntervalSeconds: 60 },
+        });
+
+        expect(response.statusCode).toBe(503);
+        expect(response.body).not.toContain(settingsFile);
+        expect(response.body).not.toContain(dir);
+        expect(response.json<{ error: string }>().error).toBe('Settings are temporarily read-only; check server logs.');
+    });
 });
 
 describe('PUT and DELETE /api/settings/placements/:cameraId', () => {

@@ -38,7 +38,13 @@ async function writeAndRespond(reply: FastifyReply, write: () => Promise<Setting
         reply.send(settings);
     } catch (error) {
         if (error instanceof SettingsWritesRefusedError) {
-            reply.code(503).send({ error: error.message });
+            // `error.message` includes the resolved absolute settings file
+            // path and the raw JSON/Zod parse failure text -- useful in a
+            // server log, not something to hand back over an
+            // internet-facing API. The detailed reason was already logged
+            // server-side by `SettingsStore` (via its `logger.error` call)
+            // when the refusal state was first entered.
+            reply.code(503).send({ error: 'Settings are temporarily read-only; check server logs.' });
             return;
         }
         throw error;
