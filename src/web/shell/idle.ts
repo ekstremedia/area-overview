@@ -2,10 +2,20 @@
  * Idle-reset: fires `onIdle` after `settings.idleResetSeconds` of no
  * touch/key activity. What "reset" means (navigate to `#/`, close
  * popups) is the caller's problem -- this module only owns the timer.
+ *
+ * `IDLE_RESET_EVENT` is a second, event-based notification fired on
+ * `target` (`window` by default) at the same moment `onIdle` runs. It
+ * exists for a page that's *already mounted on the idle destination* and
+ * therefore never sees a `hashchange`/route change to react to (the
+ * default `onIdle` sets `location.hash = '#/'`, which is a no-op -- no
+ * event at all -- when the hash is already `#/`): `MapPage.ts` listens for
+ * this event to re-apply `settings.homeView` without needing a remount.
  */
 import type { Settings } from '../../shared/schemas/settings.js';
 import { effect, type ReadonlySignal } from '../core/signal.js';
 import { settings as sharedSettings } from '../settings-resource.js';
+
+export const IDLE_RESET_EVENT = 'area-overview:idle-reset';
 
 export interface StartIdleResetOptions {
     /** Reactive source of `idleResetSeconds`. Defaults to the shared settings resource; tests inject their own. */
@@ -41,10 +51,15 @@ export function startIdleReset(options: StartIdleResetOptions = {}): () => void 
         }
     }
 
+    function fire(): void {
+        target.dispatchEvent(new CustomEvent(IDLE_RESET_EVENT));
+        onIdle();
+    }
+
     function arm(seconds: number): void {
         clear();
         if (seconds <= 0) return; // 0 disables idle-reset entirely: no timer at all.
-        timer = setTimeout(onIdle, seconds * 1000);
+        timer = setTimeout(fire, seconds * 1000);
     }
 
     const disposeEffect = effect(() => {
