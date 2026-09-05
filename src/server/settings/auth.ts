@@ -5,15 +5,18 @@
  * and this endpoint is reachable from the open internet with no other
  * auth in front of it, so the two properties that matter are: a wrong
  * guess must not be distinguishable from a missing header by timing, and
- * a flood of guesses must not be able to go faster than one per second.
+ * each individual failed request costs the caller a fixed ~1s before it
+ * gets a response.
  *
- * Deliberately absent: any lockout/ban/counter keyed by IP or anything
- * else. A per-IP lockout here would recreate, one layer up in this same
- * codebase, a real incident where an automated ban system took an entire
- * shared public IP offline for an hour after a handful of failed
- * attempts through a hairpinned LAN path. The fixed per-request delay
- * below is the *entire* defense against brute force; it holds no state
- * across requests.
+ * That per-request delay does NOT impose a global "one guess per second"
+ * cap -- it holds no state across requests, so N concurrent wrong guesses
+ * all come back after ~1s regardless of N; throughput is bounded by
+ * connection concurrency, not by a real rate limit. That is deliberate,
+ * not a bug to fix: any lockout/ban/counter keyed by IP or anything else
+ * would recreate, one layer up in this same codebase, a real incident
+ * where an automated ban system took an entire shared public IP offline
+ * for an hour after a handful of failed attempts through a hairpinned
+ * LAN path. Do not add per-IP or global request-counting state here.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
