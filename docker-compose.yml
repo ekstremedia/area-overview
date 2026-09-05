@@ -1,0 +1,50 @@
+# Production stack for area.nesthus.no -- one service, no database, no
+# cache, nothing else. Apache in front of this box terminates TLS and
+# reverse-proxies to the app on the loopback port below (see
+# deploy/manual-steps.md for the one-time hostname/cert setup).
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose logs -f app
+#   docker compose down
+
+services:
+    app:
+        build: .
+        restart: unless-stopped
+        # `.env` (created by `make init`, never committed) holds every secret
+        # and config value this app reads -- see .env.example. This file itself
+        # contains no secrets.
+        env_file: .env
+        environment:
+            # Binding all interfaces INSIDE the container is required for
+            # Docker's own port-publishing mechanism to reach the process at
+            # all -- Docker's userland proxy/NAT connects to the container's
+            # network namespace, not to `127.0.0.1` inside it, so a process
+            # bound only to its own loopback would be unreachable even with a
+            # correct `ports:` mapping below. This is NOT the security boundary;
+            # the `ports:` line below is. Never remove the `127.0.0.1:` prefix
+            # there to "simplify" this.
+            HOST: 0.0.0.0
+        ports:
+            # `127.0.0.1:` is mandatory and is the ONLY thing standing between
+            # this app and the entire Wi-Fi network. Docker publishes ports via
+            # `nat PREROUTING`, which the host firewall's INPUT chain never
+            # sees -- a bare "8141:8141" (implicit 0.0.0.0) would be reachable
+            # from any device on the LAN, bypassing Apache and its TLS/auth
+            # entirely. This is not theoretical: a different project on this
+            # box did exactly that and was reachable from the whole Wi-Fi
+            # network until the bind address was fixed.
+            - '127.0.0.1:8141:8141'
+        volumes:
+            # SETTINGS_FILE defaults to data/settings.json, resolved relative to
+            # the app's cwd (/app inside the container, see Dockerfile WORKDIR)
+            # -- so this must land at /app/data for the settings store to
+            # persist across container recreation.
+            - ./data:/app/data
+        logging:
+            # Caps log growth so a chatty week can't fill the disk.
+            driver: json-file
+            options:
+                max-size: '10m'
+                max-file: '3'
