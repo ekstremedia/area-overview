@@ -20,6 +20,7 @@ import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { nightSchedule } from '../shell/night-schedule.js';
 import './map/map.css';
+import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
 import { startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer, markerData } from './map/markers.js';
@@ -63,6 +64,7 @@ export function render(container: HTMLElement): () => void {
         if (isDisposed()) return; // navigated away before Leaflet finished loading
 
         const map = L.map(mapDiv);
+        activeMapInstance.set(map);
 
         // — theme-driven tiles, reactive: a device-theme or night-schedule
         // change while this page is open swaps tiles live (via `applyTiles`'s
@@ -128,6 +130,7 @@ export function render(container: HTMLElement): () => void {
         map.on('click', onMapClick);
 
         cleanupInner = (): void => {
+            activeMapInstance.set(null);
             map.off('click', onMapClick);
             disposeForecastPanel();
             forecastController.dispose();

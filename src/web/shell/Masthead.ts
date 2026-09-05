@@ -14,7 +14,7 @@ import { formatTime, t } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE, pageForRoute } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
-import { liveLayerCounts, pageFreshness, pageLocalityOverride } from './page-status.js';
+import { liveLayerCounts, pageAccountStatus, pageFreshness, pageLocalityOverride } from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
 
@@ -68,7 +68,13 @@ export function mountMasthead(container: HTMLElement): () => void {
     settingsLink.className = 'masthead-settings-link';
     settingsLink.href = `#/${SETTINGS_PAGE.name}`;
 
-    status.append(layerCounts, staleBanner, settingsLink);
+    const accountStatusText = document.createElement('span');
+    accountStatusText.className = 'masthead-account-status';
+    const accountLogoutButton = document.createElement('button');
+    accountLogoutButton.type = 'button';
+    accountLogoutButton.className = 'masthead-account-logout';
+
+    status.append(layerCounts, staleBanner, accountStatusText, accountLogoutButton, settingsLink);
     tabRow.append(status);
 
     container.append(top, ruleThick, ruleThin, tabRow);
@@ -146,6 +152,29 @@ export function mountMasthead(container: HTMLElement): () => void {
             staleBanner.textContent = t('masthead.stale', { duration: formatAge(freshness.fetchedAt) });
         }),
     );
+
+    disposers.push(
+        effect(() => {
+            const account = pageAccountStatus.get();
+            if (account === null) {
+                accountStatusText.style.display = 'none';
+                accountLogoutButton.style.display = 'none';
+                return;
+            }
+            accountStatusText.style.display = '';
+            accountLogoutButton.style.display = '';
+            accountStatusText.textContent = account.text;
+            accountLogoutButton.textContent = account.logoutLabel;
+        }),
+    );
+
+    function handleLogoutClick(): void {
+        pageAccountStatus.get()?.onLogout();
+    }
+    accountLogoutButton.addEventListener('click', handleLogoutClick);
+    disposers.push(() => {
+        accountLogoutButton.removeEventListener('click', handleLogoutClick);
+    });
 
     return function dispose(): void {
         for (const disposeOne of disposers) disposeOne();

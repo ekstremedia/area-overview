@@ -29,3 +29,18 @@ export interface LayerCounts {
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = signal(null);
+
+/**
+ * The settings page's login/logout status line, rendered in the
+ * masthead's status area next to the Settings link (same extension-point
+ * pattern as `liveLayerCounts`) -- `null` (the default) means "not on the
+ * settings page, or not logged in", in which case nothing renders. Only
+ * `SettingsPage.ts` ever calls `.set(...)` on this.
+ */
+export interface AccountStatus {
+    text: string;
+    logoutLabel: string;
+    onLogout: () => void;
+}
+
+export const pageAccountStatus: Signal<AccountStatus | null> = signal(null);
