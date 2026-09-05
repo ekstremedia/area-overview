@@ -20,6 +20,27 @@ import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js'
 const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
+// This test's whole job is proving `AppShell.ts` disposes the PREVIOUS
+// page on every navigation, generically, across every route -- not
+// exercising any one page's own internals (Phase 6's `MapPage.ts` has its
+// own unit tests for that under `pages/map/`). `MapPage.ts` mounts real
+// Leaflet via a dynamic `import('leaflet')`, which is exactly the kind of
+// real-network/real-DOM dependency this generic shell test should stay
+// decoupled from -- mocked back to the same synchronous placeholder shape
+// every other route still has, so the technique below (capture a title
+// element, change language, assert only the live page's title moved)
+// keeps working unchanged for every route, map included. The mock
+// factory imports `createPlaceholderPage` itself, dynamically, rather
+// than this file doing so at the top: a static top-level import here
+// would eagerly pull in `i18n/index.js` -> `settings-resource.js` (the
+// mocked module) *before* `mockSettings` above finishes initializing,
+// hitting a temporal-dead-zone `ReferenceError` (mocks are hoisted above
+// regular top-level statements, imports included).
+vi.mock('../pages/MapPage.js', async () => {
+    const { createPlaceholderPage } = await import('../pages/placeholder.js');
+    return { render: createPlaceholderPage('nav.map', 'locality.map') };
+});
+
 const { mountAppShell } = await import('./AppShell.js');
 
 function navigate(hash: string): void {

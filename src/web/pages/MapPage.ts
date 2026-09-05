@@ -1,4 +1,144 @@
-/** Placeholder for Phase 6's map page. See `placeholder.ts`. */
-import { createPlaceholderPage } from './placeholder.js';
+/**
+ * The map page (artboard 01): the app's headline feature. `leaflet` (and
+ * its CSS) is imported dynamically, *inside* `render()`, so the library
+ * never ships in the app's initial bundle -- verify after `npm run
+ * build` that `dist/web/assets/` shows Leaflet as its own separate,
+ * lazily-loaded chunk, not folded into the small entry chunk every other
+ * page shares.
+ *
+ * Ships/aircraft (Phase 7) are NOT wired here -- see `map/layers.ts` for
+ * the minimal registry seam Phase 7 mounts into, and cameras deliberately
+ * bypass it (`map/markers.ts` is hand-wired directly, per Terje's
+ * explicit choice).
+ */
+import type * as Leaflet from 'leaflet';
+import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
+import { deviceSettings } from '../device-settings.js';
+import { effect, signal } from '../core/signal.js';
+import { t } from '../i18n/index.js';
+import { nightSchedule } from '../shell/night-schedule.js';
+import './map/map.css';
+import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
+import { startHomeViewSync } from './map/homeView.js';
+import { createCameraMarkerLayer, markerData } from './map/markers.js';
+import { buildPopupContent } from './map/popup.js';
+import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
 
-export const render = createPlaceholderPage('nav.map', 'locality.map');
+/** Mirrors `shell/theme.ts`'s `resolveBaseTheme` -- kept local rather than importing from there, since that module's `matchMedia` listener is owned by `startThemeApplication`'s own lifecycle (started once, for the app's lifetime), not something this page's mount/unmount should share or re-trigger. */
+function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean): 'dark' | 'light' {
+    if (theme === 'system') return prefersLight ? 'light' : 'dark';
+    return theme;
+}
+
+export function render(container: HTMLElement): () => void {
+    let disposed = false;
+    // Read through a function, not the bare `disposed` variable, below: it
+    // can flip to `true` from `dispose()` while suspended on the `await
+    // Promise.all(...)`, and TS's control-flow narrowing can't see that
+    // closure-based mutation -- reading it directly makes the compiler
+    // (wrongly) treat the check as dead code (same issue documented in
+    // `core/resource.ts`'s `isDisposed()`).
+    function isDisposed(): boolean {
+        return disposed;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'map-page';
+    const mapDiv = document.createElement('div');
+    mapDiv.className = 'map-canvas';
+    wrapper.append(mapDiv);
+    container.append(wrapper);
+
+    const preconnectLink = document.createElement('link');
+    preconnectLink.rel = 'preconnect';
+    document.head.append(preconnectLink);
+
+    let cleanupInner: (() => void) | undefined;
+
+    void (async () => {
+        const [L] = await Promise.all([import('leaflet'), import('leaflet/dist/leaflet.css')]);
+        if (isDisposed()) return; // navigated away before Leaflet finished loading
+
+        const map = L.map(mapDiv);
+
+        // — theme-driven tiles, reactive: a device-theme or night-schedule
+        // change while this page is open swaps tiles live (via `applyTiles`'s
+        // own anti-flash logic), same as any other themed chrome. —
+        const mql = matchMedia('(prefers-color-scheme: light)');
+        const systemPrefersLight = signal(mql.matches);
+        const onMqlChange = (event: MediaQueryListEvent): void => {
+            systemPrefersLight.set(event.matches);
+        };
+        mql.addEventListener('change', onMqlChange);
+
+        const disposeThemeEffect = effect(() => {
+            const night = nightSchedule.get();
+            const base = resolveBaseTheme(deviceSettings.get().theme, systemPrefersLight.get());
+            const theme: Theme = night.mode === 'dark' && night.active ? 'dark' : base;
+            applyTiles(L, map, theme);
+            preconnectLink.href = preconnectOriginFor(theme);
+        });
+
+        // — home view: applied once now, and again on idle-reset; never
+        // reactively re-applied on an unrelated settings poll. —
+        const disposeHomeViewSync = startHomeViewSync(map);
+
+        // — camera markers, updated in place across polls. —
+        const markerLayer = createCameraMarkerLayer(L, map, (camera) =>
+            buildPopupContent(camera, {
+                onClose: () => {
+                    map.closePopup();
+                },
+            }),
+        );
+
+        // — "N cameras without placement" link, bottom-left. —
+        const unplacedLink = document.createElement('a');
+        unplacedLink.className = 'map-unplaced-link';
+        unplacedLink.href = '#/settings';
+        wrapper.append(unplacedLink);
+        const disposeUnplacedEffect = effect(() => {
+            const { unplaced } = markerData.get();
+            if (unplaced.length === 0) {
+                unplacedLink.style.display = 'none';
+                return;
+            }
+            unplacedLink.style.display = '';
+            unplacedLink.textContent = t('map.unplacedLink', { count: unplaced.length });
+        });
+
+        // — tap-empty-map point forecast. Leaflet doesn't fire the map's own
+        // 'click' for a marker click that opens a popup (`Marker`'s
+        // `_openPopup` calls `DomEvent.stop` on the originating event), so no
+        // extra "did this hit a marker" check is needed here. —
+        const forecastController = createPointForecastController();
+        const disposeForecastPanel = mountPointForecastPanel(wrapper, forecastController.state, (lat, lng) => {
+            forecastController.requestForecast(lat, lng);
+        });
+        const onMapClick = (event: Leaflet.LeafletMouseEvent): void => {
+            forecastController.requestForecast(event.latlng.lat, event.latlng.lng);
+        };
+        map.on('click', onMapClick);
+
+        cleanupInner = (): void => {
+            map.off('click', onMapClick);
+            disposeForecastPanel();
+            forecastController.dispose();
+            disposeUnplacedEffect();
+            unplacedLink.remove();
+            markerLayer.dispose();
+            disposeHomeViewSync();
+            disposeThemeEffect();
+            mql.removeEventListener('change', onMqlChange);
+            disposeTiles(map);
+            map.remove();
+        };
+    })();
+
+    return function dispose(): void {
+        disposed = true;
+        cleanupInner?.();
+        preconnectLink.remove();
+        wrapper.remove();
+    };
+}
