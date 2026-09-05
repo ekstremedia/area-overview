@@ -11,6 +11,20 @@ describe('toggle', () => {
         expect(button?.getAttribute('aria-checked')).toBe('true');
     });
 
+    it('exposes the label to assistive tech via aria-label, since the visible label text is an unassociated sibling element', () => {
+        const handle = toggle({ label: 'Skip · AIS', checked: true, onChange: vi.fn() });
+
+        const button = handle.el.querySelector<HTMLButtonElement>('.toggle');
+        expect(button?.getAttribute('aria-label')).toBe('Skip · AIS');
+    });
+
+    it('has no aria-label when no label was given', () => {
+        const handle = toggle({ checked: true, onChange: vi.fn() });
+
+        const button = handle.el.querySelector<HTMLButtonElement>('.toggle');
+        expect(button?.hasAttribute('aria-label')).toBe(false);
+    });
+
     it('calls onChange with the flipped value exactly once per click, synchronously (no debounce)', () => {
         const onChange = vi.fn();
         const handle = toggle({ checked: false, onChange });

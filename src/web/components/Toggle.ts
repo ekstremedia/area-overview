@@ -40,6 +40,7 @@ export function toggle(options: ToggleOptions): ToggleHandle {
     button.type = 'button';
     button.className = 'toggle';
     button.setAttribute('role', 'switch');
+    if (options.label !== undefined) button.setAttribute('aria-label', options.label);
 
     const knob = document.createElement('span');
     knob.className = 'toggle-knob';
