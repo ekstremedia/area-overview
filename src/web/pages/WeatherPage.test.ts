@@ -28,9 +28,10 @@ function mockFetch(weatherBody: unknown, summaryBody: unknown): void {
 
 describe('WeatherPage', () => {
     it('renders temperature, condition and stat cards from a cold mount, no prior navigation', async () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
-
+        // Deliberately NOT pinning the clock here: buildForecastStrip's backfill
+        // logic guarantees FORECAST_HOURS_SHOWN columns regardless of "now" as
+        // long as the fixture has at least that many hourly entries (it has 24),
+        // so this assertion is robust to the real wall clock.
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
@@ -42,6 +43,38 @@ describe('WeatherPage', () => {
         expect(container.querySelector('.weather-temp')?.textContent).toBe('6,2°');
         expect(container.querySelectorAll('.stat-card')).toHaveLength(4);
         expect(container.querySelectorAll('.weather-forecast-column')).toHaveLength(8);
+
+        dispose();
+    });
+
+    it('backfills from the tail of the hourly series so the forecast strip always shows FORECAST_HOURS_SHOWN columns, even when "now" is near the end of the fixture data', async () => {
+        vi.useFakeTimers();
+        // Fixture hourly entries run 2026-09-05T00:00Z..23:00Z (24 entries). Pin
+        // "now" to the last entry: under the old "filter-then-slice" logic only
+        // the single last entry would be "upcoming" (>= now - 30min), so the
+        // strip would have rendered just 1 column instead of 8.
+        vi.setSystemTime(new Date('2026-09-05T23:00:00Z'));
+
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-temp')).not.toBeNull();
+        });
+
+        const columns = container.querySelectorAll('.weather-forecast-column');
+        expect(columns).toHaveLength(8);
+
+        const hours = Array.from(columns).map((column) => column.querySelector('.weather-forecast-hour')?.textContent);
+        // Backfilled from the tail: the last 8 fixture entries (16:00Z..23:00Z),
+        // rendered in the formatter's local timezone.
+        const expectedHours = weatherFixture.forecast.hourly
+            .slice(-8)
+            .map((entry) =>
+                new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(entry.time)).slice(0, 2),
+            );
+        expect(hours).toEqual(expectedHours);
 
         dispose();
         vi.useRealTimers();

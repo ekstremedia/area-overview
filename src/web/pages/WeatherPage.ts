@@ -132,8 +132,12 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     label.textContent = t('weather.forecastLabel');
     strip.append(label);
 
-    const upcoming = weather.forecast.hourly.filter((entry) => new Date(entry.time).getTime() >= now.getTime() - 30 * 60_000);
-    const shown = (upcoming.length > 0 ? upcoming : weather.forecast.hourly).slice(0, FORECAST_HOURS_SHOWN);
+    const firstUpcoming = weather.forecast.hourly.findIndex((entry) => new Date(entry.time).getTime() >= now.getTime() - 30 * 60_000);
+    // Anchor on the first not-yet-elapsed hour, but never render a short
+    // strip: as the series runs out, slide the window back so the strip
+    // always shows FORECAST_HOURS_SHOWN columns when enough data exists.
+    const start = firstUpcoming === -1 ? 0 : Math.min(firstUpcoming, Math.max(0, weather.forecast.hourly.length - FORECAST_HOURS_SHOWN));
+    const shown = weather.forecast.hourly.slice(start, start + FORECAST_HOURS_SHOWN);
 
     const temps = shown.map((entry) => entry.temperature);
     const minTemp = Math.min(...temps);
