@@ -37,6 +37,18 @@ export interface LiveLayerSpec<T> {
      * this equals `SettingsSchema`'s own minimum for that layer.
      */
     minPollSeconds: number;
+    /**
+     * The upper bound on `settings.<id>.pollSeconds`/`.maxAgeMinutes` --
+     * mirrors each field's own `.max()`/`.min()` in `SettingsSchema`
+     * (`ShipsSettingsSchema`/`AircraftSettingsSchema`). Carried here too
+     * (duplicating the schema's own bounds, deliberately) so the settings
+     * page's Layers section can render a `Stepper` for every layer purely
+     * by iterating this array -- no per-layer settings-page code for a
+     * third layer, per this file's own doc comment above.
+     */
+    maxPollSeconds: number;
+    maxAgeMinutesMin: number;
+    maxAgeMinutesMax: number;
     /** Attribution text this layer contributes to the map page's footer while active. */
     attribution: string;
 }
@@ -46,6 +58,9 @@ export const SHIPS_LAYER: LiveLayerSpec<ShipsResponse> = {
     schema: ShipsResponseSchema,
     defaultPollSeconds: 15,
     minPollSeconds: 10,
+    maxPollSeconds: 120,
+    maxAgeMinutesMin: 1,
+    maxAgeMinutesMax: 120,
     attribution: 'Data: Kystverket / BarentsWatch',
 };
 
@@ -54,5 +69,8 @@ export const AIRCRAFT_LAYER: LiveLayerSpec<AircraftResponse> = {
     schema: AircraftResponseSchema,
     defaultPollSeconds: 10,
     minPollSeconds: 5,
+    maxPollSeconds: 120,
+    maxAgeMinutesMin: 1,
+    maxAgeMinutesMax: 60,
     attribution: 'Data: adsb.lol',
 };
