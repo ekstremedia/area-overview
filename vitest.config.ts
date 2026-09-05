@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -6,7 +7,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@shared': new URL('./src/shared', import.meta.url).pathname,
+            '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
         },
     },
 });

@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+    contents: read
+
 on:
     pull_request:
     push:
@@ -10,6 +13,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - uses: actions/setup-node@v4
               with:
@@ -31,7 +36,12 @@ jobs:
                   BUDGET_BYTES=61440 # 60 KB
                   TOTAL=0
                   shopt -s nullglob
-                  for f in dist/web/assets/*.js; do
+                  files=(dist/web/assets/*.js)
+                  if [ "${#files[@]}" -eq 0 ]; then
+                    echo "::error::Build produced no JavaScript assets"
+                    exit 1
+                  fi
+                  for f in "${files[@]}"; do
                     SIZE=$(gzip -c "$f" | wc -c)
                     echo "$f: ${SIZE} bytes gzipped"
                     TOTAL=$((TOTAL + SIZE))
