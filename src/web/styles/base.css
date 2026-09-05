@@ -86,3 +86,23 @@ img {
     user-select: none;
     -webkit-user-select: none;
 }
+
+/* The newsprint dot-screen every camera image takes (design/README.md:
+   "camera images take the .halftone newsprint dot screen"). A generic
+   image-treatment utility, not tied to one page -- Phase 6's map popup is
+   the first consumer, Phase 8's camera grid/viewer reuse it verbatim.
+   Copied exactly from `design/broadsheet/styles.css`. */
+.halftone {
+    position: relative;
+    filter: grayscale(0.35) contrast(1.15);
+    overflow: hidden;
+}
+.halftone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.22) 30%, transparent 32%);
+    background-size: 3px 3px;
+    mix-blend-mode: multiply;
+}
