@@ -194,6 +194,7 @@ export const nb = {
     'settings.cameras.unplaced': 'Uten plassering',
     'settings.cameras.place': 'Plasser på kart',
     'settings.cameras.remove': 'Fjern',
+    'settings.cameras.removedUndo': 'Fjernet · trykk for å angre',
 
     'settings.display.idleReset': 'Hvilereset',
     'settings.display.idleResetOff': 'av',

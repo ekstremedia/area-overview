@@ -194,6 +194,7 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.cameras.unplaced': 'Unplaced',
     'settings.cameras.place': 'Place on map',
     'settings.cameras.remove': 'Remove',
+    'settings.cameras.removedUndo': 'Removed · tap to undo',
 
     'settings.display.idleReset': 'Idle reset',
     'settings.display.idleResetOff': 'off',
