@@ -1,0 +1,43 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+jobs:
+    build-and-check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Typecheck, lint, format, test
+              run: npm run check
+
+            - name: Build
+              run: npm run build
+
+            - name: Enforce initial JS bundle gzip budget
+              run: |
+                  set -euo pipefail
+                  BUDGET_BYTES=61440 # 60 KB
+                  TOTAL=0
+                  shopt -s nullglob
+                  for f in dist/web/assets/*.js; do
+                    SIZE=$(gzip -c "$f" | wc -c)
+                    echo "$f: ${SIZE} bytes gzipped"
+                    TOTAL=$((TOTAL + SIZE))
+                  done
+                  echo "Total initial JS gzipped: ${TOTAL} bytes (budget: ${BUDGET_BYTES})"
+                  if [ "$TOTAL" -gt "$BUDGET_BYTES" ]; then
+                    echo "::error::Initial JS bundle (${TOTAL} bytes gzipped) exceeds the ${BUDGET_BYTES} byte budget"
+                    exit 1
+                  fi
