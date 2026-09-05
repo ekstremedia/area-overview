@@ -72,22 +72,37 @@ export interface CenterRadius {
 
 /**
  * Converts `bbox` to a center + radius (nautical miles) for the v2
- * providers' point+radius query. The radius is half the bbox's diagonal
- * (converted km -> nm, with a longitude degree shrunk by `cos(latitude)`
- * to account for meridian convergence), clamped to
- * `[MIN_RADIUS_NM, MAX_RADIUS_NM]` -- generous enough that the circle
- * fully contains the requested rectangle (no corner missed), simple
- * rather than geodesically exact, and re-filtered to the exact bbox
- * afterwards anyway (see `filterToBbox`), so a generous radius only ever
- * costs a slightly larger fetch, never a correctness problem.
+ * providers' point+radius query. The radius is the true center-to-corner
+ * distance (converted km -> nm), clamped to `[MIN_RADIUS_NM,
+ * MAX_RADIUS_NM]` -- generous enough that the circle fully contains the
+ * requested rectangle (no corner missed), and re-filtered to the exact
+ * bbox afterwards anyway (see `filterToBbox`), so a generous radius only
+ * ever costs a slightly larger fetch, never a correctness problem.
+ *
+ * Deliberately checks BOTH distinct corner latitudes (`minLat`/`maxLat`),
+ * not just the bbox's center latitude: `cos(lat)` shrinks a degree of
+ * longitude toward the poles, so whichever corner is farther from the
+ * equator needs a *smaller* cosine factor -- i.e. a *larger*
+ * longitude-to-km conversion -- than a center-based approximation gives.
+ * Using the center's cosine alone can understate the true corner
+ * distance, especially at this app's high-latitude (~68-69°N) deployment.
+ * The final nm value is also rounded UP (`Math.ceil`), never to nearest:
+ * rounding down could shrink the radius just enough to exclude a real
+ * aircraft sitting at (or just inside) the bbox's corner, and
+ * `withinBbox`'s later re-filter can only ever REMOVE aircraft the
+ * provider returned, never add back one it was never sent in the first
+ * place.
  */
 export function bboxToCenterRadius(bbox: Bbox): CenterRadius {
     const centerLat = (bbox.minLat + bbox.maxLat) / 2;
     const centerLng = (bbox.minLng + bbox.maxLng) / 2;
-    const latKm = (bbox.maxLat - bbox.minLat) * KM_PER_DEGREE_LAT;
-    const lngKm = (bbox.maxLng - bbox.minLng) * KM_PER_DEGREE_LAT * Math.cos((centerLat * Math.PI) / 180);
-    const diagonalKm = Math.hypot(latKm, lngKm);
-    const nm = Math.min(MAX_RADIUS_NM, Math.max(MIN_RADIUS_NM, diagonalKm / 2 / KM_PER_NM));
+    const latHalfKm = ((bbox.maxLat - bbox.minLat) / 2) * KM_PER_DEGREE_LAT;
+    const lngHalfDeg = (bbox.maxLng - bbox.minLng) / 2;
+
+    const cornerKmAt = (lat: number): number => Math.hypot(latHalfKm, lngHalfDeg * KM_PER_DEGREE_LAT * Math.cos((lat * Math.PI) / 180));
+    const maxCornerKm = Math.max(cornerKmAt(bbox.minLat), cornerKmAt(bbox.maxLat));
+
+    const nm = Math.min(MAX_RADIUS_NM, Math.max(MIN_RADIUS_NM, Math.ceil(maxCornerKm / KM_PER_NM)));
     return { lat: centerLat, lon: centerLng, nm };
 }
 

@@ -82,13 +82,56 @@ describe('bboxToCenterRadius', () => {
         expect(lat).toBeCloseTo(69.0);
         expect(lon).toBeCloseTo(17.0);
     });
+
+    // Mirrors provider.ts's own (private) constants so this test can compute
+    // the true, correct center-to-corner distance independently, without
+    // reaching into the module's internals.
+    const KM_PER_DEGREE_LAT = 111;
+    const KM_PER_NM = 1.852;
+
+    /** The true center-to-corner distance (km) for a bbox, using each corner's OWN latitude for the longitude->km conversion -- the geometrically correct baseline this fix's radius must cover. */
+    function trueMaxCornerKm(bbox: Bbox): number {
+        const latHalfKm = ((bbox.maxLat - bbox.minLat) / 2) * KM_PER_DEGREE_LAT;
+        const lngHalfDeg = (bbox.maxLng - bbox.minLng) / 2;
+        const cornerKmAt = (lat: number) => Math.hypot(latHalfKm, lngHalfDeg * KM_PER_DEGREE_LAT * Math.cos((lat * Math.PI) / 180));
+        return Math.max(cornerKmAt(bbox.minLat), cornerKmAt(bbox.maxLat));
+    }
+
+    it('covers the true center-to-corner distance for an asymmetric-latitude bbox at high latitude, where a center-cosine approximation under-covers', () => {
+        // Wide longitude span, narrow-ish latitude span, anchored at this
+        // app's real deployment latitude (~68-69°N): the corner farther from
+        // the equator (70°N) needs a noticeably smaller cosine factor than
+        // the bbox's 69°N center, so a center-based estimate under-shoots.
+        const bbox: Bbox = { minLat: 68.0, minLng: 15.0, maxLat: 70.0, maxLng: 25.0 };
+
+        const { nm } = bboxToCenterRadius(bbox);
+        const requiredNm = trueMaxCornerKm(bbox) / KM_PER_NM;
+
+        // The old center-cosine-based formula rounded to 123nm here; the
+        // true required radius is ~127.26nm. The fix must cover it.
+        expect(requiredNm).toBeGreaterThan(123);
+        expect(nm).toBeGreaterThanOrEqual(requiredNm);
+    });
+
+    it('rounds the radius UP, not to nearest, so a fractional required radius is never under-covered', () => {
+        // The true required radius here is ~64.0025nm -- close enough to a
+        // whole number that naive `Math.round` (or even truncation) would
+        // still land on 64nm, one hair short of covering the actual corner.
+        const bbox: Bbox = { minLat: 68.0, minLng: 15.0, maxLat: 70.0, maxLng: 17.0 };
+
+        const { nm } = bboxToCenterRadius(bbox);
+        const requiredNm = trueMaxCornerKm(bbox) / KM_PER_NM;
+
+        expect(Math.round(requiredNm)).toBeLessThan(requiredNm); // confirms this case actually exercises the rounding boundary
+        expect(nm).toBeGreaterThanOrEqual(requiredNm);
+    });
 });
 
 describe('fetchAircraft (v2 providers)', () => {
     it('fetches from adsb.lol and maps the response', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
 
-        const result = await fetchAircraft(testBbox, { provider: 'adsblol', fetchImpl: fetchMock });
+        const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
 
         expect(result.ok).toBe(true);
         if (result.ok) expect(result.value).toHaveLength(2);
