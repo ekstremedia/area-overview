@@ -1,0 +1,11 @@
+{
+    "summary_no": "Det er lettskyet n\u00e5, og det blir gradvis mer overskyet f\u00f8r morgentimene.\n\nI morgen blir en fin dag med mye sol og temperaturer mellom 6 og 13\u00b0.\n\nDagen etter, p\u00e5 s\u00f8ndag, starter klart, men det skyer til utover kvelden. Det er p\u00e5 vei mot mer ustabilt v\u00e6r.",
+    "summary_en": "It is partly cloudy now, and it will gradually become more overcast before the morning hours.\n\nTomorrow will be a nice day with plenty of sun and temperatures between 6 and 13\u00b0.\n\nThe following day, Sunday, starts clear, but it will cloud over towards the evening. More unstable weather is on the way.",
+    "model": "gemma4:31b-cloud",
+    "generated_at": "2026-09-05T03:00:04+02:00",
+    "location": { "name": "Sortland", "lat": 68.6984, "lon": 15.4129 },
+    "age_minutes": 10,
+    "eval_count": 78,
+    "duration_ms": 1125,
+    "translation_duration_ms": 619
+}
