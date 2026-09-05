@@ -47,7 +47,15 @@ const SAFETY_TIMEOUT_MS = 4000;
 interface TileMapState {
     appliedUrl: string;
     layer: Leaflet.TileLayer;
-    safetyTimer: ReturnType<typeof setTimeout> | undefined;
+    /**
+     * Every safety timer still pending across ALL `applyTiles` calls on this
+     * map, not just the most recent one -- two rapid theme switches within
+     * the 4s window each start their own timer, and both must be reachable
+     * so `disposeTiles` can clear every one of them, not just the newest
+     * (an uncleared older timer could otherwise fire after the map page has
+     * already disposed and call `map.removeLayer` on a torn-down map).
+     */
+    pendingTimers: Set<ReturnType<typeof setTimeout>>;
 }
 
 /** Per-map state, keyed by the `L.Map` instance itself so multiple independent maps (or repeated test doubles) never share state, and a disposed map's entry is dropped for GC along with it. */
@@ -69,13 +77,24 @@ export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, theme: Theme): v
     const previousLayer = existing?.layer;
     const newLayer = L.tileLayer(spec.url, { attribution: spec.attribution });
 
-    // `settle` closes over this call's own `state` object, not a fresh
-    // `stateByMap.get(map)` lookup -- a second `applyTiles` call before this
-    // one's timer/`load` fires replaces the WeakMap entry with its own state,
-    // and a re-lookup here would let this call's `settle` clear (or act on)
-    // a newer call's still-pending safety timer instead of its own.
-    const state: TileMapState = { appliedUrl: spec.url, layer: newLayer, safetyTimer: undefined };
+    // Carried forward from `existing` (not created fresh) so a second
+    // `applyTiles` call within the 4s safety window shares the same set as
+    // the first -- `disposeTiles` below can then clear every pending timer,
+    // not just the one from the most recent call.
+    const pendingTimers = existing?.pendingTimers ?? new Set<ReturnType<typeof setTimeout>>();
+
+    // `settle` closes over this call's own `state`/`previousLayer`, not a
+    // fresh `stateByMap.get(map)` lookup -- a second `applyTiles` call before
+    // this one's timer/`load` fires replaces the WeakMap entry with its own
+    // state, and a re-lookup here would let this call's `settle` act on a
+    // newer call's layer instead of its own.
+    const state: TileMapState = { appliedUrl: spec.url, layer: newLayer, pendingTimers };
     let settled = false;
+    // A mutable holder, not a bare `let`: `ownTimer.id` is set once, after
+    // `settle` is defined below (the `setTimeout` call needs `settle` as its
+    // callback), so `settle` must read it through a reference rather than
+    // close over a variable assigned only after its own declaration.
+    const ownTimer: { id: ReturnType<typeof setTimeout> | undefined } = { id: undefined };
 
     // Idempotent: real Leaflet's `once('load', ...)` only fires once, but
     // nothing stops the safety timeout from *also* firing if `load` lands
@@ -84,25 +103,27 @@ export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, theme: Theme): v
     function settle(): void {
         if (settled) return;
         settled = true;
-        if (state.safetyTimer !== undefined) {
-            clearTimeout(state.safetyTimer);
-            state.safetyTimer = undefined;
+        if (ownTimer.id !== undefined) {
+            clearTimeout(ownTimer.id);
+            pendingTimers.delete(ownTimer.id);
         }
         if (previousLayer) map.removeLayer(previousLayer);
     }
 
     newLayer.once('load', settle);
     newLayer.addTo(map);
-    state.safetyTimer = setTimeout(settle, SAFETY_TIMEOUT_MS);
+    ownTimer.id = setTimeout(settle, SAFETY_TIMEOUT_MS);
+    pendingTimers.add(ownTimer.id);
 
     stateByMap.set(map, state);
 }
 
-/** Tears down whatever tile layer/timer `applyTiles` last installed on `map`. Call from the map page's disposer. */
+/** Tears down whatever tile layer/timers `applyTiles` installed on `map`, including any safety timer still pending from an earlier, superseded call. Call from the map page's disposer. */
 export function disposeTiles(map: Leaflet.Map): void {
     const state = stateByMap.get(map);
     if (!state) return;
-    if (state.safetyTimer !== undefined) clearTimeout(state.safetyTimer);
+    for (const timer of state.pendingTimers) clearTimeout(timer);
+    state.pendingTimers.clear();
     map.removeLayer(state.layer);
     stateByMap.delete(map);
 }

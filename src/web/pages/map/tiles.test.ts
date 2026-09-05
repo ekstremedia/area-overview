@@ -175,6 +175,27 @@ describe('applyTiles', () => {
     });
 });
 
+describe('applyTiles / rapid successive calls', () => {
+    it('carries forward an older pending safety timer so disposeTiles clears it too, not just the newest', () => {
+        const { L } = createFakeLeaflet();
+        const fakeMap = createFakeMap();
+        const map = fakeMap as unknown as Leaflet.Map;
+
+        applyTiles(L, map, 'dark'); // call 1: no previous layer
+        applyTiles(L, map, 'light'); // call 2: previousLayer = dark; its safety timer is still pending
+        applyTiles(L, map, 'dark'); // call 3 (rapid theme switch back), before call 2 settles
+
+        disposeTiles(map);
+        const removeLayerCallsAfterDispose = vi.mocked(fakeMap.removeLayer).mock.calls.length;
+
+        // Neither call 2's nor call 3's now-orphaned safety timer may fire after
+        // disposal -- both must have been cleared by disposeTiles, not just the
+        // most recent one.
+        vi.advanceTimersByTime(SAFETY_TIMEOUT_MS);
+        expect(vi.mocked(fakeMap.removeLayer).mock.calls.length).toBe(removeLayerCallsAfterDispose);
+    });
+});
+
 describe('disposeTiles', () => {
     it('removes the currently-applied layer and clears the safety timer', () => {
         const { L } = createFakeLeaflet();
