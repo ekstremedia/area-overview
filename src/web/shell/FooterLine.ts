@@ -7,9 +7,12 @@
  * which shows nothing else in the footer position.
  */
 import { formatRelative, t } from '../i18n/index.js';
-import { effect } from '../core/signal.js';
+import { effect, signal } from '../core/signal.js';
 import { nightSchedule } from './night-schedule.js';
 import { pageAttribution, pageFreshness } from './page-status.js';
+
+/** Mirrors `Masthead.ts`'s own clock tick cadence -- see that file's `CLOCK_TICK_MS`. */
+const RELATIVE_TIME_TICK_MS = 60_000;
 
 export function mountFooterLine(container: HTMLElement): () => void {
     container.className = 'footer-line chrome';
@@ -34,8 +37,21 @@ export function mountFooterLine(container: HTMLElement): () => void {
         }),
     );
 
+    // `formatRelative`'s output must re-evaluate on a timer, not only when
+    // `pageFreshness`/the language changes -- otherwise "Updated X ago" can
+    // freeze at a stale value for far longer than it claims on a long-lived
+    // kiosk session. Mirrors `Masthead.ts`'s identical `tick` pattern.
+    const tick = signal(Date.now());
+    const tickTimer = setInterval(() => {
+        tick.set(Date.now());
+    }, RELATIVE_TIME_TICK_MS);
+    disposers.push(() => {
+        clearInterval(tickTimer);
+    });
+
     disposers.push(
         effect(() => {
+            tick.get(); // re-evaluate the relative-time string on the same cadence as the tick, not just when pageFreshness changes
             const freshness = pageFreshness.get();
             updated.textContent = freshness ? t('footer.updated', { relative: formatRelative(freshness.fetchedAt) }) : '';
         }),
