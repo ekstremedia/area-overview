@@ -14,6 +14,15 @@ export const pageFreshness: Signal<Freshness | null> = signal(null);
 
 export const pageAttribution: Signal<string | null> = signal(null);
 
+/**
+ * A page-supplied override for the masthead's locality caption, for the
+ * one route (cameras) whose caption depends on live data (the camera
+ * count) rather than the static per-route text `registry.ts`'s
+ * `localityKey` already covers. `null` (the default) means "use the
+ * static `localityKey` text" -- every route but cameras leaves this alone.
+ */
+export const pageLocalityOverride: Signal<string | null> = signal(null);
+
 export interface LayerCounts {
     ships: number;
     aircraft: number;

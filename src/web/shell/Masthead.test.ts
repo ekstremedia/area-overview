@@ -6,7 +6,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { liveLayerCounts, pageFreshness } = await import('./page-status.js');
+const { liveLayerCounts, pageFreshness, pageLocalityOverride } = await import('./page-status.js');
 
 function navigate(hash: string): void {
     location.hash = hash;
@@ -87,6 +87,25 @@ describe('mountMasthead', () => {
         expect(staleBanner?.textContent).toContain('Gamle data');
 
         pageFreshness.set(null);
+        dispose();
+    });
+
+    it('shows a page-supplied locality override in place of the static localityKey text, and clears it when unset', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        pageLocalityOverride.set(null);
+        navigate('#/cameras');
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const locality = container.querySelector<HTMLElement>('.masthead-locality');
+        expect(locality?.textContent).toBe('To kameraer');
+
+        pageLocalityOverride.set('Tre kameraer');
+        expect(locality?.textContent).toBe('Tre kameraer');
+
+        pageLocalityOverride.set(null);
+        expect(locality?.textContent).toBe('To kameraer');
+
         dispose();
     });
 });

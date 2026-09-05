@@ -14,7 +14,7 @@ import { formatTime, t } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE, pageForRoute } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
-import { liveLayerCounts, pageFreshness } from './page-status.js';
+import { liveLayerCounts, pageFreshness, pageLocalityOverride } from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
 
@@ -84,7 +84,8 @@ export function mountMasthead(container: HTMLElement): () => void {
     disposers.push(
         effect(() => {
             const route = currentRoute.get();
-            locality.textContent = t(pageForRoute(route).localityKey);
+            const override = pageLocalityOverride.get();
+            locality.textContent = override ?? t(pageForRoute(route).localityKey);
         }),
     );
 
