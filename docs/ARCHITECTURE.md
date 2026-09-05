@@ -16,8 +16,14 @@ _To be documented in phase 2 (the BFF server) and phase 3 (settings store)._
 
 ## Frontend
 
-_To be documented in phase 4 (reactive core), phase 5 (app shell/design
-system), and phase 6 onward (individual pages)._
+Phase 4 adds `src/web/core/`: a small hand-written reactive core
+(`signal`/`computed`/`effect`), a polling `resource` built on it, a
+hash-fragment `router`, and two minimal DOM helpers (`h`/`bind`). See
+[`docs/REACTIVITY.md`](REACTIVITY.md) for how the tracking mechanism works
+and why it's built this way.
+
+_App shell/design system (phase 5) and individual pages (phase 6 onward)
+remain to be documented._
 
 ## Data flow
 
