@@ -13,7 +13,7 @@ import { z } from 'zod';
 const ServerConfigSchema = z.object({
     port: z.coerce.number().int().positive().default(8141),
     host: z.string().min(1).default('127.0.0.1'),
-    upstreamBaseUrl: z.string().min(1).default('https://nesthus.no'),
+    upstreamBaseUrl: z.url().default('https://nesthus.no'),
     upstreamTimeoutMs: z.coerce.number().int().positive().default(8000),
     cacheTtlMs: z.coerce.number().int().positive().default(30000),
     pointForecastTtlMs: z.coerce.number().int().positive().default(60000),

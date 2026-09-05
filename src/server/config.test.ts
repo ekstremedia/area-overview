@@ -55,3 +55,27 @@ describe('loadConfig / SETTINGS_PASSWORD', () => {
         expect(config.settingsFile).toBe('./somewhere/settings.json');
     });
 });
+
+describe('loadConfig / UPSTREAM_BASE_URL', () => {
+    it('throws at boot when UPSTREAM_BASE_URL is not a valid URL', () => {
+        expect(() =>
+            loadConfig({
+                ...baseEnv,
+                UPSTREAM_BASE_URL: 'not-a-url',
+                SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough',
+            }),
+        ).toThrow();
+    });
+
+    it('defaults to https://nesthus.no when unset', () => {
+        const envWithoutUpstream: Record<string, string | undefined> = { ...baseEnv };
+        envWithoutUpstream.UPSTREAM_BASE_URL = undefined;
+        const config = loadConfig({ ...envWithoutUpstream, SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough' });
+        expect(config.upstreamBaseUrl).toBe('https://nesthus.no');
+    });
+
+    it('accepts a well-formed UPSTREAM_BASE_URL', () => {
+        const config = loadConfig({ ...baseEnv, SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough' });
+        expect(config.upstreamBaseUrl).toBe('https://upstream.example');
+    });
+});
