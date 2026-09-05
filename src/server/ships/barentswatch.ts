@@ -40,7 +40,7 @@ const COMBINED_URL = 'https://live.ais.barentswatch.no/v1/latest/combined';
  */
 const RawShipSchema = z.object({
     mmsi: z.number(),
-    name: z.string(),
+    name: z.string().nullable(),
     msgtime: z.string(),
     latitude: z.number().nullish(),
     longitude: z.number().nullish(),
@@ -71,7 +71,7 @@ function toShip(raw: RawShip): Ship | undefined {
 
     const candidate = {
         mmsi: String(raw.mmsi),
-        name: raw.name,
+        name: raw.name ?? '', // null names map to empty string; UI fallback displays "Ukjent"/"Unknown"
         lat: raw.latitude,
         lng: raw.longitude,
         speedOverGround: raw.speedOverGround ?? 0,
