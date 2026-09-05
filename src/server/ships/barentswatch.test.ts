@@ -62,7 +62,7 @@ describe('fetchShips', () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse(combinedFixture));
         const token = fakeToken();
 
-        const result = await fetchShips(testBbox, token, fetchMock);
+        const result = await fetchShips(testBbox, token, 5000, fetchMock);
 
         expect(result.ok).toBe(true);
         if (result.ok) {
@@ -82,7 +82,7 @@ describe('fetchShips', () => {
         const invalidate = vi.fn();
         const token: BarentsWatchToken = { getToken, invalidate };
 
-        const result = await fetchShips(testBbox, token, fetchMock);
+        const result = await fetchShips(testBbox, token, 5000, fetchMock);
 
         expect(result.ok).toBe(true);
         expect(invalidate).toHaveBeenCalledTimes(1);
@@ -94,7 +94,7 @@ describe('fetchShips', () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }));
         const token = fakeToken();
 
-        const result = await fetchShips(testBbox, token, fetchMock);
+        const result = await fetchShips(testBbox, token, 5000, fetchMock);
 
         expect(result.ok).toBe(false);
         expect(fetchMock).toHaveBeenCalledTimes(2); // one initial attempt, one retry, never a third
@@ -104,7 +104,7 @@ describe('fetchShips', () => {
         const fetchMock = vi.fn();
         const token = fakeToken({ getToken: vi.fn().mockResolvedValue({ ok: false, error: { message: 'token unavailable' } }) });
 
-        const result = await fetchShips(testBbox, token, fetchMock);
+        const result = await fetchShips(testBbox, token, 5000, fetchMock);
 
         expect(result.ok).toBe(false);
         expect(fetchMock).not.toHaveBeenCalled();
@@ -114,11 +114,26 @@ describe('fetchShips', () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }));
         const token = fakeToken({ getToken: vi.fn().mockResolvedValue({ ok: true, value: 'top-secret-bearer-token' }) });
 
-        const result = await fetchShips(testBbox, token, fetchMock);
+        const result = await fetchShips(testBbox, token, 5000, fetchMock);
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
             expect(JSON.stringify(result.error)).not.toContain('top-secret-bearer-token');
         }
+    });
+
+    it('resolves to err(...) rather than hanging when the combined-AIS request never settles', async () => {
+        const fetchMock = vi.fn().mockImplementation((_url: string, init?: { signal?: AbortSignal }) => {
+            return new Promise((_resolve, reject) => {
+                init?.signal?.addEventListener('abort', () => {
+                    reject(new DOMException('The operation was aborted', 'TimeoutError'));
+                });
+            });
+        });
+        const token = fakeToken();
+
+        const result = await fetchShips(testBbox, token, 1, fetchMock);
+
+        expect(result.ok).toBe(false);
     });
 });

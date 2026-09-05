@@ -99,10 +99,14 @@ export function mapRawShipsToShips(rawShips: readonly RawShip[], bbox: Bbox): Sh
     return ships;
 }
 
-async function requestCombined(token: string, fetchImpl: typeof fetch): Promise<Result<Response>> {
+async function requestCombined(token: string, upstreamTimeoutMs: number, fetchImpl: typeof fetch): Promise<Result<Response>> {
     try {
         const response = await fetchImpl(COMBINED_URL, {
             headers: { Authorization: `Bearer ${token}` },
+            // Also bounds a stalled `response.json()` read below: aborting
+            // the underlying request/response also rejects any pending read
+            // of its body, so one signal covers the whole request lifecycle.
+            signal: AbortSignal.timeout(upstreamTimeoutMs),
         });
         return ok(response);
     } catch {
@@ -117,18 +121,23 @@ async function requestCombined(token: string, fetchImpl: typeof fetch): Promise<
  * invalidated and the request retried exactly once with a fresh token;
  * a second failure is returned as an error, never retried further.
  */
-export async function fetchShips(bbox: Bbox, token: BarentsWatchToken, fetchImpl: typeof fetch = fetch): Promise<Result<Ship[]>> {
+export async function fetchShips(
+    bbox: Bbox,
+    token: BarentsWatchToken,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch = fetch,
+): Promise<Result<Ship[]>> {
     const tokenResult = await token.getToken();
     if (!tokenResult.ok) return tokenResult;
 
-    let response = await requestCombined(tokenResult.value, fetchImpl);
+    let response = await requestCombined(tokenResult.value, upstreamTimeoutMs, fetchImpl);
     if (!response.ok) return response;
 
     if (response.value.status === 401) {
         token.invalidate();
         const retryToken = await token.getToken();
         if (!retryToken.ok) return retryToken;
-        response = await requestCombined(retryToken.value, fetchImpl);
+        response = await requestCombined(retryToken.value, upstreamTimeoutMs, fetchImpl);
         if (!response.ok) return response;
     }
 

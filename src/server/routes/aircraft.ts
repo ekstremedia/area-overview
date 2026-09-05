@@ -42,7 +42,11 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
         const bbox = roundBbox(clampBbox(parsed.value));
 
         await serveCached(request, reply, cache, bboxCacheKey(bbox), async () => {
-            const result = await fetchAircraft(bbox, { provider: config.adsbProvider, openSkyCredentials });
+            const result = await fetchAircraft(bbox, {
+                provider: config.adsbProvider,
+                openSkyCredentials,
+                upstreamTimeoutMs: config.upstreamTimeoutMs,
+            });
             if (!result.ok) return result;
             const body: AircraftResponse = { configured: true, aircraft: result.value, fetchedAt: new Date().toISOString() };
             return { ok: true, value: body };

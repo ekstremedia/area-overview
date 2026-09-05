@@ -142,16 +142,16 @@ describe('fetchAircraft (v2 providers)', () => {
     it('builds the right URL shape for airplanes.live and adsb.fi', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ac: [] }));
 
-        await fetchAircraft(testBbox, { provider: 'airplaneslive', fetchImpl: fetchMock });
+        await fetchAircraft(testBbox, { provider: 'airplaneslive', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
         expect((fetchMock.mock.calls[0] as [string])[0]).toMatch(/^https:\/\/api\.airplanes\.live\/v2\/point\//);
 
-        await fetchAircraft(testBbox, { provider: 'adsbfi', fetchImpl: fetchMock });
+        await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
         expect((fetchMock.mock.calls[1] as [string])[0]).toMatch(/^https:\/\/opendata\.adsb\.fi\/api\/v2\/lat\//);
     });
 
     it('returns an error on a non-OK response', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('error', { status: 500 }));
-        const result = await fetchAircraft(testBbox, { provider: 'adsblol', fetchImpl: fetchMock });
+        const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
         expect(result.ok).toBe(false);
     });
 });
@@ -271,5 +271,49 @@ describe('fetchAircraft (opensky provider) -- schema tolerance for trailing fiel
             expect(result.value[0]?.icao).toBe('4ac9eb');
             expect(result.value[0]?.callsign).toBe('SAS69L');
         }
+    });
+});
+
+/** A `fetch` mock that never resolves on its own -- only rejects once its request's `AbortSignal` fires, same shape as `upstream.test.ts`'s own timeout test. */
+function hangingFetch(): typeof fetch {
+    return vi.fn().mockImplementation((_url: string, init?: { signal?: AbortSignal }) => {
+        return new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+                reject(new DOMException('The operation was aborted', 'TimeoutError'));
+            });
+        });
+    });
+}
+
+describe('fetchAircraft -- bounded timeouts on every upstream request', () => {
+    it('fetchV2 (adsb.lol/airplanes.live/adsb.fi) resolves to err(...) rather than hanging when the request never settles', async () => {
+        const fetchMock = hangingFetch();
+
+        const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 1, fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('fetchOpenSky (anonymous, no credentials) resolves to err(...) rather than hanging when the states request never settles', async () => {
+        const fetchMock = hangingFetch();
+
+        const result = await fetchAircraft(testBbox, { provider: 'opensky', upstreamTimeoutMs: 1, fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('getOpenSkyBearerToken resolves to err(...) rather than hanging when the token request never settles', async () => {
+        const fetchMock = hangingFetch();
+
+        const result = await fetchAircraft(testBbox, {
+            provider: 'opensky',
+            openSkyCredentials: { clientId: 'id', clientSecret: 'secret' },
+            upstreamTimeoutMs: 1,
+            fetchImpl: fetchMock,
+        });
+
+        expect(result.ok).toBe(false);
+        // The hang was on the token request, never reaching the states request.
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });

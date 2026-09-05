@@ -16,7 +16,7 @@ describe('createBarentsWatchToken', () => {
 
     it('fetches and caches a token, returning it without a second fetch while fresh', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ access_token: 'token-1', expires_in: 3600 }));
-        const token = createBarentsWatchToken('client-id', 'client-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'client-secret', 5000, fetchMock);
 
         const first = await token.getToken();
         const second = await token.getToken();
@@ -28,7 +28,7 @@ describe('createBarentsWatchToken', () => {
 
     it('sends the documented client-credentials form body', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ access_token: 'token-1', expires_in: 3600 }));
-        const token = createBarentsWatchToken('client-id', 'client-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'client-secret', 5000, fetchMock);
 
         await token.getToken();
 
@@ -47,7 +47,7 @@ describe('createBarentsWatchToken', () => {
             .fn()
             .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 3600 }))
             .mockResolvedValueOnce(jsonResponse({ access_token: 'token-2', expires_in: 3600 }));
-        const token = createBarentsWatchToken('client-id', 'client-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'client-secret', 5000, fetchMock);
 
         await token.getToken();
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -72,7 +72,7 @@ describe('createBarentsWatchToken', () => {
                 resolveFetch = resolve;
             }),
         );
-        const token = createBarentsWatchToken('client-id', 'client-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'client-secret', 5000, fetchMock);
 
         const first = token.getToken();
         const second = token.getToken();
@@ -87,7 +87,7 @@ describe('createBarentsWatchToken', () => {
 
     it('returns an error, never the client secret, on a non-OK response', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }));
-        const token = createBarentsWatchToken('client-id', 'the-real-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'the-real-secret', 5000, fetchMock);
 
         const result = await token.getToken();
 
@@ -103,7 +103,7 @@ describe('createBarentsWatchToken', () => {
             .fn()
             .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 3600 }))
             .mockResolvedValueOnce(jsonResponse({ access_token: 'token-2', expires_in: 3600 }));
-        const token = createBarentsWatchToken('client-id', 'client-secret', fetchMock);
+        const token = createBarentsWatchToken('client-id', 'client-secret', 5000, fetchMock);
 
         await token.getToken();
         token.invalidate();
@@ -111,5 +111,24 @@ describe('createBarentsWatchToken', () => {
 
         expect(result).toEqual({ ok: true, value: 'token-2' });
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('resolves to err(...) rather than hanging when the token request never settles', async () => {
+        // AbortSignal.timeout()'s own internal timer is real, not the fake
+        // one this describe block installs for the refresh-scheduling
+        // tests above -- switch back so the 1ms deadline below actually fires.
+        vi.useRealTimers();
+        const fetchMock = vi.fn().mockImplementation((_url: string, init?: { signal?: AbortSignal }) => {
+            return new Promise((_resolve, reject) => {
+                init?.signal?.addEventListener('abort', () => {
+                    reject(new DOMException('The operation was aborted', 'TimeoutError'));
+                });
+            });
+        });
+        const token = createBarentsWatchToken('client-id', 'client-secret', 1, fetchMock);
+
+        const result = await token.getToken();
+
+        expect(result.ok).toBe(false);
     });
 });

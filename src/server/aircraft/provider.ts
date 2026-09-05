@@ -157,13 +157,21 @@ export function mapRawV2AircraftToAircraft(rawAircraft: readonly RawV2Aircraft[]
     return aircraft;
 }
 
-async function fetchV2(provider: 'adsblol' | 'airplaneslive' | 'adsbfi', bbox: Bbox, fetchImpl: typeof fetch): Promise<Result<Aircraft[]>> {
-    const { lat, lon, nm } = bboxToCenterRadius(bbox);
-    const url = V2_PROVIDER_URLS[provider](lat, lon, Math.round(nm));
+async function fetchV2(
+    provider: 'adsblol' | 'airplaneslive' | 'adsbfi',
+    bbox: Bbox,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch,
+): Promise<Result<Aircraft[]>> {
+    const { lat, lon, nm } = bboxToCenterRadius(bbox); // already an integer nm, rounded up
+    const url = V2_PROVIDER_URLS[provider](lat, lon, nm);
 
     let response: Response;
     try {
-        response = await fetchImpl(url, { headers: { 'User-Agent': 'area-overview-bff/0.1' } });
+        response = await fetchImpl(url, {
+            headers: { 'User-Agent': 'area-overview-bff/0.1' },
+            signal: AbortSignal.timeout(upstreamTimeoutMs),
+        });
     } catch {
         return err({ message: `ADS-B provider "${provider}" request failed (network error)` });
     }
@@ -283,7 +291,7 @@ export interface OpenSkyCredentials {
     clientSecret: string;
 }
 
-async function getOpenSkyBearerToken(credentials: OpenSkyCredentials, fetchImpl: typeof fetch): Promise<Result<string>> {
+async function getOpenSkyBearerToken(credentials: OpenSkyCredentials, upstreamTimeoutMs: number, fetchImpl: typeof fetch): Promise<Result<string>> {
     let response: Response;
     try {
         response = await fetchImpl(OPENSKY_TOKEN_URL, {
@@ -294,6 +302,7 @@ async function getOpenSkyBearerToken(credentials: OpenSkyCredentials, fetchImpl:
                 client_secret: credentials.clientSecret,
                 grant_type: 'client_credentials',
             }).toString(),
+            signal: AbortSignal.timeout(upstreamTimeoutMs),
         });
     } catch {
         return err({ message: 'OpenSky token request failed (network error)' });
@@ -314,7 +323,12 @@ async function getOpenSkyBearerToken(credentials: OpenSkyCredentials, fetchImpl:
     return ok(parsed.data.access_token);
 }
 
-async function fetchOpenSky(bbox: Bbox, credentials: OpenSkyCredentials | undefined, fetchImpl: typeof fetch): Promise<Result<Aircraft[]>> {
+async function fetchOpenSky(
+    bbox: Bbox,
+    credentials: OpenSkyCredentials | undefined,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch,
+): Promise<Result<Aircraft[]>> {
     const params = new URLSearchParams({
         lamin: String(bbox.minLat),
         lomin: String(bbox.minLng),
@@ -324,14 +338,14 @@ async function fetchOpenSky(bbox: Bbox, credentials: OpenSkyCredentials | undefi
 
     const headers: Record<string, string> = {};
     if (credentials) {
-        const tokenResult = await getOpenSkyBearerToken(credentials, fetchImpl);
+        const tokenResult = await getOpenSkyBearerToken(credentials, upstreamTimeoutMs, fetchImpl);
         if (!tokenResult.ok) return tokenResult;
         headers.Authorization = `Bearer ${tokenResult.value}`;
     }
 
     let response: Response;
     try {
-        response = await fetchImpl(`${OPENSKY_STATES_URL}?${params.toString()}`, { headers });
+        response = await fetchImpl(`${OPENSKY_STATES_URL}?${params.toString()}`, { headers, signal: AbortSignal.timeout(upstreamTimeoutMs) });
     } catch {
         return err({ message: 'OpenSky states request failed (network error)' });
     }
@@ -357,6 +371,8 @@ async function fetchOpenSky(bbox: Bbox, credentials: OpenSkyCredentials | undefi
 export interface FetchAircraftOptions {
     provider: AdsbProvider;
     openSkyCredentials?: OpenSkyCredentials | undefined;
+    /** Bounded deadline for every request this call makes -- see `upstream.ts`'s `fetchUpstream()` for the same pattern. Always `config.upstreamTimeoutMs` in production. */
+    upstreamTimeoutMs: number;
     fetchImpl?: typeof fetch;
 }
 
@@ -364,7 +380,7 @@ export interface FetchAircraftOptions {
 export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<Aircraft[]>> {
     const fetchImpl = options.fetchImpl ?? fetch;
     if (options.provider === 'opensky') {
-        return fetchOpenSky(bbox, options.openSkyCredentials, fetchImpl);
+        return fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
     }
-    return fetchV2(options.provider, bbox, fetchImpl);
+    return fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
 }

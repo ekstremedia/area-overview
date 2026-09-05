@@ -37,7 +37,12 @@ export interface BarentsWatchToken {
     invalidate(): void;
 }
 
-export function createBarentsWatchToken(clientId: string, clientSecret: string, fetchImpl: typeof fetch = fetch): BarentsWatchToken {
+export function createBarentsWatchToken(
+    clientId: string,
+    clientSecret: string,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch = fetch,
+): BarentsWatchToken {
     let cached: { token: string; refreshAt: number } | undefined;
     let inflight: Promise<Result<string>> | undefined;
 
@@ -53,6 +58,7 @@ export function createBarentsWatchToken(clientId: string, clientSecret: string, 
                     scope: 'ais',
                     grant_type: 'client_credentials',
                 }).toString(),
+                signal: AbortSignal.timeout(upstreamTimeoutMs),
             });
         } catch {
             return err({ message: 'BarentsWatch token request failed (network error)' });

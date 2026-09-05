@@ -25,7 +25,9 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig):
     // this gets its own TTL config field (`config.shipsCacheTtlMs`, >= 10s
     // in production) rather than sharing `config.cacheTtlMs`.
     const cache = new TtlCache<ShipsResponse>(config.shipsCacheTtlMs);
-    const token = configured ? createBarentsWatchToken(config.barentswatchClientId, config.barentswatchClientSecret) : undefined;
+    const token = configured
+        ? createBarentsWatchToken(config.barentswatchClientId, config.barentswatchClientSecret, config.upstreamTimeoutMs)
+        : undefined;
 
     app.get('/api/ships', async (request, reply) => {
         const query = request.query as { bbox?: unknown };
@@ -44,7 +46,7 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig):
         }
 
         await serveCached(request, reply, cache, bboxCacheKey(bbox), async () => {
-            const result = await fetchShips(bbox, token);
+            const result = await fetchShips(bbox, token, config.upstreamTimeoutMs);
             if (!result.ok) return result;
             return { ok: true, value: { configured: true, ships: result.value, fetchedAt: new Date().toISOString() } };
         });
