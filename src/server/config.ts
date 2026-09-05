@@ -28,6 +28,29 @@ const ServerConfigSchema = z.object({
      */
     settingsPassword: z.string().min(16, 'SETTINGS_PASSWORD must be set and at least 16 characters long'),
     settingsFile: z.string().min(1).default('data/settings.json'),
+    /**
+     * BarentsWatch AIS credentials -- optional, unlike `settingsPassword`.
+     * Empty is a fully valid, expected running state: `GET /api/ships`
+     * reports `{configured:false}` rather than the server refusing to
+     * boot. Never logged, never included in an error message or thrown
+     * exception -- see `src/server/ships/token.ts` and `barentswatch.ts`.
+     */
+    barentswatchClientId: z.string().default(''),
+    barentswatchClientSecret: z.string().default(''),
+    /** Selects the keyless ADS-B aggregator `src/server/aircraft/provider.ts` queries. Aircraft need no credentials to be "configured" for any provider but `opensky`. */
+    adsbProvider: z.enum(['adsblol', 'airplaneslive', 'adsbfi', 'opensky']).default('adsblol'),
+    /**
+     * `GET /api/ships`/`GET /api/aircraft` cache TTL, keyed per-bbox
+     * rather than the single fixed key `cacheTtlMs` is used for. The
+     * plan requires >= 10s in production (both default here); tests
+     * shrink these to exercise the stale-while-revalidate path quickly,
+     * same pattern as `cacheTtlMs`/`pointForecastTtlMs`.
+     */
+    shipsCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    aircraftCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    /** Optional OpenSky OAuth2 client-credentials pair, for the registered tier's higher anonymous-quota-free rate limit. Never logged. */
+    openskyClientId: z.string().default(''),
+    openskyClientSecret: z.string().default(''),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -47,6 +70,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         pointForecastTtlMs: env.POINT_FORECAST_TTL_MS,
         settingsPassword: env.SETTINGS_PASSWORD,
         settingsFile: env.SETTINGS_FILE,
+        barentswatchClientId: env.BARENTSWATCH_CLIENT_ID,
+        barentswatchClientSecret: env.BARENTSWATCH_CLIENT_SECRET,
+        adsbProvider: env.ADSB_PROVIDER,
+        openskyClientId: env.OPENSKY_CLIENT_ID,
+        openskyClientSecret: env.OPENSKY_CLIENT_SECRET,
+        shipsCacheTtlMs: env.SHIPS_CACHE_TTL_MS,
+        aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
     });
 
     if (!parsed.success) {

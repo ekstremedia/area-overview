@@ -1,0 +1,62 @@
+[
+    {
+        "mmsi": 257123456,
+        "name": "MS NORDLYS",
+        "msgtime": "2026-09-05T10:00:00Z",
+        "latitude": 68.7,
+        "longitude": 15.4,
+        "speedOverGround": 12.3,
+        "courseOverGround": 45.0,
+        "trueHeading": 47,
+        "rateOfTurn": 0,
+        "shipType": 60
+    },
+    {
+        "mmsi": 257654321,
+        "name": "FISKEBAT SENIOR",
+        "msgtime": "2026-09-05T09:58:30Z",
+        "latitude": 68.75,
+        "longitude": 15.55,
+        "speedOverGround": 6.1,
+        "courseOverGround": 210.5,
+        "trueHeading": 511,
+        "rateOfTurn": null,
+        "shipType": 30
+    },
+    {
+        "mmsi": 258999999,
+        "name": "UKJENT LOSBAT",
+        "msgtime": "2026-09-05T10:01:15Z",
+        "latitude": null,
+        "longitude": null,
+        "speedOverGround": 0,
+        "courseOverGround": 0,
+        "trueHeading": null,
+        "rateOfTurn": null,
+        "shipType": null
+    },
+    {
+        "mmsi": 259111222,
+        "name": "COASTAL EXPRESS",
+        "msgtime": "2026-09-05T09:59:45Z",
+        "latitude": 68.68,
+        "longitude": 15.2,
+        "speedOverGround": null,
+        "courseOverGround": null,
+        "trueHeading": 300,
+        "rateOfTurn": 0,
+        "shipType": 80
+    },
+    {
+        "mmsi": 259333444,
+        "name": "OUTSIDE VIEW",
+        "msgtime": "2026-09-05T09:57:00Z",
+        "latitude": 71.0,
+        "longitude": 25.0,
+        "speedOverGround": 9.4,
+        "courseOverGround": 88.0,
+        "trueHeading": 90,
+        "rateOfTurn": 0,
+        "shipType": 70
+    }
+]

@@ -12,6 +12,13 @@ const config: ServerConfig = {
     pointForecastTtlMs: 60_000,
     settingsPassword: 'test-password-at-least-16-chars',
     settingsFile: 'data/settings.json',
+    barentswatchClientId: '',
+    barentswatchClientSecret: '',
+    adsbProvider: 'adsblol',
+    openskyClientId: '',
+    openskyClientSecret: '',
+    shipsCacheTtlMs: 10_000,
+    aircraftCacheTtlMs: 10_000,
 };
 
 const TestSchema = z.object({ value: z.number() });
