@@ -113,6 +113,63 @@ describe('SettingsPage', () => {
         dispose();
     });
 
+    it('an unrelated settings change does not remount the active (non-Cameras) section mid-edit', async () => {
+        const { render } = await import('./SettingsPage.js');
+        const session = await import('../settings/session.js');
+        const { SHARED_STORE_POLL_INTERVAL_MS } = await import('../settings/sharedStore.js');
+        await session.login(TEST_PASSWORD);
+
+        let settingsPayload: unknown = SettingsSchema.parse({});
+        vi.stubGlobal(
+            'fetch',
+            vi.fn((input: string | URL | Request) => {
+                const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString();
+                if (url.startsWith('/api/settings/login')) return Promise.resolve(jsonResponse(204, undefined));
+                if (url.startsWith('/api/settings')) return Promise.resolve(jsonResponse(200, settingsPayload));
+                if (url.startsWith('/api/cameras')) return Promise.resolve(jsonResponse(200, { cameras: [], cached_at: new Date().toISOString() }));
+                if (url.startsWith('/api/ships')) return Promise.resolve(jsonResponse(503, { configured: false }));
+                return Promise.reject(new Error(`unexpected fetch: ${url}`));
+            }),
+        );
+
+        const container = document.createElement('div');
+        document.body.append(container);
+        const dispose = render(container);
+        await vi.advanceTimersByTimeAsync(0);
+
+        const tabs = [...container.querySelectorAll<HTMLButtonElement>('.settings-subnav-tab')];
+        tabs[1]?.click(); // Map -- a non-Cameras section that reads `store.settings` synchronously in its own `mount()`
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Cycle the login state once while Map is the active section: this is
+        // what gives the login-state effect a chance to call
+        // `mountActiveSection()` from within its OWN tracked run (switching
+        // tabs via a click does not -- `switchSection` calls it directly,
+        // untracked). On the pre-fix code, this is exactly what wrongly
+        // subscribes the login-state effect to `store.settings` too, since
+        // `Map.mount()` reads it synchronously at its top level.
+        session.logout();
+        await session.login(TEST_PASSWORD);
+        await vi.advanceTimersByTimeAsync(0);
+
+        const latInput = container.querySelector<HTMLInputElement>('.settings-section-map .number-field-input');
+        if (!latInput) throw new Error('lat input not found');
+        latInput.focus();
+        expect(document.activeElement).toBe(latInput);
+
+        // An unrelated settings change from another device (brightness, not
+        // login state and not homeView) lands via the shared store's poll.
+        settingsPayload = SettingsSchema.parse({ brightness: 42 });
+        await vi.advanceTimersByTimeAsync(SHARED_STORE_POLL_INTERVAL_MS);
+
+        // The active section must not have been torn down/remounted: same
+        // DOM node, and focus preserved.
+        expect(container.querySelector('.settings-section-map .number-field-input')).toBe(latInput);
+        expect(document.activeElement).toBe(latInput);
+
+        dispose();
+    });
+
     it('logging out drops the page back to its read-only state and clears the masthead status', async () => {
         const { render } = await import('./SettingsPage.js');
         const { pageAccountStatus } = await import('../shell/page-status.js');

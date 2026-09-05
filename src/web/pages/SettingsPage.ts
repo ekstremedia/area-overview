@@ -76,6 +76,7 @@ export function render(container: HTMLElement): () => void {
     let activeSectionId: SectionId = 'cameras';
     let disposeSection: (() => void) | undefined;
     let loginDialog: LoginDialogHandle | undefined;
+    let disposed = false;
 
     const tabButtons = SECTIONS.map((section) => {
         const button = document.createElement('button');
@@ -138,7 +139,26 @@ export function render(container: HTMLElement): () => void {
             loginDialog?.dispose();
             loginDialog = undefined;
         }
-        mountActiveSection();
+        // `mountActiveSection()` must run OUTSIDE this effect's own tracked
+        // synchronous execution. This project's signal tracking (see
+        // `signal.ts`'s `runTracked`/`activeTracker`) attributes ANY signal
+        // read during a tracked callback's synchronous run to that effect,
+        // no matter how many function calls deep -- and some section
+        // `mount()`s (`Display.ts`, `Map.ts`) read `store.settings`/
+        // `deviceSettings` synchronously at the top of their own `mount()`,
+        // outside of their own nested `effect()`. Calling `mountActiveSection`
+        // directly here would silently subscribe THIS login-state effect to
+        // every shared/device setting too, so an unrelated change elsewhere
+        // (e.g. another device changing brightness) would re-run this
+        // effect and tear down/remount the active section mid-edit.
+        // `queueMicrotask` defers the call until after this effect's
+        // synchronous body -- and `runTracked`'s `activeTracker` restore --
+        // has already completed, so those reads are correctly untracked
+        // (or attributed only to whatever effect the section itself creates
+        // internally, as `Cameras.ts` already does correctly).
+        queueMicrotask(() => {
+            if (!disposed) mountActiveSection();
+        });
     });
 
     const disposeAccountStatusEffect = effect(() => {
@@ -156,6 +176,7 @@ export function render(container: HTMLElement): () => void {
     });
 
     return function dispose(): void {
+        disposed = true;
         disposeAccountStatusEffect();
         pageAccountStatus.set(null);
         disposeLoginStateEffect();
