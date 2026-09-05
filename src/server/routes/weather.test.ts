@@ -110,7 +110,9 @@ describe('GET /api/weather/summary', () => {
     });
 
     it('responds 200 with a null summary when upstream answers 204', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(weatherSummaryEmptyFixture, 204)));
+        // A real 204 has no body at all -- `jsonResponse` models that by
+        // discarding whatever body is passed for a null-body status.
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(null, 204)));
         const app = buildTestApp();
 
         const response = await app.inject({ method: 'GET', url: '/api/weather/summary' });

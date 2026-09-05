@@ -36,6 +36,9 @@ export function registerStaticPlugin(app: FastifyInstance): void {
             reply.code(404).send({ error: 'Not found' });
             return;
         }
-        reply.sendFile('index.html');
+        // `setNotFoundHandler` pre-sets a 404 status on `reply`; `sendFile`
+        // doesn't reset it, so without this explicit `.code(200)` a valid
+        // SPA route would serve the right HTML with a 404 status.
+        reply.code(200).sendFile('index.html');
     });
 }

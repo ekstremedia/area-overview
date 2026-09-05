@@ -28,7 +28,11 @@ describe('buildPopupContent', () => {
         const img = root.querySelector<HTMLImageElement>('.camera-popup-image img');
         expect(img).not.toBeNull();
         expect(img?.src).toBe('https://example.test/current.jpg');
-        expect(img?.classList.contains('halftone')).toBe(true);
+        // `.halftone` must be on the wrapper, never the <img> itself: its
+        // dot-overlay is a `::after` pseudo-element, which cannot render on a
+        // replaced element like `<img>` in any browser.
+        expect(img?.classList.contains('halftone')).toBe(false);
+        expect(root.querySelector('.camera-popup-image.halftone')).not.toBeNull();
         expect(root.querySelector('.camera-popup-no-image')).toBeNull();
 
         expect(root.querySelector('.camera-popup-location')?.textContent).toBe('Sigerfjordveien');
@@ -43,6 +47,20 @@ describe('buildPopupContent', () => {
         expect(root.querySelector('.camera-popup-image img')).toBeNull();
         expect(root.querySelector('.camera-popup-no-image')).not.toBeNull();
         expect(root.querySelector('.camera-popup-age')).toBeNull(); // no image, so no image-age line either
+    });
+
+    it('falls back to the "no image yet" message when a non-null image URL fails to load', () => {
+        const root = buildPopupContent(camera(), { onClose: vi.fn() });
+
+        const img = root.querySelector<HTMLImageElement>('.camera-popup-image img');
+        expect(img).not.toBeNull();
+        expect(root.querySelector('.camera-popup-no-image')).toBeNull();
+
+        img?.dispatchEvent(new Event('error'));
+
+        expect(root.querySelector('.camera-popup-image img')).toBeNull();
+        expect(root.querySelector('.camera-popup-no-image')).not.toBeNull();
+        expect(root.querySelector('.camera-popup-image.halftone')).toBeNull();
     });
 
     it('calls the injected onClose callback when the close button is clicked (never touches Leaflet directly)', () => {

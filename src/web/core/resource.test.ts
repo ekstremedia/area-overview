@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { err, ok, type Result } from '../../shared/result.js';
 import { resource } from './resource.js';
+import { computed, effect } from './signal.js';
 
 function setHidden(hidden: boolean): void {
     Object.defineProperty(document, 'hidden', { value: hidden, configurable: true });
@@ -120,5 +121,111 @@ describe('resource', () => {
 
         addSpy.mockRestore();
         removeSpy.mockRestore();
+    });
+
+    it('a refresh poll does not regress `ready` back to `loading` while it is in flight', async () => {
+        vi.useFakeTimers();
+        let resolveSecond: ((result: Result<string>) => void) | undefined;
+        const fetcher = vi
+            .fn<() => Promise<Result<string>>>()
+            .mockResolvedValueOnce(ok('first'))
+            .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(res.state.get()).toMatchObject({ status: 'ready', data: 'first' });
+
+        // The interval fires the second (refresh) fetch, which is still pending.
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        // Must still show the old ready data, not `loading`, while the refresh is in flight.
+        expect(res.state.get()).toMatchObject({ status: 'ready', data: 'first' });
+
+        resolveSecond?.(ok('second'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(res.state.get()).toMatchObject({ status: 'ready', data: 'second' });
+
+        res.dispose();
+    });
+
+    it('discards a stale, out-of-order resolution from an older in-flight call', async () => {
+        vi.useFakeTimers();
+        const deferreds: ((result: Result<string>) => void)[] = [];
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    deferreds.push(resolve);
+                }),
+        );
+        const res = resource(fetcher, { intervalMs: 1_000 });
+
+        // Call N fires immediately on creation and stays in flight.
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+
+        // Call N+1 fires from the interval while call N is still pending.
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        expect(deferreds).toHaveLength(2);
+
+        // Resolve the newer call (N+1) first.
+        deferreds[1]?.(ok('newer'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(res.state.get()).toMatchObject({ status: 'ready', data: 'newer' });
+
+        // The older call (N) resolves late; its result must be discarded entirely,
+        // not even reflected as `lastData` on a subsequent read.
+        deferreds[0]?.(ok('older-and-stale'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(res.state.get()).toMatchObject({ status: 'ready', data: 'newer' });
+
+        res.dispose();
+    });
+
+    it('a settings-like computed built on resource() never transiently reads the default across N poll cycles', async () => {
+        vi.useFakeTimers();
+        const DEFAULT_VALUE = 300;
+        let currentValue = 111;
+        const fetcher = vi.fn<() => Promise<Result<number>>>().mockImplementation(() => Promise.resolve(ok(currentValue)));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+
+        // Mirrors src/web/settings-resource.ts's `settings` computed.
+        const derived = computed<number>(() => {
+            const state = res.state.get();
+            switch (state.status) {
+                case 'ready':
+                    return state.data;
+                case 'error':
+                    return state.lastData ?? DEFAULT_VALUE;
+                case 'idle':
+                case 'loading':
+                    return DEFAULT_VALUE;
+            }
+        });
+
+        const seenStatuses: string[] = [];
+        const disposeEffect = effect(() => {
+            seenStatuses.push(res.state.get().status);
+        });
+
+        await vi.advanceTimersByTimeAsync(0); // first load resolves
+        expect(res.state.get().status).toBe('ready');
+        expect(derived.get()).toBe(111);
+
+        for (let i = 0; i < 5; i++) {
+            currentValue = 200 + i;
+            await vi.advanceTimersByTimeAsync(1_000);
+            // Never observes the default mid-poll: `state` must already be back to
+            // `ready` with the new value, never `loading` in between.
+            expect(res.state.get().status).toBe('ready');
+            expect(derived.get()).toBe(currentValue);
+        }
+
+        // `loading` must have been observed exactly once: for the very first load.
+        const loadingCount = seenStatuses.filter((status) => status === 'loading').length;
+        expect(loadingCount).toBe(1);
+
+        disposeEffect();
+        res.dispose();
     });
 });

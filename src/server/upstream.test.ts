@@ -69,6 +69,26 @@ describe('fetchUpstream', () => {
         expect(result.ok).toBe(false);
     });
 
+    it('returns err(...) for a real 204 (no body) when the caller supplies no on204 value and the schema rejects bare null', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+        const result = await fetchUpstream('/api/test', TestSchema, config);
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('returns ok(...) for a real 204 (no body) using the caller-supplied on204 value, without touching response.json()', async () => {
+        const response = new Response(null, { status: 204 });
+        const jsonSpy = vi.spyOn(response, 'json');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+        const EmptySchema = z.union([TestSchema, z.object({ empty: z.literal(true) })]);
+        const result = await fetchUpstream('/api/test', EmptySchema, config, { on204: { empty: true } });
+
+        expect(result).toEqual({ ok: true, value: { empty: true } });
+        expect(jsonSpy).not.toHaveBeenCalled();
+    });
+
     it('returns err(...) on a simulated timeout', async () => {
         vi.stubGlobal(
             'fetch',

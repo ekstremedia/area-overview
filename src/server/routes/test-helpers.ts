@@ -48,7 +48,20 @@ export function buildTestApp(overrides: Partial<ServerConfig> = {}, options: Bui
     return buildApp(testConfig(overrides), { logger: false, settingsAuthFailureDelayMs: 5, ...options });
 }
 
+/**
+ * A real `Response` (unlike happy-dom's) refuses a non-null body on a
+ * null-body status -- constructing one with a JSON string body would throw,
+ * which previously let this helper build an invalid 204 fixture (`{ status:
+ * 204, body: '...' }`) that silently diverges from what a real upstream can
+ * ever send. Model that here: a null-body status always gets `null`, so a
+ * caller can't accidentally assert against a shape upstream never produces.
+ */
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
+
 export function jsonResponse(body: unknown, status = 200): Response {
+    if (NULL_BODY_STATUSES.has(status)) {
+        return new Response(null, { status });
+    }
     return new Response(JSON.stringify(body), {
         status,
         headers: { 'Content-Type': 'application/json' },

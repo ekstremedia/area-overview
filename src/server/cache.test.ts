@@ -70,6 +70,41 @@ describe('TtlCache', () => {
         await expect(second).resolves.toBe('value-1');
     });
 
+    it('evicts the least-recently-used entry once maxEntries is exceeded', () => {
+        const cache = new TtlCache<string>(10_000, { maxEntries: 2 });
+        cache.set('a', 'value-a');
+        cache.set('b', 'value-b');
+        cache.set('c', 'value-c'); // evicts 'a', the least-recently-used
+
+        expect(cache.get('a')).toBeUndefined();
+        expect(cache.get('b')).toEqual({ value: 'value-b', stale: false });
+        expect(cache.get('c')).toEqual({ value: 'value-c', stale: false });
+    });
+
+    it('a get() refreshes recency, protecting a recently-read key from eviction', () => {
+        const cache = new TtlCache<string>(10_000, { maxEntries: 2 });
+        cache.set('a', 'value-a');
+        cache.set('b', 'value-b');
+
+        cache.get('a'); // touch 'a' so it is no longer the least-recently-used
+
+        cache.set('c', 'value-c'); // now 'b' is least-recently-used, not 'a'
+
+        expect(cache.get('a')).toEqual({ value: 'value-a', stale: false });
+        expect(cache.get('b')).toBeUndefined();
+        expect(cache.get('c')).toEqual({ value: 'value-c', stale: false });
+    });
+
+    it('has no cap at all when maxEntries is left unset', () => {
+        const cache = new TtlCache<string>(10_000);
+        for (let i = 0; i < 50; i++) {
+            cache.set(`key-${String(i)}`, `value-${String(i)}`);
+        }
+
+        expect(cache.get('key-0')).toEqual({ value: 'value-0', stale: false });
+        expect(cache.get('key-49')).toEqual({ value: 'value-49', stale: false });
+    });
+
     it('does not cache a failed load, leaving a stale entry available', async () => {
         const cache = new TtlCache<string>(1);
         cache.set('key', 'stale-value');

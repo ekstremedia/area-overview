@@ -25,9 +25,22 @@ const WeatherQuerySchema = z.object({
     lng: z.coerce.number().min(-180).max(180).optional(),
 });
 
+/**
+ * `pointCache` is keyed by rounded lat/lng (see `round2`'s doc comment: up
+ * to ~648 million distinct pairs at 2-decimal precision) behind
+ * `/api/weather`, a public, unauthenticated endpoint. Without a cap, a
+ * client hitting many distinct coordinates could grow the cache's memory
+ * without bound. A few hundred entries comfortably covers this app's own
+ * usage (map taps within one region); a couple thousand leaves generous
+ * headroom for unexpected traffic while still bounding memory to a small,
+ * fixed number of `Weather` payloads. This does not bound upstream request
+ * *rate* -- only the cache's memory footprint.
+ */
+const POINT_FORECAST_MAX_ENTRIES = 2000;
+
 export function registerWeatherRoutes(app: FastifyInstance, config: ServerConfig): void {
     const defaultCache = new TtlCache<Weather>(config.cacheTtlMs);
-    const pointCache = new TtlCache<Weather>(config.pointForecastTtlMs);
+    const pointCache = new TtlCache<Weather>(config.pointForecastTtlMs, { maxEntries: POINT_FORECAST_MAX_ENTRIES });
     const summaryCache = new TtlCache<WeatherSummaryResponse>(config.cacheTtlMs);
 
     app.get('/api/weather', async (request, reply) => {
@@ -58,7 +71,10 @@ export function registerWeatherRoutes(app: FastifyInstance, config: ServerConfig
 
     app.get('/api/weather/summary', async (request, reply) => {
         await serveCached(request, reply, summaryCache, 'weather:summary', () =>
-            fetchUpstream('/api/weather/summary', WeatherSummaryResponseSchema, config),
+            // Upstream answers 204 (no body) before it has generated a first
+            // summary; that's a defined empty state, not an error -- see
+            // `EmptyWeatherSummarySchema`.
+            fetchUpstream('/api/weather/summary', WeatherSummaryResponseSchema, config, { on204: { summary: null } }),
         );
     });
 }

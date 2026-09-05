@@ -41,6 +41,36 @@ describe('mountFooterLine', () => {
         dispose();
     });
 
+    it('keeps the "Updated X ago" text fresh over time instead of freezing between polls', () => {
+        vi.useFakeTimers();
+        try {
+            const start = new Date('2026-01-01T00:00:00.000Z');
+            vi.setSystemTime(start);
+
+            pageAttribution.set(null);
+            pageFreshness.set({ fetchedAt: start, intervalMs: 30_000 });
+            setSettings({ night: { enabled: false, from: '23:00', to: '06:00', mode: 'dim' } });
+            const container = document.createElement('div');
+            const dispose = mountFooterLine(container);
+
+            const initialText = container.querySelector('.footer-updated')?.textContent;
+
+            // `pageFreshness` itself never changes here -- only wall-clock time
+            // advances, well past a single poll interval. Without the tick, the
+            // text would stay frozen at `initialText`.
+            vi.advanceTimersByTime(10 * 60 * 1000);
+
+            const laterText = container.querySelector('.footer-updated')?.textContent;
+            expect(laterText).not.toBe(initialText);
+
+            pageAttribution.set(null);
+            pageFreshness.set(null);
+            dispose();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('replaces the normal footer with the night-schedule note while the schedule is active', () => {
         const now = new Date();
         const from = `${String(now.getHours()).padStart(2, '0')}:00`;

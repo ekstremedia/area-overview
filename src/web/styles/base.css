@@ -91,11 +91,20 @@ img {
    "camera images take the .halftone newsprint dot screen"). A generic
    image-treatment utility, not tied to one page -- Phase 6's map popup is
    the first consumer, Phase 8's camera grid/viewer reuse it verbatim.
-   Copied exactly from `design/broadsheet/styles.css`. */
+   Copied exactly from `design/broadsheet/styles.css`, with one deliberate
+   deviation: `.halftone` must be applied to a wrapper element, never
+   directly to an `<img>`. The dot-overlay below is a `::after`
+   pseudo-element, and `::after` cannot render on a replaced element like
+   `<img>` in any browser -- applying the class straight to the image would
+   silently keep the grayscale/contrast filter (a real CSS property) while
+   the dot overlay never appears. The filter itself is scoped to the `<img>`
+   child so both halves of the treatment render correctly. */
 .halftone {
     position: relative;
-    filter: grayscale(0.35) contrast(1.15);
     overflow: hidden;
+}
+.halftone > img {
+    filter: grayscale(0.35) contrast(1.15);
 }
 .halftone::after {
     content: '';

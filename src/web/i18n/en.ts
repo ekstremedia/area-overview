@@ -64,6 +64,8 @@ export const en: Record<keyof typeof nb, string> = {
     'map.pointForecastRetry': 'Retry',
     'map.pointForecastCondition': '{condition}, {direction}',
     'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+    'map.unavailable': 'The map could not be loaded.',
+    'map.reload': 'Reload',
 
     'map.shipUnknown': 'Unknown',
     'map.shipMmsi': 'MMSI {mmsi}',

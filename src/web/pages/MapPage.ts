@@ -59,7 +59,41 @@ export function render(container: HTMLElement): () => void {
 
     let cleanupInner: (() => void) | undefined;
 
+    /**
+     * Rendered in `mapDiv` when the dynamic Leaflet import (or the map setup
+     * that follows it) fails -- a real possibility on a kiosk over
+     * unreliable Wi-Fi, or a corrupted CDN/cache chunk. Without this, a
+     * rejected `Promise.all([import('leaflet'), ...])` would be an unhandled
+     * rejection and the route would silently stay blank with no indication
+     * why.
+     */
+    function renderMapUnavailable(): void {
+        mapDiv.replaceChildren();
+        const message = document.createElement('div');
+        message.className = 'map-unavailable';
+        const text = document.createElement('p');
+        text.textContent = t('map.unavailable');
+        const reloadButton = document.createElement('button');
+        reloadButton.type = 'button';
+        reloadButton.textContent = t('map.reload');
+        reloadButton.addEventListener('click', () => {
+            location.reload();
+        });
+        message.append(text, reloadButton);
+        mapDiv.append(message);
+    }
+
     void (async () => {
+        try {
+            await renderMap();
+        } catch (error) {
+            if (isDisposed()) return; // navigated away; nothing to render
+            console.error('Failed to load the map page', error);
+            renderMapUnavailable();
+        }
+    })();
+
+    async function renderMap(): Promise<void> {
         const [L] = await Promise.all([import('leaflet'), import('leaflet/dist/leaflet.css')]);
         if (isDisposed()) return; // navigated away before Leaflet finished loading
 
@@ -144,7 +178,7 @@ export function render(container: HTMLElement): () => void {
             disposeTiles(map);
             map.remove();
         };
-    })();
+    }
 
     return function dispose(): void {
         disposed = true;

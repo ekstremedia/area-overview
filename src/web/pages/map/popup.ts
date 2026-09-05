@@ -60,17 +60,31 @@ export function buildPopupContent(camera: Camera, callbacks: PopupCallbacks, now
 
     const imageWrap = document.createElement('div');
     imageWrap.className = 'camera-popup-image';
-    if (camera.current_image_url) {
-        const img = document.createElement('img');
-        img.className = 'halftone';
-        img.src = camera.current_image_url;
-        img.alt = t('map.cameraImageAlt', { name: camera.name });
-        imageWrap.append(img);
-    } else {
+
+    function renderNoImageFallback(): void {
+        imageWrap.classList.remove('halftone');
+        imageWrap.replaceChildren();
         const noImage = document.createElement('div');
         noImage.className = 'camera-popup-no-image';
         noImage.textContent = t('map.noImage');
         imageWrap.append(noImage);
+    }
+
+    if (camera.current_image_url) {
+        // `.halftone` goes on the wrapper, not the `<img>` itself: its dot-overlay
+        // is a `::after` pseudo-element, which cannot render on a replaced element
+        // like `<img>` in any browser. See base.css's `.halftone` doc comment.
+        imageWrap.classList.add('halftone');
+        const img = document.createElement('img');
+        img.src = camera.current_image_url;
+        img.alt = t('map.cameraImageAlt', { name: camera.name });
+        // A non-null URL can still fail to load (404, timeout, etc.) -- this must
+        // never show the browser's broken-image icon inside the popup card, so
+        // fall back to the same "no image" state used for a null URL.
+        img.addEventListener('error', renderNoImageFallback);
+        imageWrap.append(img);
+    } else {
+        renderNoImageFallback();
     }
     root.append(imageWrap);
 
