@@ -23,10 +23,15 @@ const WindSchema = z.object({
     source: z.string().optional(),
 });
 
+// `current`/`last_hour`/`last_24h` come from the Netatmo rain gauge module
+// specifically: when Netatmo is offline/unreachable, upstream omits them
+// entirely (observed: `undefined`, not `null`) while the rest of `current`
+// stays populated from Yr/MET.no. `.nullable()` is added defensively in
+// case upstream ever sends `null` instead of omitting the key.
 const RainSchema = z.object({
-    current: z.number(),
-    last_hour: z.number(),
-    last_24h: z.number(),
+    current: z.number().nullable().optional(),
+    last_hour: z.number().nullable().optional(),
+    last_24h: z.number().nullable().optional(),
     source: z.string().optional(),
 });
 
@@ -101,7 +106,10 @@ export const WeatherSchema = z.object({
     historical: z.unknown().nullable(),
     sun: z.record(z.string(), z.unknown()),
     moon: z.record(z.string(), z.unknown()),
-    netatmo: z.record(z.string(), z.unknown()),
+    // `null` when Terje's home Netatmo weather station is offline/
+    // unreachable -- a real, expected degraded-but-valid state, not
+    // malformed data.
+    netatmo: z.record(z.string(), z.unknown()).nullable(),
     yr: z.record(z.string(), z.unknown()),
     nowcast: z.record(z.string(), z.unknown()),
     attribution: WeatherAttributionSchema,
