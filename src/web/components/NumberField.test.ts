@@ -104,6 +104,28 @@ describe('numberField', () => {
         expect(write).toHaveBeenCalledWith(68.72);
     });
 
+    it('an invalid edit cancels a previously-scheduled valid debounced write', async () => {
+        vi.useFakeTimers();
+        const write = vi.fn<(v: number) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const { input } = numberField({ value: 68.7, schema: LAT_SCHEMA, write });
+        document.body.append(input);
+        input.focus();
+
+        setValue(input, '10'); // valid -- schedules a debounced write of 10
+        await vi.advanceTimersByTimeAsync(100); // well within the 500ms debounce window
+
+        setValue(input, '190'); // now invalid (out of range) -- must cancel the pending write
+        await vi.advanceTimersByTimeAsync(1000); // long past when the original debounce would have fired
+
+        expect(write).not.toHaveBeenCalled();
+
+        // A subsequent valid edit still writes, with only its own value.
+        setValue(input, '42');
+        await vi.advanceTimersByTimeAsync(500);
+        expect(write).toHaveBeenCalledTimes(1);
+        expect(write).toHaveBeenCalledWith(42);
+    });
+
     it('update() does not clobber the input while it has focus', () => {
         const write = vi.fn<(v: number) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
         const { input, update } = numberField({ value: 68.7, schema: LAT_SCHEMA, write });

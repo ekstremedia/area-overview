@@ -53,6 +53,28 @@ describe('timeField', () => {
         expect(write).not.toHaveBeenCalled();
     });
 
+    it('an invalid edit cancels a previously-scheduled valid debounced write', async () => {
+        vi.useFakeTimers();
+        const write = vi.fn<(v: string) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const { input } = timeField({ value: '23:00', write });
+        document.body.append(input);
+        input.focus();
+
+        setValue(input, '06:00'); // valid -- schedules a debounced write
+        await vi.advanceTimersByTimeAsync(100); // well within the 500ms debounce window
+
+        setValue(input, '25:99'); // now invalid -- must cancel the pending write
+        await vi.advanceTimersByTimeAsync(1000); // long past when the original debounce would have fired
+
+        expect(write).not.toHaveBeenCalled();
+
+        // A subsequent valid edit still writes, with only its own value.
+        setValue(input, '07:30');
+        await vi.advanceTimersByTimeAsync(500);
+        expect(write).toHaveBeenCalledTimes(1);
+        expect(write).toHaveBeenCalledWith('07:30');
+    });
+
     it('update() does not clobber the input while it has focus', () => {
         const write = vi.fn<(v: string) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
         const { input, update } = timeField({ value: '23:00', write });

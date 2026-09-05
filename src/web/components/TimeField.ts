@@ -61,6 +61,10 @@ export function timeField(options: TimeFieldOptions): TimeFieldHandle {
         } else {
             errorEl.textContent = t('settings.validation.invalid');
             input.classList.add('time-field-input--invalid');
+            // A previously-scheduled debounced write for the last valid value
+            // must not fire while the field currently shows an unconfirmed,
+            // invalid edit.
+            engine.cancel();
         }
     });
 

@@ -110,4 +110,30 @@ describe('autosave (debounced mode)', () => {
         flush();
         expect(write).not.toHaveBeenCalled();
     });
+
+    it('cancel() clears a pending debounced write without triggering it, and resets status to idle', async () => {
+        vi.useFakeTimers();
+        let value = '';
+        const write = vi.fn<(v: string) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const { trigger, cancel, status } = autosave(() => value, write, { debounceMs: 500 });
+
+        value = 'typed';
+        trigger();
+        expect(status.get()).toEqual({ kind: 'pending' });
+
+        cancel();
+        expect(status.get()).toEqual({ kind: 'idle' });
+
+        await vi.advanceTimersByTimeAsync(1000); // long past the original debounce window
+        expect(write).not.toHaveBeenCalled();
+    });
+
+    it('cancel() is a no-op when nothing is pending', () => {
+        const write = vi.fn<() => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const { cancel, status } = autosave(() => 1, write, { debounceMs: 500 });
+
+        cancel();
+        expect(write).not.toHaveBeenCalled();
+        expect(status.get()).toEqual({ kind: 'idle' });
+    });
 });

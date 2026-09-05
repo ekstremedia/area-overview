@@ -43,6 +43,15 @@ export interface Autosave {
     trigger: () => void;
     /** Forces any pending debounced write to happen now (blur, Enter). A no-op if nothing is pending. */
     flush: () => void;
+    /**
+     * Cancels any pending debounced write without triggering it -- used when
+     * the field's value has since become invalid, so the last-known-valid
+     * value never gets silently written after the user has already moved on
+     * to editing something that doesn't parse. A no-op if nothing is
+     * pending; does not affect a write already in flight (that one already
+     * left the debounce stage and is mid-`fetch`).
+     */
+    cancel: () => void;
 }
 
 const DEFAULT_SAVED_DISPLAY_MS = 1500;
@@ -119,5 +128,11 @@ export function autosave<T>(read: () => T, write: (value: T) => Promise<Result<u
         void runWrite();
     }
 
-    return { status, trigger, flush };
+    function cancel(): void {
+        if (debounceTimer === undefined) return;
+        clearDebounceTimer();
+        status.set({ kind: 'idle' });
+    }
+
+    return { status, trigger, flush, cancel };
 }
