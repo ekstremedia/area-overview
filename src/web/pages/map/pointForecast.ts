@@ -19,7 +19,8 @@
  */
 import { WeatherSchema, type Weather } from '../../../shared/schemas/weather.js';
 import { effect, signal, type ReadonlySignal } from '../../core/signal.js';
-import { formatNumber, t, type ParamlessKey } from '../../i18n/index.js';
+import { formatNumber, t } from '../../i18n/index.js';
+import { compassWord, humanizeSymbolCode } from '../../weather-symbols.js';
 
 export type PointForecastState =
     | { status: 'idle' }
@@ -85,58 +86,6 @@ export function createPointForecastController(fetchImpl: FetchLike = fetch): Poi
     }
 
     return { state, requestForecast, dispose };
-}
-
-const COMPASS_KEYS: readonly ParamlessKey[] = [
-    'compass.n',
-    'compass.ne',
-    'compass.e',
-    'compass.se',
-    'compass.s',
-    'compass.sw',
-    'compass.w',
-    'compass.nw',
-];
-
-/** An 8-point compass word for a wind direction in degrees (0=N, 90=E, ...). */
-function compassWord(degrees: number): string {
-    const normalized = ((degrees % 360) + 360) % 360;
-    const index = Math.round(normalized / 45) % 8;
-    return t(COMPASS_KEYS[index] ?? 'compass.n');
-}
-
-/**
- * A best-effort, deliberately non-exhaustive humanization of MET Norway's
- * Yr `symbol_code` vocabulary (~50 codes) into the condition fragment the
- * artboard shows (e.g. "lett regn" for `lightrain_day`). Full translation
- * of every Yr symbol code belongs with Phase 8's actual weather page,
- * which needs the same table for its own forecast display and icons --
- * duplicating a partial guess here would just have to be redone there.
- * Anything not in this small table falls back to a humanized version of
- * the raw code (underscores to spaces, day/night/twilight suffix
- * stripped) rather than a translated word.
- */
-const SYMBOL_CONDITION_KEYS: Record<string, ParamlessKey> = {
-    clearsky: 'symbol.clearsky',
-    fair: 'symbol.fair',
-    partlycloudy: 'symbol.partlycloudy',
-    cloudy: 'symbol.cloudy',
-    fog: 'symbol.fog',
-    rain: 'symbol.rain',
-    lightrain: 'symbol.lightrain',
-    heavyrain: 'symbol.heavyrain',
-    rainshowers: 'symbol.rainshowers',
-    sleet: 'symbol.sleet',
-    snow: 'symbol.snow',
-    lightsnow: 'symbol.lightsnow',
-    heavysnow: 'symbol.heavysnow',
-};
-
-function humanizeSymbolCode(symbolCode: string): string {
-    const base = symbolCode.replace(/_(day|night|polartwilight)$/, '');
-    const key = SYMBOL_CONDITION_KEYS[base];
-    if (key) return t(key);
-    return base.replace(/_/g, ' ');
 }
 
 /** Mounts the bottom-right point-forecast panel (artboard 01) into `container`, re-rendering it from `state` reactively. Returns a disposer. */
