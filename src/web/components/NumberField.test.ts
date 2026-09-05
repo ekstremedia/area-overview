@@ -146,7 +146,9 @@ describe('numberField', () => {
         expect(a.input.id).toBe('camera-a-lat');
         expect(a.input.name).toBe('camera-a-lat');
         expect(b.input.id).toBe('camera-b-lat');
+        expect(b.input.name).toBe('camera-b-lat');
         expect(a.input.id).not.toBe(b.input.id);
+        expect(a.input.name).not.toBe(b.input.name);
     });
 
     it('falls back to a non-empty, unique id/name when none is given', () => {
@@ -156,7 +158,10 @@ describe('numberField', () => {
 
         expect(a.input.id).not.toBe('');
         expect(a.input.name).not.toBe('');
+        expect(a.input.id).toBe(a.input.name);
+        expect(b.input.id).toBe(b.input.name);
         expect(a.input.id).not.toBe(b.input.id);
+        expect(a.input.name).not.toBe(b.input.name);
     });
 
     it('update() syncs the displayed value when the input is not focused', () => {
