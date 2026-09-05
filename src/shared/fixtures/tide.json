@@ -1,0 +1,839 @@
+{
+    "location": { "name": "Andenes", "latitude": 68.6984, "longitude": 15.4129, "code": "ANX" },
+    "timeseries": [
+        {
+            "time": "2026-09-04T18:00:00+01:00",
+            "value": 185,
+            "type": "prediction",
+            "observation": 188.4,
+            "weatherEffect": 3.3,
+            "forecast": 193,
+            "level": 188.7
+        },
+        {
+            "time": "2026-09-04T18:10:00+01:00",
+            "value": 183.9,
+            "type": "prediction",
+            "observation": 187.5,
+            "weatherEffect": 3.6,
+            "forecast": 191.9,
+            "level": 187.7
+        },
+        {
+            "time": "2026-09-04T18:20:00+01:00",
+            "value": 182.4,
+            "type": "prediction",
+            "observation": 186.3,
+            "weatherEffect": 3.9,
+            "forecast": 190.4,
+            "level": 186.2
+        },
+        {
+            "time": "2026-09-04T18:30:00+01:00",
+            "value": 180.6,
+            "type": "prediction",
+            "observation": 184.6,
+            "weatherEffect": 4,
+            "forecast": 188.6,
+            "level": 184.5
+        },
+        {
+            "time": "2026-09-04T18:40:00+01:00",
+            "value": 178.4,
+            "type": "prediction",
+            "observation": 182.5,
+            "weatherEffect": 4.1,
+            "forecast": 186.4,
+            "level": 182.4
+        },
+        {
+            "time": "2026-09-04T18:50:00+01:00",
+            "value": 176,
+            "type": "prediction",
+            "observation": 180.2,
+            "weatherEffect": 4.1,
+            "forecast": 185,
+            "level": 180.2
+        },
+        {
+            "time": "2026-09-04T19:00:00+01:00",
+            "value": 173.3,
+            "type": "prediction",
+            "observation": 177.5,
+            "weatherEffect": 4.2,
+            "forecast": 182.3,
+            "level": 177.6
+        },
+        {
+            "time": "2026-09-04T19:10:00+01:00",
+            "value": 170.4,
+            "type": "prediction",
+            "observation": 174.7,
+            "weatherEffect": 4.3,
+            "forecast": 179.4,
+            "level": 174.8
+        },
+        {
+            "time": "2026-09-04T19:20:00+01:00",
+            "value": 167.2,
+            "type": "prediction",
+            "observation": 171.7,
+            "weatherEffect": 4.5,
+            "forecast": 176.2,
+            "level": 171.6
+        },
+        {
+            "time": "2026-09-04T19:30:00+01:00",
+            "value": 163.9,
+            "type": "prediction",
+            "observation": 168.5,
+            "weatherEffect": 4.6,
+            "forecast": 172.9,
+            "level": 168.4
+        },
+        {
+            "time": "2026-09-04T19:40:00+01:00",
+            "value": 160.3,
+            "type": "prediction",
+            "observation": 165,
+            "weatherEffect": 4.7,
+            "forecast": 169.3,
+            "level": 164.9
+        },
+        {
+            "time": "2026-09-04T19:50:00+01:00",
+            "value": 156.6,
+            "type": "prediction",
+            "observation": 161.3,
+            "weatherEffect": 4.7,
+            "forecast": 165.6,
+            "level": 161.3
+        },
+        {
+            "time": "2026-09-04T20:00:00+01:00",
+            "value": 152.8,
+            "type": "prediction",
+            "observation": 157.5,
+            "weatherEffect": 4.8,
+            "forecast": 161.8,
+            "level": 157.5
+        },
+        {
+            "time": "2026-09-04T20:10:00+01:00",
+            "value": 148.8,
+            "type": "prediction",
+            "observation": 153.5,
+            "weatherEffect": 4.7,
+            "forecast": 157.8,
+            "level": 153.4
+        },
+        {
+            "time": "2026-09-04T20:20:00+01:00",
+            "value": 144.7,
+            "type": "prediction",
+            "observation": 149.3,
+            "weatherEffect": 4.6,
+            "forecast": 153.7,
+            "level": 149.3
+        },
+        {
+            "time": "2026-09-04T20:30:00+01:00",
+            "value": 140.6,
+            "type": "prediction",
+            "observation": 145.1,
+            "weatherEffect": 4.5,
+            "forecast": 148.6,
+            "level": 145.1
+        },
+        {
+            "time": "2026-09-04T20:40:00+01:00",
+            "value": 136.4,
+            "type": "prediction",
+            "observation": 140.9,
+            "weatherEffect": 4.4,
+            "forecast": 144.4,
+            "level": 140.8
+        },
+        {
+            "time": "2026-09-04T20:50:00+01:00",
+            "value": 132.3,
+            "type": "prediction",
+            "observation": 136.6,
+            "weatherEffect": 4.3,
+            "forecast": 141.3,
+            "level": 136.7
+        },
+        {
+            "time": "2026-09-04T21:00:00+01:00",
+            "value": 128.1,
+            "type": "prediction",
+            "observation": 132.4,
+            "weatherEffect": 4.3,
+            "forecast": 137.1,
+            "level": 132.4
+        },
+        {
+            "time": "2026-09-04T21:10:00+01:00",
+            "value": 124,
+            "type": "prediction",
+            "observation": 128.2,
+            "weatherEffect": 4.2,
+            "forecast": 134,
+            "level": 128.2
+        },
+        {
+            "time": "2026-09-04T21:20:00+01:00",
+            "value": 119.9,
+            "type": "prediction",
+            "observation": 124.1,
+            "weatherEffect": 4.2,
+            "forecast": 129.9,
+            "level": 124
+        },
+        {
+            "time": "2026-09-04T21:30:00+01:00",
+            "value": 115.9,
+            "type": "prediction",
+            "observation": 120,
+            "weatherEffect": 4,
+            "forecast": 125.9,
+            "level": 119.9
+        },
+        {
+            "time": "2026-09-04T21:40:00+01:00",
+            "value": 112.1,
+            "type": "prediction",
+            "observation": 116.1,
+            "weatherEffect": 4,
+            "forecast": 121.1,
+            "level": 116
+        },
+        {
+            "time": "2026-09-04T21:50:00+01:00",
+            "value": 108.4,
+            "type": "prediction",
+            "observation": 112.2,
+            "weatherEffect": 3.8,
+            "forecast": 117.4,
+            "level": 112.2
+        },
+        {
+            "time": "2026-09-04T22:00:00+01:00",
+            "value": 104.9,
+            "type": "prediction",
+            "observation": 108.5,
+            "weatherEffect": 3.6,
+            "forecast": 113.9,
+            "level": 108.5
+        },
+        {
+            "time": "2026-09-04T22:10:00+01:00",
+            "value": 101.6,
+            "type": "prediction",
+            "observation": 105,
+            "weatherEffect": 3.4,
+            "forecast": 110.6,
+            "level": 105.1
+        },
+        {
+            "time": "2026-09-04T22:20:00+01:00",
+            "value": 98.5,
+            "type": "prediction",
+            "observation": 101.7,
+            "weatherEffect": 3.3,
+            "forecast": 107.5,
+            "level": 101.9
+        },
+        {
+            "time": "2026-09-04T22:30:00+01:00",
+            "value": 95.6,
+            "type": "prediction",
+            "observation": 98.8,
+            "weatherEffect": 3.2,
+            "forecast": 104.6,
+            "level": 98.9
+        },
+        {
+            "time": "2026-09-04T22:40:00+01:00",
+            "value": 93,
+            "type": "prediction",
+            "observation": 96.1,
+            "weatherEffect": 3.2,
+            "forecast": 102,
+            "level": 96.2
+        },
+        {
+            "time": "2026-09-04T22:50:00+01:00",
+            "value": 90.7,
+            "type": "prediction",
+            "observation": 93.8,
+            "weatherEffect": 3.2,
+            "forecast": 99.7,
+            "level": 93.9
+        },
+        {
+            "time": "2026-09-04T23:00:00+01:00",
+            "value": 88.6,
+            "type": "prediction",
+            "observation": 91.7,
+            "weatherEffect": 3.1,
+            "forecast": 96.6,
+            "level": 91.7
+        },
+        {
+            "time": "2026-09-04T23:10:00+01:00",
+            "value": 86.9,
+            "type": "prediction",
+            "observation": 90,
+            "weatherEffect": 3.1,
+            "forecast": 94.9,
+            "level": 90
+        },
+        {
+            "time": "2026-09-04T23:20:00+01:00",
+            "value": 85.5,
+            "type": "prediction",
+            "observation": 88.5,
+            "weatherEffect": 3,
+            "forecast": 94.5,
+            "level": 88.6
+        },
+        {
+            "time": "2026-09-04T23:30:00+01:00",
+            "value": 84.4,
+            "type": "prediction",
+            "observation": 87.4,
+            "weatherEffect": 3,
+            "forecast": 93.4,
+            "level": 87.5
+        },
+        {
+            "time": "2026-09-04T23:40:00+01:00",
+            "value": 83.7,
+            "type": "prediction",
+            "observation": 86.7,
+            "weatherEffect": 3,
+            "forecast": 92.7,
+            "level": 86.8
+        },
+        {
+            "time": "2026-09-04T23:50:00+01:00",
+            "value": 83.3,
+            "type": "prediction",
+            "observation": 86.4,
+            "weatherEffect": 3.1,
+            "forecast": 92.3,
+            "level": 86.5
+        },
+        {
+            "time": "2026-09-05T00:00:00+01:00",
+            "value": 83.2,
+            "type": "prediction",
+            "observation": 86.4,
+            "weatherEffect": 3.2,
+            "forecast": 92.2,
+            "level": 86.5
+        },
+        {
+            "time": "2026-09-05T00:10:00+01:00",
+            "value": 83.5,
+            "type": "prediction",
+            "observation": 86.9,
+            "weatherEffect": 3.4,
+            "forecast": 92.5,
+            "level": 87
+        },
+        {
+            "time": "2026-09-05T00:20:00+01:00",
+            "value": 84.1,
+            "type": "prediction",
+            "observation": 87.8,
+            "weatherEffect": 3.7,
+            "forecast": 93.1,
+            "level": 87.8
+        },
+        {
+            "time": "2026-09-05T00:30:00+01:00",
+            "value": 85,
+            "type": "prediction",
+            "observation": 89,
+            "weatherEffect": 4,
+            "forecast": 94,
+            "level": 88.9
+        },
+        {
+            "time": "2026-09-05T00:40:00+01:00",
+            "value": 86.3,
+            "type": "prediction",
+            "observation": 90.5,
+            "weatherEffect": 4.2,
+            "forecast": 96.3,
+            "level": 90.4
+        },
+        {
+            "time": "2026-09-05T00:50:00+01:00",
+            "value": 87.9,
+            "type": "prediction",
+            "observation": 92.3,
+            "weatherEffect": 4.4,
+            "forecast": 97.9,
+            "level": 92.2
+        },
+        {
+            "time": "2026-09-05T01:00:00+01:00",
+            "value": 89.8,
+            "type": "prediction",
+            "observation": 94.3,
+            "weatherEffect": 4.5,
+            "forecast": 99.8,
+            "level": 94.3
+        },
+        {
+            "time": "2026-09-05T01:10:00+01:00",
+            "value": 92,
+            "type": "prediction",
+            "observation": 96.7,
+            "weatherEffect": 4.7,
+            "forecast": 102,
+            "level": 96.6
+        },
+        {
+            "time": "2026-09-05T01:20:00+01:00",
+            "value": 94.5,
+            "type": "prediction",
+            "observation": 99.2,
+            "weatherEffect": 4.7,
+            "forecast": 104.5,
+            "level": 99.2
+        },
+        {
+            "time": "2026-09-05T01:30:00+01:00",
+            "value": 97.3,
+            "type": "prediction",
+            "observation": 102.1,
+            "weatherEffect": 4.8,
+            "forecast": 107.3,
+            "level": 102.8
+        },
+        {
+            "time": "2026-09-05T01:40:00+01:00",
+            "value": 100.2,
+            "type": "prediction",
+            "observation": 105.1,
+            "weatherEffect": 4.9,
+            "forecast": 110.2,
+            "level": 106.3
+        },
+        {
+            "time": "2026-09-05T01:50:00+01:00",
+            "value": 103.5,
+            "type": "prediction",
+            "observation": 108.1,
+            "weatherEffect": 4.6,
+            "forecast": 113.5,
+            "level": 110.2
+        },
+        { "time": "2026-09-05T02:00:00+01:00", "value": 106.9, "type": "prediction", "forecast": 116.9, "level": 114.2 },
+        { "time": "2026-09-05T02:10:00+01:00", "value": 110.4, "type": "prediction", "forecast": 119.4, "level": 118.3 },
+        { "time": "2026-09-05T02:20:00+01:00", "value": 114.2, "type": "prediction", "forecast": 123.2, "level": 122.7 },
+        { "time": "2026-09-05T02:30:00+01:00", "value": 118, "type": "prediction", "forecast": 127, "level": 127.1 },
+        { "time": "2026-09-05T02:40:00+01:00", "value": 121.9, "type": "prediction", "forecast": 130.9, "level": 130.9 },
+        { "time": "2026-09-05T02:50:00+01:00", "value": 125.9, "type": "prediction", "forecast": 134.9, "level": 135 },
+        { "time": "2026-09-05T03:00:00+01:00", "value": 129.9, "type": "prediction", "forecast": 138.9, "level": 139.2 },
+        { "time": "2026-09-05T03:10:00+01:00", "value": 134, "type": "prediction", "forecast": 143, "level": 143.4 },
+        { "time": "2026-09-05T03:20:00+01:00", "value": 138, "type": "prediction", "forecast": 148, "level": 147.6 },
+        { "time": "2026-09-05T03:30:00+01:00", "value": 141.9, "type": "prediction", "forecast": 151.9, "level": 151.6 },
+        { "time": "2026-09-05T03:40:00+01:00", "value": 145.8, "type": "prediction", "forecast": 155.8, "level": 155.7 },
+        { "time": "2026-09-05T03:50:00+01:00", "value": 149.6, "type": "prediction", "forecast": 159.6, "level": 159.6 },
+        { "time": "2026-09-05T04:00:00+01:00", "value": 153.3, "type": "prediction", "forecast": 163.3, "level": 163.3 },
+        { "time": "2026-09-05T04:10:00+01:00", "value": 156.8, "type": "prediction", "forecast": 166.8, "level": 166.8 },
+        { "time": "2026-09-05T04:20:00+01:00", "value": 160.2, "type": "prediction", "forecast": 170.2, "level": 170.2 },
+        { "time": "2026-09-05T04:30:00+01:00", "value": 163.3, "type": "prediction", "forecast": 173.3, "level": 173.2 },
+        { "time": "2026-09-05T04:40:00+01:00", "value": 166.2, "type": "prediction", "forecast": 176.2, "level": 175.9 },
+        { "time": "2026-09-05T04:50:00+01:00", "value": 168.9, "type": "prediction", "forecast": 178.9, "level": 178.5 },
+        { "time": "2026-09-05T05:00:00+01:00", "value": 171.3, "type": "prediction", "forecast": 180.3, "level": 180.7 },
+        { "time": "2026-09-05T05:10:00+01:00", "value": 173.4, "type": "prediction", "forecast": 182.4, "level": 182.7 },
+        { "time": "2026-09-05T05:20:00+01:00", "value": 175.2, "type": "prediction", "forecast": 184.2, "level": 184.3 },
+        { "time": "2026-09-05T05:30:00+01:00", "value": 176.7, "type": "prediction", "forecast": 185.7, "level": 185.7 },
+        { "time": "2026-09-05T05:40:00+01:00", "value": 177.9, "type": "prediction", "forecast": 186.9, "level": 186.9 },
+        { "time": "2026-09-05T05:50:00+01:00", "value": 178.7, "type": "prediction", "forecast": 187.7, "level": 187.7 },
+        { "time": "2026-09-05T06:00:00+01:00", "value": 179.2, "type": "prediction", "forecast": 188.2, "level": 188.2 },
+        { "time": "2026-09-05T06:10:00+01:00", "value": 179.4, "type": "prediction", "forecast": 188.4, "level": 188.4 },
+        { "time": "2026-09-05T06:20:00+01:00", "value": 179.2, "type": "prediction", "forecast": 188.2, "level": 188.2 },
+        { "time": "2026-09-05T06:30:00+01:00", "value": 178.7, "type": "prediction", "forecast": 187.7, "level": 187.8 },
+        { "time": "2026-09-05T06:40:00+01:00", "value": 177.9, "type": "prediction", "forecast": 186.9, "level": 187.2 },
+        { "time": "2026-09-05T06:50:00+01:00", "value": 176.8, "type": "prediction", "forecast": 185.8, "level": 186.2 },
+        { "time": "2026-09-05T07:00:00+01:00", "value": 175.4, "type": "prediction", "forecast": 185.4, "level": 185 },
+        { "time": "2026-09-05T07:10:00+01:00", "value": 173.7, "type": "prediction", "forecast": 183.7, "level": 183.4 },
+        { "time": "2026-09-05T07:20:00+01:00", "value": 171.7, "type": "prediction", "forecast": 181.7, "level": 181.6 },
+        { "time": "2026-09-05T07:30:00+01:00", "value": 169.4, "type": "prediction", "forecast": 179.4, "level": 179.4 },
+        { "time": "2026-09-05T07:40:00+01:00", "value": 166.9, "type": "prediction", "forecast": 176.9, "level": 176.9 },
+        { "time": "2026-09-05T07:50:00+01:00", "value": 164.2, "type": "prediction", "forecast": 174.2, "level": 174.2 },
+        { "time": "2026-09-05T08:00:00+01:00", "value": 161.3, "type": "prediction", "forecast": 171.3, "level": 171.3 },
+        { "time": "2026-09-05T08:10:00+01:00", "value": 158.2, "type": "prediction", "forecast": 168.2, "level": 168.2 },
+        { "time": "2026-09-05T08:20:00+01:00", "value": 154.9, "type": "prediction", "forecast": 164.9, "level": 164.9 },
+        { "time": "2026-09-05T08:30:00+01:00", "value": 151.5, "type": "prediction", "forecast": 161.5, "level": 161.5 },
+        { "time": "2026-09-05T08:40:00+01:00", "value": 147.9, "type": "prediction", "forecast": 157.9, "level": 157.9 },
+        { "time": "2026-09-05T08:50:00+01:00", "value": 144.3, "type": "prediction", "forecast": 154.3, "level": 154.3 },
+        { "time": "2026-09-05T09:00:00+01:00", "value": 140.6, "type": "prediction", "forecast": 150.6, "level": 150.6 },
+        { "time": "2026-09-05T09:10:00+01:00", "value": 136.8, "type": "prediction", "forecast": 146.8, "level": 146.8 },
+        { "time": "2026-09-05T09:20:00+01:00", "value": 133, "type": "prediction", "forecast": 143, "level": 143 },
+        { "time": "2026-09-05T09:30:00+01:00", "value": 129.2, "type": "prediction", "forecast": 139.2, "level": 139.2 },
+        { "time": "2026-09-05T09:40:00+01:00", "value": 125.5, "type": "prediction", "forecast": 135.5, "level": 135.5 },
+        { "time": "2026-09-05T09:50:00+01:00", "value": 121.8, "type": "prediction", "forecast": 131.8, "level": 131.8 },
+        { "time": "2026-09-05T10:00:00+01:00", "value": 118.1, "type": "prediction", "forecast": 128.1, "level": 128.1 },
+        { "time": "2026-09-05T10:10:00+01:00", "value": 114.6, "type": "prediction", "forecast": 124.6, "level": 124.6 },
+        { "time": "2026-09-05T10:20:00+01:00", "value": 111.2, "type": "prediction", "forecast": 121.2, "level": 121.2 },
+        { "time": "2026-09-05T10:30:00+01:00", "value": 108, "type": "prediction", "forecast": 118, "level": 118 },
+        { "time": "2026-09-05T10:40:00+01:00", "value": 105, "type": "prediction", "forecast": 115, "level": 115 },
+        { "time": "2026-09-05T10:50:00+01:00", "value": 102.1, "type": "prediction", "forecast": 112.1, "level": 112.1 },
+        { "time": "2026-09-05T11:00:00+01:00", "value": 99.5, "type": "prediction", "forecast": 109.5, "level": 109.5 },
+        { "time": "2026-09-05T11:10:00+01:00", "value": 97.1, "type": "prediction", "forecast": 107.1, "level": 107.1 },
+        { "time": "2026-09-05T11:20:00+01:00", "value": 94.9, "type": "prediction", "forecast": 104.9, "level": 104.9 },
+        { "time": "2026-09-05T11:30:00+01:00", "value": 93, "type": "prediction", "forecast": 103, "level": 103 },
+        { "time": "2026-09-05T11:40:00+01:00", "value": 91.4, "type": "prediction", "forecast": 101.4, "level": 101.4 },
+        { "time": "2026-09-05T11:50:00+01:00", "value": 90, "type": "prediction", "forecast": 100, "level": 100 },
+        { "time": "2026-09-05T12:00:00+01:00", "value": 89, "type": "prediction", "forecast": 99, "level": 99 },
+        { "time": "2026-09-05T12:10:00+01:00", "value": 88.2, "type": "prediction", "forecast": 98.2, "level": 98.2 },
+        { "time": "2026-09-05T12:20:00+01:00", "value": 87.7, "type": "prediction", "forecast": 97.7, "level": 97.7 },
+        { "time": "2026-09-05T12:30:00+01:00", "value": 87.6, "type": "prediction", "forecast": 97.6, "level": 97.6 },
+        { "time": "2026-09-05T12:40:00+01:00", "value": 87.7, "type": "prediction", "forecast": 97.7, "level": 97.7 },
+        { "time": "2026-09-05T12:50:00+01:00", "value": 88.2, "type": "prediction", "forecast": 98.2, "level": 98.2 },
+        { "time": "2026-09-05T13:00:00+01:00", "value": 88.9, "type": "prediction", "forecast": 98.9, "level": 98.9 },
+        { "time": "2026-09-05T13:10:00+01:00", "value": 90, "type": "prediction", "forecast": 100, "level": 100 },
+        { "time": "2026-09-05T13:20:00+01:00", "value": 91.3, "type": "prediction", "forecast": 101.3, "level": 101.3 },
+        { "time": "2026-09-05T13:30:00+01:00", "value": 93, "type": "prediction", "forecast": 103, "level": 103 },
+        { "time": "2026-09-05T13:40:00+01:00", "value": 94.9, "type": "prediction", "forecast": 104.9, "level": 104.9 },
+        { "time": "2026-09-05T13:50:00+01:00", "value": 97, "type": "prediction", "forecast": 107, "level": 107 },
+        { "time": "2026-09-05T14:00:00+01:00", "value": 99.5, "type": "prediction", "forecast": 109.5, "level": 109.5 },
+        { "time": "2026-09-05T14:10:00+01:00", "value": 102.1, "type": "prediction", "forecast": 112.1, "level": 112.1 },
+        { "time": "2026-09-05T14:20:00+01:00", "value": 105, "type": "prediction", "forecast": 115, "level": 115 },
+        { "time": "2026-09-05T14:30:00+01:00", "value": 108.1, "type": "prediction", "forecast": 118.1, "level": 118 },
+        { "time": "2026-09-05T14:40:00+01:00", "value": 111.3, "type": "prediction", "forecast": 121.3, "level": 121 },
+        { "time": "2026-09-05T14:50:00+01:00", "value": 114.7, "type": "prediction", "forecast": 124.7, "level": 124.3 },
+        { "time": "2026-09-05T15:00:00+01:00", "value": 118.2, "type": "prediction", "forecast": 127.2, "level": 127.6 },
+        { "time": "2026-09-05T15:10:00+01:00", "value": 121.8, "type": "prediction", "forecast": 130.8, "level": 131.1 },
+        { "time": "2026-09-05T15:20:00+01:00", "value": 125.5, "type": "prediction", "forecast": 134.5, "level": 134.6 },
+        { "time": "2026-09-05T15:30:00+01:00", "value": 129.3, "type": "prediction", "forecast": 138.3, "level": 138.3 },
+        { "time": "2026-09-05T15:40:00+01:00", "value": 133, "type": "prediction", "forecast": 142, "level": 142 },
+        { "time": "2026-09-05T15:50:00+01:00", "value": 136.8, "type": "prediction", "forecast": 145.8, "level": 145.8 },
+        { "time": "2026-09-05T16:00:00+01:00", "value": 140.6, "type": "prediction", "forecast": 149.6, "level": 149.6 },
+        { "time": "2026-09-05T16:10:00+01:00", "value": 144.3, "type": "prediction", "forecast": 153.3, "level": 153.3 },
+        { "time": "2026-09-05T16:20:00+01:00", "value": 147.9, "type": "prediction", "forecast": 156.9, "level": 156.9 },
+        { "time": "2026-09-05T16:30:00+01:00", "value": 151.4, "type": "prediction", "forecast": 160.4, "level": 160.4 },
+        { "time": "2026-09-05T16:40:00+01:00", "value": 154.9, "type": "prediction", "forecast": 163.9, "level": 163.9 },
+        { "time": "2026-09-05T16:50:00+01:00", "value": 158.1, "type": "prediction", "forecast": 167.1, "level": 167.1 },
+        { "time": "2026-09-05T17:00:00+01:00", "value": 161.2, "type": "prediction", "forecast": 170.2, "level": 170.2 },
+        { "time": "2026-09-05T17:10:00+01:00", "value": 164.1, "type": "prediction", "forecast": 173.1, "level": 173.1 },
+        { "time": "2026-09-05T17:20:00+01:00", "value": 166.9, "type": "prediction", "forecast": 175.9, "level": 175.8 },
+        { "time": "2026-09-05T17:30:00+01:00", "value": 169.3, "type": "prediction", "forecast": 178.3, "level": 178 },
+        { "time": "2026-09-05T17:40:00+01:00", "value": 171.5, "type": "prediction", "forecast": 180.5, "level": 180.1 },
+        { "time": "2026-09-05T17:50:00+01:00", "value": 173.5, "type": "prediction", "forecast": 181.5, "level": 181.9 },
+        { "time": "2026-09-05T18:00:00+01:00", "value": 175.2, "type": "prediction", "forecast": 183.2, "level": 183.3 },
+        { "time": "2026-09-05T18:10:00+01:00", "value": 176.6, "type": "prediction", "forecast": 184.6, "level": 184.6 },
+        { "time": "2026-09-05T18:20:00+01:00", "value": 177.7, "type": "prediction", "forecast": 185.7, "level": 185.5 },
+        { "time": "2026-09-05T18:30:00+01:00", "value": 178.5, "type": "prediction", "forecast": 185.5, "level": 186.3 }
+    ],
+    "extremes": [
+        { "time": "2026-09-04T23:57:00+01:00", "value": 86.5, "type": "low", "source": "forecast" },
+        { "time": "2026-09-05T06:10:00+01:00", "value": 188.4, "type": "high", "source": "forecast" },
+        { "time": "2026-09-05T12:30:00+01:00", "value": 97.6, "type": "low", "source": "forecast" },
+        { "time": "2026-09-05T18:53:00+01:00", "value": 179.3, "type": "high", "source": "prediction" },
+        { "time": "2026-09-06T01:29:00+01:00", "value": 87.3, "type": "low", "source": "prediction" },
+        { "time": "2026-09-06T07:49:00+01:00", "value": 173.3, "type": "high", "source": "prediction" },
+        { "time": "2026-09-06T14:06:00+01:00", "value": 93.3, "type": "low", "source": "prediction" },
+        { "time": "2026-09-06T20:28:00+01:00", "value": 181.6, "type": "high", "source": "prediction" },
+        { "time": "2026-09-07T03:04:00+01:00", "value": 79.6, "type": "low", "source": "prediction" },
+        { "time": "2026-09-07T09:26:00+01:00", "value": 179.9, "type": "high", "source": "prediction" },
+        { "time": "2026-09-07T15:34:00+01:00", "value": 87.4, "type": "low", "source": "prediction" }
+    ],
+    "predictionExtremes": [
+        { "time": "2026-09-04T23:57:00+01:00", "value": 83.2, "type": "low" },
+        { "time": "2026-09-05T06:10:00+01:00", "value": 179.4, "type": "high" },
+        { "time": "2026-09-05T12:30:00+01:00", "value": 87.6, "type": "low" },
+        { "time": "2026-09-05T18:53:00+01:00", "value": 179.3, "type": "high" },
+        { "time": "2026-09-06T01:29:00+01:00", "value": 87.3, "type": "low" },
+        { "time": "2026-09-06T07:49:00+01:00", "value": 173.3, "type": "high" },
+        { "time": "2026-09-06T14:06:00+01:00", "value": 93.3, "type": "low" },
+        { "time": "2026-09-06T20:28:00+01:00", "value": 181.6, "type": "high" },
+        { "time": "2026-09-07T03:04:00+01:00", "value": 79.6, "type": "low" },
+        { "time": "2026-09-07T09:26:00+01:00", "value": 179.9, "type": "high" },
+        { "time": "2026-09-07T15:34:00+01:00", "value": 87.4, "type": "low" }
+    ],
+    "forecastExtremes": [
+        { "time": "2026-09-04T23:57:00+01:00", "value": 86.5, "type": "low", "source": "forecast" },
+        { "time": "2026-09-05T06:10:00+01:00", "value": 188.4, "type": "high", "source": "forecast" },
+        { "time": "2026-09-05T12:30:00+01:00", "value": 97.6, "type": "low", "source": "forecast" },
+        { "time": "2026-09-05T18:53:00+01:00", "value": 179.3, "type": "high", "source": "prediction" },
+        { "time": "2026-09-06T01:29:00+01:00", "value": 87.3, "type": "low", "source": "prediction" },
+        { "time": "2026-09-06T07:49:00+01:00", "value": 173.3, "type": "high", "source": "prediction" },
+        { "time": "2026-09-06T14:06:00+01:00", "value": 93.3, "type": "low", "source": "prediction" },
+        { "time": "2026-09-06T20:28:00+01:00", "value": 181.6, "type": "high", "source": "prediction" },
+        { "time": "2026-09-07T03:04:00+01:00", "value": 79.6, "type": "low", "source": "prediction" },
+        { "time": "2026-09-07T09:26:00+01:00", "value": 179.9, "type": "high", "source": "prediction" },
+        { "time": "2026-09-07T15:34:00+01:00", "value": 87.4, "type": "low", "source": "prediction" }
+    ],
+    "nextHighTide": {
+        "time": "2026-09-05T06:10:00+01:00",
+        "value": 188.4,
+        "type": "high",
+        "timeFormatted": "07:10",
+        "dateFormatted": "05.09.2026",
+        "relativeTime": "om 3 timer"
+    },
+    "nextLowTide": {
+        "time": "2026-09-05T12:30:00+01:00",
+        "value": 97.6,
+        "type": "low",
+        "timeFormatted": "13:30",
+        "dateFormatted": "05.09.2026",
+        "relativeTime": "om 10 timer"
+    },
+    "nextExtremes": [
+        {
+            "time": "2026-09-05T06:10:00+01:00",
+            "value": 188.4,
+            "type": "high",
+            "timeFormatted": "07:10",
+            "dateFormatted": "05.09.2026",
+            "relativeTime": "om 3 timer"
+        },
+        {
+            "time": "2026-09-05T12:30:00+01:00",
+            "value": 97.6,
+            "type": "low",
+            "timeFormatted": "13:30",
+            "dateFormatted": "05.09.2026",
+            "relativeTime": "om 10 timer"
+        },
+        {
+            "time": "2026-09-05T18:53:00+01:00",
+            "value": 179.3,
+            "type": "high",
+            "timeFormatted": "19:53",
+            "dateFormatted": "05.09.2026",
+            "relativeTime": "om 16 timer"
+        },
+        {
+            "time": "2026-09-06T01:29:00+01:00",
+            "value": 87.3,
+            "type": "low",
+            "timeFormatted": "02:29",
+            "dateFormatted": "06.09.2026",
+            "relativeTime": "om 23 timer"
+        }
+    ],
+    "currentLevel": { "time": "2026-09-05T02:10:00+01:00", "value": 118.3, "trend": "rising" },
+    "observedDeviation": { "value": 4.6, "time": "2026-09-05T01:50:00+01:00" },
+    "attribution": "\u00a9 Kartverket",
+    "attributionUrl": "https:\/\/www.kartverket.no\/til-sjos\/se-havniva",
+    "cachedAt": "2026-09-05T03:00:01+02:00",
+    "expiresAt": "2026-09-05T03:30:01+02:00",
+    "serverNow": "2026-09-05T03:10:22+02:00",
+    "windowStart": "2026-09-04T19:00:00+02:00",
+    "windowEnd": "2026-09-05T19:30:00+02:00",
+    "ocean": {
+        "current": {
+            "time": "2026-09-05T01:00:00Z",
+            "sea_water_temperature": 11.5,
+            "sea_surface_wave_height": 0.1,
+            "sea_surface_wave_from_direction": 351.5,
+            "sea_water_speed": 0.3,
+            "sea_water_to_direction": 322.1
+        },
+        "hourly": [
+            {
+                "time": "2026-09-05T01:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 351.5,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 322.1
+            },
+            {
+                "time": "2026-09-05T02:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 351.2,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 321.6
+            },
+            {
+                "time": "2026-09-05T03:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 351.3,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 321.3
+            },
+            {
+                "time": "2026-09-05T04:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 351.8,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 321.2
+            },
+            {
+                "time": "2026-09-05T05:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 352.5,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 321.6
+            },
+            {
+                "time": "2026-09-05T06:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 353.9,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 322
+            },
+            {
+                "time": "2026-09-05T07:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 356,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 321.9
+            },
+            {
+                "time": "2026-09-05T08:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 357.2,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 321.7
+            },
+            {
+                "time": "2026-09-05T09:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 358,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 322.3
+            },
+            {
+                "time": "2026-09-05T10:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 358.3,
+                "sea_water_speed": 0.2,
+                "sea_water_to_direction": 321.9
+            },
+            {
+                "time": "2026-09-05T11:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 358.1,
+                "sea_water_speed": 0.2,
+                "sea_water_to_direction": 320.7
+            },
+            {
+                "time": "2026-09-05T12:00:00Z",
+                "sea_water_temperature": 11.6,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 357.5,
+                "sea_water_speed": 0.2,
+                "sea_water_to_direction": 318.7
+            },
+            {
+                "time": "2026-09-05T13:00:00Z",
+                "sea_water_temperature": 11.6,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 357.1,
+                "sea_water_speed": 0.2,
+                "sea_water_to_direction": 317.2
+            },
+            {
+                "time": "2026-09-05T14:00:00Z",
+                "sea_water_temperature": 11.6,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 357.4,
+                "sea_water_speed": 0.2,
+                "sea_water_to_direction": 315.2
+            },
+            {
+                "time": "2026-09-05T15:00:00Z",
+                "sea_water_temperature": 11.6,
+                "sea_surface_wave_height": 0.3,
+                "sea_surface_wave_from_direction": 357.4,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 314.1
+            },
+            {
+                "time": "2026-09-05T16:00:00Z",
+                "sea_water_temperature": 11.6,
+                "sea_surface_wave_height": 0.3,
+                "sea_surface_wave_from_direction": 356.7,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 314.9
+            },
+            {
+                "time": "2026-09-05T17:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.3,
+                "sea_surface_wave_from_direction": 355.8,
+                "sea_water_speed": 0.5,
+                "sea_water_to_direction": 317.6
+            },
+            {
+                "time": "2026-09-05T18:00:00Z",
+                "sea_water_temperature": 11.5,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 354.6,
+                "sea_water_speed": 0.5,
+                "sea_water_to_direction": 320.1
+            },
+            {
+                "time": "2026-09-05T19:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 353.7,
+                "sea_water_speed": 0.5,
+                "sea_water_to_direction": 321.6
+            },
+            {
+                "time": "2026-09-05T20:00:00Z",
+                "sea_water_temperature": 11.4,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 353.7,
+                "sea_water_speed": 0.5,
+                "sea_water_to_direction": 322.2
+            },
+            {
+                "time": "2026-09-05T21:00:00Z",
+                "sea_water_temperature": 11.3,
+                "sea_surface_wave_height": 0.2,
+                "sea_surface_wave_from_direction": 353.8,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 322.7
+            },
+            {
+                "time": "2026-09-05T22:00:00Z",
+                "sea_water_temperature": 11.3,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 353.8,
+                "sea_water_speed": 0.4,
+                "sea_water_to_direction": 322.9
+            },
+            {
+                "time": "2026-09-05T23:00:00Z",
+                "sea_water_temperature": 11.3,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 353.7,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 323.4
+            },
+            {
+                "time": "2026-09-06T00:00:00Z",
+                "sea_water_temperature": 11.3,
+                "sea_surface_wave_height": 0.1,
+                "sea_surface_wave_from_direction": 353.8,
+                "sea_water_speed": 0.3,
+                "sea_water_to_direction": 323.9
+            }
+        ]
+    }
+}

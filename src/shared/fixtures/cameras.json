@@ -1,0 +1,39 @@
+{
+    "cameras": [
+        {
+            "id": 1,
+            "camera_id": "spjutvika_01",
+            "name": "Spjutvika",
+            "description": "Kamera i Spjutvika retning vest, nordvest",
+            "location": "Spjutvika",
+            "current_image_url": "https:\/\/nesthus.no\/storage\/camera-current\/conversions\/spjutvika_01_latest-optimized.jpg?v=1786959363",
+            "current_image_updated_at": "2026-08-17T11:36:03+02:00",
+            "latest_video": {
+                "id": 3030,
+                "date": "2026-08-16",
+                "youtube_id": "jGcvnQigxhc",
+                "daytime_url": "https:\/\/nesthus.no\/storage\/timelapse\/2026\/08\/15\/spjutvika_01\/spjutvika-01-framegrab-day-2026-08-16-00%3A00%3A00.jpg",
+                "night_url": "https:\/\/nesthus.no\/storage\/timelapse\/2026\/08\/15\/spjutvika_01\/spjutvika-01-framegrab-night-2026-08-16-00%3A00%3A00.jpg"
+            },
+            "video_count": 1104
+        },
+        {
+            "id": 268,
+            "camera_id": "sigerfjordveien_01",
+            "name": "Sigerfjordveien #01",
+            "description": null,
+            "location": "Sigerfjord",
+            "current_image_url": "https:\/\/nesthus.no\/storage\/camera-current\/conversions\/sigerfjordveien_01_latest-optimized.jpg?v=1788565869",
+            "current_image_updated_at": "2026-09-05T01:51:09+02:00",
+            "latest_video": {
+                "id": 3048,
+                "date": "2026-09-03",
+                "youtube_id": "Cf2wCWT6omU",
+                "daytime_url": "https:\/\/nesthus.no\/storage\/timelapse\/2026\/09\/02\/sigerfjordveien_01\/sigerfjordveien-01-framegrab-day-2026-09-03-00%3A00%3A00.jpg",
+                "night_url": "https:\/\/nesthus.no\/storage\/timelapse\/2026\/09\/02\/sigerfjordveien_01\/sigerfjordveien-01-framegrab-night-2026-09-03-00%3A00%3A00.jpg"
+            },
+            "video_count": 40
+        }
+    ],
+    "cached_at": "2026-09-05T03:10:19+02:00"
+}
