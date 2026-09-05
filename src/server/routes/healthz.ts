@@ -18,11 +18,14 @@ const HEALTHZ_TIMEOUT_MS = 2000;
 
 async function probeUpstream(upstreamBaseUrl: string): Promise<'reachable' | 'unreachable'> {
     try {
-        const response = await fetch(upstreamBaseUrl, {
+        // Any response upstream actually sends back -- 404, 405, whatever --
+        // proves it answered. Only a network error or the timeout firing
+        // (the `catch` below) means genuinely unreachable.
+        await fetch(upstreamBaseUrl, {
             method: 'HEAD',
             signal: AbortSignal.timeout(HEALTHZ_TIMEOUT_MS),
         });
-        return response.ok ? 'reachable' : 'unreachable';
+        return 'reachable';
     } catch {
         return 'unreachable';
     }

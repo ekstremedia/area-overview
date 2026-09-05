@@ -17,6 +17,16 @@ describe('GET /healthz', () => {
         expect(response.json()).toEqual({ ok: true, upstream: 'reachable', version: APP_VERSION });
     });
 
+    it('reports upstream reachable when it answers with a non-2xx status (it still proved it is up)', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+        const app = buildTestApp();
+
+        const response = await app.inject({ method: 'GET', url: '/healthz' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ ok: true, upstream: 'reachable', version: APP_VERSION });
+    });
+
     it('reports upstream unreachable without failing the request', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
         const app = buildTestApp();
