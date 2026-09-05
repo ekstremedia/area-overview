@@ -36,6 +36,10 @@ export const en: Record<keyof typeof nb, string> = {
     'unit.seconds': 's',
     'unit.metersPerSecond': 'm/s',
     'unit.millimeters': 'mm',
+    'unit.knots': 'kn',
+    'unit.feet': 'ft',
+    'unit.meters': 'm',
+    'unit.degrees': '°',
 
     'map.unplacedLink': '{count} camera(s) without placement →',
     'map.popupClose': 'Close',
@@ -48,6 +52,21 @@ export const en: Record<keyof typeof nb, string> = {
     'map.pointForecastRetry': 'Retry',
     'map.pointForecastCondition': '{condition}, {direction}',
     'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+
+    'map.shipUnknown': 'Unknown',
+    'map.shipMmsi': 'MMSI {mmsi}',
+    'map.shipSpeed': '{speed} speed',
+    'map.shipCourse': '{course} course',
+    'map.shipType': 'Type {type}',
+    'map.shipUnknownType': 'Unknown type',
+
+    'map.aircraftUnknown': 'Unknown',
+    'map.aircraftAltitude': '{feet} / {meters}',
+    'map.aircraftOnGround': 'On the ground',
+    'map.aircraftSpeed': '{speed} speed',
+    'map.aircraftTrack': '{track} track',
+
+    'map.popupUpdated': 'Updated {age}',
 
     'symbol.clearsky': 'clear sky',
     'symbol.fair': 'fair',

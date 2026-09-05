@@ -1,0 +1,149 @@
+/**
+ * The aircraft (ADS-B) live layer: polls `GET /api/aircraft?bbox=` for
+ * the map's current viewport, renders each aircraft as a magenta
+ * heading-rotated triangle via `canvasGlyphLayer.ts`, and reports its
+ * on-screen count/attribution through `callbacks`. Mounted only through
+ * `layers.ts`'s `mountLiveLayers` -- `MapPage.ts` never imports this file
+ * directly.
+ *
+ * Never polls faster than `AIRCRAFT_LAYER.minPollSeconds` (5s), regardless
+ * of a configured `settings.aircraft.pollSeconds` -- a hard floor to keep
+ * this kiosk's own request rate well within the ADS-B providers'
+ * ~1req/s fair-use guidance, on top of whatever margin other clients of
+ * the same provider are also using.
+ */
+import type * as Leaflet from 'leaflet';
+import { AIRCRAFT_LAYER } from '../../../shared/layers.js';
+import { AircraftResponseSchema, type Aircraft, type AircraftResponse } from '../../../shared/schemas/aircraft.js';
+import { err, ok, type Result } from '../../../shared/result.js';
+import { resource } from '../../core/resource.js';
+import { effect } from '../../core/signal.js';
+import { formatNumber, t } from '../../i18n/index.js';
+import { settings } from '../../settings-resource.js';
+import { formatAge } from '../../shell/staleness.js';
+import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
+import type { GlyphDescriptor } from './glyphs.js';
+import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
+import { mapToBboxQuery, mountWhileEnabled, type LiveLayerCallbacks } from './liveLayerMount.js';
+
+const AIRCRAFT_WIDTH_PX = 18;
+const AIRCRAFT_HEIGHT_PX = 24;
+const HIT_RADIUS_PX = 22; // half of a 44px tap diameter
+
+const METERS_PER_FOOT = 0.3048;
+
+async function fetchAircraft(map: Leaflet.Map): Promise<Result<AircraftResponse>> {
+    try {
+        const response = await fetch(`/api/aircraft?bbox=${mapToBboxQuery(map)}`);
+        if (!response.ok) {
+            return err({ message: `GET /api/aircraft responded ${String(response.status)}` });
+        }
+        const json: unknown = await response.json();
+        const parsed = AircraftResponseSchema.safeParse(json);
+        if (!parsed.success) {
+            return err({ message: 'GET /api/aircraft returned a payload that failed schema validation', cause: parsed.error });
+        }
+        return ok(parsed.data);
+    } catch (cause) {
+        return err({ message: 'Network error fetching /api/aircraft', cause });
+    }
+}
+
+function toGlyph(aircraft: Aircraft): GlyphDescriptor<Aircraft> {
+    return {
+        id: aircraft.icao,
+        lat: aircraft.lat,
+        lng: aircraft.lng,
+        heading: aircraft.track,
+        timestamp: aircraft.timestamp,
+        data: aircraft,
+    };
+}
+
+function isOnGround(aircraft: Aircraft): boolean {
+    return aircraft.altitudeFt === 'ground';
+}
+
+function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLElement {
+    const root = document.createElement('div');
+    root.className = 'aircraft-popup';
+
+    const callsign = document.createElement('div');
+    callsign.className = 'aircraft-popup-callsign';
+    callsign.textContent = aircraft.callsign.trim() === '' ? aircraft.icao : aircraft.callsign;
+    root.append(callsign);
+
+    const altitude = document.createElement('div');
+    if (aircraft.altitudeFt === 'ground') {
+        altitude.textContent = t('map.aircraftOnGround');
+    } else {
+        const feet = aircraft.altitudeFt;
+        const meters = feet * METERS_PER_FOOT;
+        altitude.textContent = t('map.aircraftAltitude', {
+            feet: formatNumber(feet, t('unit.feet')),
+            meters: formatNumber(meters, t('unit.meters')),
+        });
+    }
+    root.append(altitude);
+
+    const speed = document.createElement('div');
+    speed.textContent = t('map.aircraftSpeed', { speed: formatNumber(aircraft.groundSpeedKt, t('unit.knots')) });
+    root.append(speed);
+
+    const track = document.createElement('div');
+    track.textContent = t('map.aircraftTrack', { track: formatNumber(aircraft.track, t('unit.degrees')) });
+    root.append(track);
+
+    const age = document.createElement('div');
+    age.textContent = t('map.popupUpdated', { age: formatAge(new Date(aircraft.timestamp), now) });
+    root.append(age);
+
+    return root;
+}
+
+export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: LiveLayerCallbacks): () => void {
+    return mountWhileEnabled(
+        () => settings.get().aircraft.enabled,
+        () => {
+            const canvasLayer = createCanvasGlyphLayer<Aircraft>(L, map, {
+                color: AIRCRAFT_GLYPH_COLOR,
+                widthPx: AIRCRAFT_WIDTH_PX,
+                heightPx: AIRCRAFT_HEIGHT_PX,
+                hitRadiusPx: HIT_RADIUS_PX,
+                buildPopup: (aircraft) => buildAircraftPopup(aircraft),
+                isDistinct: isOnGround,
+            });
+
+            const pollSeconds = Math.max(settings.get().aircraft.pollSeconds, AIRCRAFT_LAYER.minPollSeconds);
+            const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
+
+            function clear(): void {
+                canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
+                callbacks.reportCount(0);
+                callbacks.reportAttribution(undefined);
+            }
+
+            const disposeEffect = effect(() => {
+                const state = res.state.get();
+                if (state.status !== 'ready') return;
+                if (!state.data.configured) {
+                    clear();
+                    return;
+                }
+                const showOnGround = settings.get().aircraft.showOnGround;
+                const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
+                canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, new Date());
+                callbacks.reportCount(canvasLayer.count());
+                callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
+            });
+
+            return function dispose(): void {
+                disposeEffect();
+                res.dispose();
+                canvasLayer.dispose();
+                callbacks.reportCount(0);
+                callbacks.reportAttribution(undefined);
+            };
+        },
+    );
+}

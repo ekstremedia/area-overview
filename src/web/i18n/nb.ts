@@ -36,6 +36,10 @@ export const nb = {
     'unit.seconds': 's',
     'unit.metersPerSecond': 'm/s',
     'unit.millimeters': 'mm',
+    'unit.knots': 'kn',
+    'unit.feet': 'ft',
+    'unit.meters': 'm',
+    'unit.degrees': '°',
 
     'map.unplacedLink': '{count} kamera uten plassering →',
     'map.popupClose': 'Lukk',
@@ -48,6 +52,21 @@ export const nb = {
     'map.pointForecastRetry': 'Prøv igjen',
     'map.pointForecastCondition': '{condition}, {direction}',
     'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+
+    'map.shipUnknown': 'Ukjent',
+    'map.shipMmsi': 'MMSI {mmsi}',
+    'map.shipSpeed': '{speed} fart',
+    'map.shipCourse': '{course} kurs',
+    'map.shipType': 'Type {type}',
+    'map.shipUnknownType': 'Ukjent type',
+
+    'map.aircraftUnknown': 'Ukjent',
+    'map.aircraftAltitude': '{feet} / {meters}',
+    'map.aircraftOnGround': 'På bakken',
+    'map.aircraftSpeed': '{speed} fart',
+    'map.aircraftTrack': '{track} kurs',
+
+    'map.popupUpdated': 'Oppdatert {age}',
 
     'symbol.clearsky': 'klarvær',
     'symbol.fair': 'lettskyet',

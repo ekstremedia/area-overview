@@ -6,10 +6,12 @@
  * lazily-loaded chunk, not folded into the small entry chunk every other
  * page shares.
  *
- * Ships/aircraft (Phase 7) are NOT wired here -- see `map/layers.ts` for
- * the minimal registry seam Phase 7 mounts into, and cameras deliberately
- * bypass it (`map/markers.ts` is hand-wired directly, per Terje's
- * explicit choice).
+ * Ships/aircraft (Phase 7) mount through `map/layers.ts`'s
+ * `mountLiveLayers` -- this file never imports `map/ships.ts`/
+ * `map/aircraft.ts` directly, so a future third live layer is added
+ * entirely within `layers.ts` with no change here. Cameras deliberately
+ * bypass that registry (`map/markers.ts` is hand-wired directly, per
+ * Terje's explicit choice).
  */
 import type * as Leaflet from 'leaflet';
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
@@ -21,6 +23,7 @@ import './map/map.css';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
 import { startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer, markerData } from './map/markers.js';
+import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
 import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
 
@@ -92,6 +95,10 @@ export function render(container: HTMLElement): () => void {
             }),
         );
 
+        // — live layers (ships, aircraft): canvas-rendered, heading-rotated
+        // glyphs, polled per the current viewport. See `map/layers.ts`. —
+        const disposeLiveLayers = mountLiveLayers(L, map);
+
         // — "N cameras without placement" link, bottom-left. —
         const unplacedLink = document.createElement('a');
         unplacedLink.className = 'map-unplaced-link';
@@ -126,6 +133,7 @@ export function render(container: HTMLElement): () => void {
             forecastController.dispose();
             disposeUnplacedEffect();
             unplacedLink.remove();
+            disposeLiveLayers();
             markerLayer.dispose();
             disposeHomeViewSync();
             disposeThemeEffect();
