@@ -1,0 +1,37 @@
+/**
+ * English string table. Typed as `Record<keyof typeof nb, string>` so
+ * TypeScript rejects this file the moment it's missing a key `nb.ts`
+ * defines, or has one `nb.ts` doesn't -- a translation gap is a
+ * `npm run typecheck` failure, not something discovered on the kiosk.
+ */
+import { nb } from './nb.js';
+
+export const en: Record<keyof typeof nb, string> = {
+    'brand.title': 'Området',
+
+    'nav.map': 'Map',
+    'nav.weather': 'Weather',
+    'nav.aurora': 'Aurora',
+    'nav.tide': 'Tide',
+    'nav.cameras': 'Cameras',
+    'nav.settings': 'Settings',
+
+    'locality.map': 'Sortland · Vesterålen',
+    'locality.weather': 'Sortland · Vesterålen',
+    'locality.aurora': 'Sortland · Vesterålen',
+    'locality.tide': 'Andenes · nearest measuring station',
+    'locality.cameras': 'Two cameras',
+    'locality.settings': 'Settings',
+
+    'page.placeholderBody': 'Content arrives in a later phase.',
+
+    'masthead.stale': 'Stale data · {duration}',
+    'masthead.layerCounts': '{ships} ships · {aircraft} aircraft',
+
+    'footer.attributionPlaceholder': 'Source coming',
+    'footer.updated': 'Updated {relative}',
+    'footer.nightScheduleActive': 'Night schedule active {from}–{to} · one tap lifts the veil for 30 s',
+
+    'unit.minutes': 'min',
+    'unit.seconds': 's',
+};
