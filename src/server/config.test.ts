@@ -56,6 +56,46 @@ describe('loadConfig / SETTINGS_PASSWORD', () => {
     });
 });
 
+describe('loadConfig / live-layer credentials', () => {
+    it('defaults BarentsWatch credentials to empty strings and adsbProvider to adsblol', () => {
+        const config = loadConfig({ ...baseEnv, SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough' });
+        expect(config.barentswatchClientId).toBe('');
+        expect(config.barentswatchClientSecret).toBe('');
+        expect(config.adsbProvider).toBe('adsblol');
+        expect(config.openskyClientId).toBe('');
+        expect(config.openskyClientSecret).toBe('');
+    });
+
+    it('reads BarentsWatch credentials and adsbProvider when set', () => {
+        const config = loadConfig({
+            ...baseEnv,
+            SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough',
+            BARENTSWATCH_CLIENT_ID: 'a-client-id',
+            BARENTSWATCH_CLIENT_SECRET: 'a-client-secret',
+            ADSB_PROVIDER: 'opensky',
+        });
+        expect(config.barentswatchClientId).toBe('a-client-id');
+        expect(config.barentswatchClientSecret).toBe('a-client-secret');
+        expect(config.adsbProvider).toBe('opensky');
+    });
+
+    it('throws for an unrecognised ADSB_PROVIDER', () => {
+        expect(() =>
+            loadConfig({ ...baseEnv, SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough', ADSB_PROVIDER: 'unknown-provider' }),
+        ).toThrow();
+    });
+
+    it('never includes a set BarentsWatch client secret in an unrelated error message', () => {
+        const secret = 'super-secret-barentswatch-value';
+        try {
+            loadConfig({ ...baseEnv, SETTINGS_PASSWORD: 'too-short', BARENTSWATCH_CLIENT_SECRET: secret });
+            expect.unreachable('loadConfig should have thrown for a too-short password');
+        } catch (error) {
+            expect(String(error)).not.toContain(secret);
+        }
+    });
+});
+
 describe('loadConfig / UPSTREAM_BASE_URL', () => {
     it('throws at boot when UPSTREAM_BASE_URL is not a valid URL', () => {
         expect(() =>

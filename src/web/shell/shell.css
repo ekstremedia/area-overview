@@ -126,6 +126,24 @@
     white-space: nowrap;
 }
 
+.masthead-account-status {
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+.masthead-account-logout {
+    font: inherit;
+    color: var(--color-muted);
+    background: none;
+    border: none;
+    padding: 0;
+    min-height: var(--tap-min);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
 /* Per the phase spec: the layer-count slot may be dropped at the 800x480
    worst case; nothing else in the masthead changes. */
 @media (max-width: 850px) {

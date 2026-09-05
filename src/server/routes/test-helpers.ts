@@ -29,6 +29,13 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         pointForecastTtlMs: 20,
         settingsPassword: 'test-password-at-least-16-chars',
         settingsFile: DEFAULT_TEST_SETTINGS_FILE,
+        barentswatchClientId: '',
+        barentswatchClientSecret: '',
+        adsbProvider: 'adsblol',
+        openskyClientId: '',
+        openskyClientSecret: '',
+        shipsCacheTtlMs: 20,
+        aircraftCacheTtlMs: 20,
         ...overrides,
     };
 }

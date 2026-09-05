@@ -1,0 +1,133 @@
+/**
+ * The aurora page (artboard 03): a flexible left column and a 300px-wide
+ * right column (OVATION image + optional NOAA alert band).
+ */
+.aurora-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.aurora-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(200px, 26vw, 300px);
+    gap: clamp(var(--space-4), 4vw, 40px);
+    flex: 1;
+    min-height: 0;
+}
+
+.aurora-left {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.aurora-kp-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.aurora-headline {
+    display: flex;
+    align-items: baseline;
+    gap: 28px;
+    margin-top: 10px;
+}
+
+.aurora-kp-value {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(72px, 13vw, var(--stat-size-lg));
+    line-height: 0.84;
+    letter-spacing: -0.05em;
+    color: var(--color-accent-2);
+}
+
+.aurora-band-word {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(28px, 5vw, 56px);
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.aurora-hemispheric-power {
+    font-style: italic;
+    font-size: 20px;
+    color: var(--color-neutral-400);
+    margin-top: 8px;
+}
+
+.aurora-kp-bars {
+    display: flex;
+    gap: 5px;
+    align-items: flex-end;
+    height: 54px;
+    margin-top: 34px;
+}
+
+.aurora-kp-bar-track {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+}
+
+.aurora-kp-bar {
+    width: 100%;
+    background: var(--color-neutral-800);
+}
+
+.aurora-kp-bar--now {
+    background: var(--color-accent-2);
+}
+
+.aurora-kp-bar--future {
+    background: color-mix(in srgb, var(--color-accent-2) 38%, transparent);
+}
+
+.aurora-kp-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 8px;
+}
+
+.aurora-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    margin-top: auto;
+    padding-top: var(--space-4);
+}
+
+.aurora-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.aurora-oval-image {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+}
+
+.aurora-alert-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-process-yellow);
+}
+
+.aurora-alert-text {
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--color-text);
+    margin-top: 8px;
+}

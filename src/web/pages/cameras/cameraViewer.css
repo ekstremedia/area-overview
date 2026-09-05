@@ -1,0 +1,124 @@
+/**
+ * The full-screen camera viewer (artboard 06). `position: fixed; inset: 0`
+ * so it covers the entire viewport including the masthead/footer chrome,
+ * regardless of where in the normal page flow it's mounted. Sits below
+ * the night/brightness overlay's z-index (1000, see `DisplayOverlay.ts`)
+ * so night dimming still applies on top of it.
+ */
+.camera-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: var(--color-ink);
+    overflow: hidden;
+}
+
+.camera-viewer-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-viewer-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        color-mix(in srgb, var(--color-ink) 85%, transparent),
+        transparent 32%,
+        transparent 62%,
+        color-mix(in srgb, var(--color-ink) 90%, transparent)
+    );
+    pointer-events: none;
+}
+
+.camera-viewer-top {
+    position: absolute;
+    left: clamp(var(--space-3), 4vw, 32px);
+    top: clamp(var(--space-3), 3vh, 26px);
+    right: clamp(var(--space-3), 4vw, 32px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    color: var(--color-paper);
+}
+
+.camera-viewer-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent-400);
+}
+
+.camera-viewer-name {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(30px, 6vw, 52px);
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-top: 6px;
+}
+
+.camera-viewer-close {
+    width: 60px;
+    height: 60px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    color: var(--color-paper);
+    background: color-mix(in srgb, var(--color-ink) 60%, transparent);
+    border: none;
+    cursor: pointer;
+}
+
+.camera-viewer-bottom {
+    position: absolute;
+    left: clamp(var(--space-3), 4vw, 32px);
+    bottom: clamp(var(--space-3), 3vh, 30px);
+    right: clamp(var(--space-3), 4vw, 32px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    color: var(--color-paper);
+}
+
+.camera-viewer-age {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(22px, 4vw, 40px);
+    letter-spacing: -0.025em;
+    line-height: 1;
+}
+
+.camera-viewer-updated-line {
+    font-style: italic;
+    font-size: 18px;
+    color: var(--color-neutral-400);
+    margin-top: 6px;
+}
+
+.camera-viewer-credit {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-neutral-500);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.camera-viewer-not-found {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    color: var(--color-paper);
+    text-align: center;
+}

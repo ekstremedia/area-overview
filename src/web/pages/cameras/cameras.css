@@ -1,0 +1,74 @@
+/**
+ * The camera grid (artboard 05). Fluid at both 1024x600 and 800x480: the
+ * grid collapses to one column below `--tap-min`-friendly widths so a
+ * card's "Full screen ->" link never drops under 44px tall.
+ */
+.cameras-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.cameras-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(var(--space-4), 4vw, 36px);
+    align-content: start;
+    overflow-y: auto;
+}
+
+@media (max-width: 700px) {
+    .cameras-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.camera-card-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+}
+
+.camera-card-name {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(24px, 3.4vw, 34px);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.camera-card-location {
+    font-style: italic;
+    font-size: 17px;
+    color: var(--color-muted);
+    margin-top: 4px;
+}
+
+.camera-card-link {
+    height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 17px;
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+/* A stale/missing-image camera (artboard 05's Spjutvika): the whole card
+   renders in muted greys instead of looking broken or drawing the same
+   attention as a fresh camera. Tapping still opens the viewer. */
+.camera-card--muted .camera-card-name {
+    color: var(--color-muted);
+}
+.camera-card--muted .camera-card-location {
+    color: var(--color-neutral-700);
+}
+.camera-card--muted .camera-card-link {
+    color: var(--color-muted);
+    font-family: var(--font-body);
+    font-weight: 400;
+}

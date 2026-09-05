@@ -58,10 +58,24 @@ export const TideOceanSchema = z.object({
 });
 
 /**
+ * How far the currently observed level departs from the astronomical
+ * prediction (weather-driven surge/setdown). Added in Phase 8 for the
+ * tide page's "↑ stiger, +6 cm over prediksjon" trend line -- Phase 1
+ * deliberately left it unmodelled since nothing consumed it yet.
+ */
+export const TideObservedDeviationSchema = z.object({
+    time: IsoTimestampSchema,
+    value: z.number(),
+});
+
+/**
  * `GET /api/tide` -- only the fields a tide page will actually consume are
  * modelled here; upstream also sends `predictionExtremes`,
- * `forecastExtremes`, `nextExtremes` and `observedDeviation`, which are
- * left unmodelled and simply stripped on parse.
+ * `forecastExtremes` and `nextExtremes`, which are left unmodelled and
+ * simply stripped on parse. `ocean` is optional: not every station upstream
+ * proxies has an ocean-forecast product behind it, so the tide page must
+ * hide its sea-state stats entirely rather than show them as zero/empty
+ * when it's absent.
  */
 export const TideSchema = z.object({
     location: TideLocationSchema,
@@ -70,7 +84,8 @@ export const TideSchema = z.object({
     nextHighTide: TideNextExtremeSchema,
     nextLowTide: TideNextExtremeSchema,
     currentLevel: TideCurrentLevelSchema,
-    ocean: TideOceanSchema,
+    observedDeviation: TideObservedDeviationSchema.optional(),
+    ocean: TideOceanSchema.optional(),
     attribution: z.string(),
     attributionUrl: z.string(),
     cachedAt: IsoTimestampSchema,

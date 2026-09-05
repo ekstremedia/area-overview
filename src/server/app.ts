@@ -8,8 +8,10 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { ServerConfig } from './config.js';
 import { registerAuroraRoutes } from './routes/aurora.js';
 import { registerCameraRoutes } from './routes/cameras.js';
+import { registerAircraftRoutes } from './routes/aircraft.js';
 import { registerHealthzRoute } from './routes/healthz.js';
 import { registerSettingsRoutes } from './routes/settings.js';
+import { registerShipsRoutes } from './routes/ships.js';
 import { registerTideRoutes } from './routes/tide.js';
 import { registerWeatherRoutes } from './routes/weather.js';
 import { registerStaticPlugin } from './static.js';
@@ -37,6 +39,8 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     registerAuroraRoutes(app, config);
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
+    registerShipsRoutes(app, config);
+    registerAircraftRoutes(app, config);
     registerSettingsRoutes(
         app,
         config,

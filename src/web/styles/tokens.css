@@ -93,6 +93,13 @@
        reusing `--color-ink` so the two can never accidentally drift apart. */
     --color-overlay: #000;
 
+    /* The on-screen keyboard's tray background (artboards 07/08) -- a
+       floating input aid, not page chrome, so it stays this fixed dark
+       shade regardless of `[data-theme]`, same reasoning as
+       `--color-overlay`. Slightly lighter than `--color-ink` so the tray
+       reads as a raised panel above the page. */
+    --color-tray-bg: #1c1b1a;
+
     /* Masthead. Sizes read from `design/artboards.html`'s masthead markup
        (artboards 01-05), which is identical across pages. */
     --masthead-brand-size: 26px;

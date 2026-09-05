@@ -35,5 +35,25 @@ npm run check   # all of the above
 
 ## Deployment
 
-Later phases add a Docker Compose stack for running the BFF and serving the
-built frontend, published behind a reverse proxy at `area.nesthus.no`.
+Runs as a single-service Docker Compose stack, published behind a reverse
+proxy at `area.nesthus.no`.
+
+`.env` must exist before the stack can start -- create it with `make init`
+(copies `.env.example` to `.env` if one doesn't already exist yet), then
+fill in the values yourself, in particular `SETTINGS_PASSWORD` (required,
+at least 16 characters). `.env` is never committed and never overwritten by
+`make init` once it exists.
+
+```bash
+make init            # create .env (first time only), then edit it
+docker compose up -d --build
+```
+
+This builds the image (frontend via Vite, server compiled with `tsc`),
+starts the `app` container bound to `127.0.0.1:8141` only, and persists the
+settings store under `./data/`. See the `Makefile` for the rest of the
+day-to-day targets (`up`, `down`, `restart`, `deploy`, `logs`, `shell`,
+`check`).
+
+The one-time hostname and certificate setup that only a human with DNS/
+certbot access can do is in `deploy/manual-steps.md`.

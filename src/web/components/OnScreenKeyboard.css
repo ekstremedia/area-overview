@@ -1,0 +1,98 @@
+/**
+ * The on-screen keyboard's entire visual theme -- `simple-keyboard`'s own
+ * CSS is never imported (see `OnScreenKeyboard.ts`'s doc comment); every
+ * rule below targets its generated class names (`.simple-keyboard`,
+ * `.hg-row`, `.hg-button`) directly. Sizes/colors read from
+ * `design/artboards.html`'s artboards 07/08 keyboard trays: a dark tray,
+ * a caps label + "Skjul ▾"/"Hide ▾" control, ~44-46px dark rectangular
+ * keys.
+ */
+.keyboard-tray {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: var(--color-tray-bg);
+    padding: 14px 28px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.keyboard-tray--hidden {
+    display: none;
+}
+
+.keyboard-tray-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.keyboard-tray-caption {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+
+.keyboard-tray-hide {
+    min-height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 var(--space-2);
+}
+
+.keyboard-tray-keys .simple-keyboard {
+    background: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.keyboard-tray-keys .hg-row {
+    display: flex;
+    gap: 6px;
+}
+
+.keyboard-tray-keys .hg-row .hg-button {
+    flex: 1;
+    min-height: 44px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 22px;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+    user-select: none;
+}
+
+.keyboard-tray-keys .hg-button.hg-standardBtn.hg-button-bksp,
+.keyboard-tray-keys .hg-button.hg-functionBtn.hg-button-shift {
+    font-size: 15px;
+    color: var(--color-accent);
+    flex: 1.4;
+}
+
+.keyboard-tray-keys .hg-button.hg-functionBtn.hg-button-space {
+    flex: 4;
+}
+
+.keyboard-tray-keys .hg-button:active,
+.keyboard-tray-keys .hg-button.hg-activeButton {
+    background: var(--color-accent-900);
+}

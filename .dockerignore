@@ -1,0 +1,23 @@
+# Runtime state and secrets -- never enter the build context.
+data
+.env
+.env.*
+
+# Rebuilt inside the image; a stale host copy must never leak in.
+node_modules
+dist
+
+# Planning documents contain infrastructure details that must not ship in
+# an image layer.
+plans
+
+# VCS and editor/agent metadata -- irrelevant to the build and sometimes
+# large.
+.git
+.github
+.claude
+.vscode
+
+# Not needed at build or run time.
+*.log
+coverage

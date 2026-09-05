@@ -5,15 +5,32 @@
  * `Masthead.ts` (tabs, locality) read from this one place so route
  * metadata can't drift between the two.
  */
-import { assertNever, type Route } from '../core/router.js';
+import { assertNever, currentRoute, type Route } from '../core/router.js';
 import type { ParamlessKey } from '../i18n/index.js';
 import type { PageId } from '../../shared/schemas/settings.js';
 import * as AuroraPage from './AuroraPage.js';
 import * as CamerasPage from './CamerasPage.js';
+import * as CameraViewerPage from './CameraViewerPage.js';
 import * as MapPage from './MapPage.js';
 import * as SettingsPage from './SettingsPage.js';
 import * as TidePage from './TidePage.js';
 import * as WeatherPage from './WeatherPage.js';
+
+/**
+ * The `cameras` route carries an optional `cameraId` (`#/cameras/<id>`
+ * vs. plain `#/cameras`), but `PageEntry.render` takes only a container --
+ * every route's tab/entry is registered once, statically, at module load.
+ * Rather than threading route params through that whole contract for one
+ * route, this single entry reads `currentRoute` itself at render time
+ * (called from within `AppShell.ts`'s own route effect, so this read is
+ * still tracked by that same effect) and dispatches to the grid or the
+ * full-screen viewer accordingly.
+ */
+function renderCameras(container: HTMLElement): () => void {
+    const route = currentRoute.get();
+    const cameraId = route.name === 'cameras' ? route.cameraId : undefined;
+    return cameraId ? CameraViewerPage.render(container, cameraId) : CamerasPage.render(container);
+}
 
 export interface PageEntry {
     name: Route['name'];
@@ -38,7 +55,7 @@ export const NAV_PAGES: readonly TabPageEntry[] = [
     { name: 'weather', navKey: 'nav.weather', localityKey: 'locality.weather', render: WeatherPage.render },
     { name: 'aurora', navKey: 'nav.aurora', localityKey: 'locality.aurora', render: AuroraPage.render },
     { name: 'tide', navKey: 'nav.tide', localityKey: 'locality.tide', render: TidePage.render },
-    { name: 'cameras', navKey: 'nav.cameras', localityKey: 'locality.cameras', render: CamerasPage.render },
+    { name: 'cameras', navKey: 'nav.cameras', localityKey: 'locality.cameras', render: renderCameras },
 ];
 
 export const SETTINGS_PAGE: PageEntry = {

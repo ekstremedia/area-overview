@@ -19,6 +19,13 @@ function fakeConfig(): ServerConfig {
         pointForecastTtlMs: 1000,
         settingsPassword: REAL_PASSWORD,
         settingsFile: 'data/settings.json',
+        barentswatchClientId: '',
+        barentswatchClientSecret: '',
+        adsbProvider: 'adsblol',
+        openskyClientId: '',
+        openskyClientSecret: '',
+        shipsCacheTtlMs: 10_000,
+        aircraftCacheTtlMs: 10_000,
     };
 }
 

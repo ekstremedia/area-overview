@@ -1,0 +1,127 @@
+/**
+ * The weather page (artboard 02): a fixed-ish left column (400px at the
+ * designed 1024px width, shrinking fluidly at the 800x480 worst case) and
+ * a flexible right column, with the Yr strip anchored to the bottom of
+ * the page.
+ */
+.weather-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    gap: var(--space-4);
+}
+
+.weather-columns {
+    display: grid;
+    grid-template-columns: minmax(240px, 400px) minmax(0, 1fr);
+    gap: clamp(var(--space-4), 4vw, 44px);
+    flex: 1;
+    min-height: 0;
+}
+
+.weather-outdoor-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.weather-temp {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(72px, 14vw, var(--stat-size-xl));
+    line-height: 0.82;
+    letter-spacing: -0.05em;
+    margin: 14px 0 0 -4px;
+}
+
+.weather-condition {
+    font-style: italic;
+    font-size: clamp(18px, 2.6vw, 27px);
+    color: var(--color-text);
+    margin-top: 10px;
+}
+
+.weather-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 26px 20px;
+    margin-top: clamp(var(--space-4), 4vh, 38px);
+}
+
+.weather-right {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.weather-summary-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.weather-summary-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.weather-summary-age {
+    font-size: 12px;
+    color: var(--color-neutral-600);
+    white-space: nowrap;
+}
+
+.weather-summary-text {
+    font-style: italic;
+    font-size: clamp(17px, 2.4vw, 25px);
+    line-height: 1.45;
+    color: var(--color-text);
+    margin-top: 14px;
+}
+
+.weather-forecast-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 18px;
+}
+
+.weather-forecast-columns {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+.weather-forecast-bar-track {
+    height: 44px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.weather-forecast-bar {
+    width: 100%;
+    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.weather-forecast-bar--current {
+    background: var(--color-accent);
+}
+
+.weather-forecast-temp {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(18px, 2.6vw, 26px);
+    margin-top: 10px;
+}
+
+.weather-forecast-hour {
+    font-size: 13px;
+    color: var(--color-muted);
+}

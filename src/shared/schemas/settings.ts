@@ -13,10 +13,25 @@ export const PlacementSchema = z.object({
 
 export type Placement = z.infer<typeof PlacementSchema>;
 
+/**
+ * Undecorated per-field bases for `homeView`'s three numbers -- same
+ * "no `.default()`" reasoning as `patchableFieldSchemas` further down
+ * this file (see its doc comment): exported so the settings page's
+ * `NumberField`s can validate lat/lng/zoom against the real constraint
+ * each one carries in `SettingsSchema`, without a parallel hand-written
+ * validator and without a `.default()`-wrapped schema whose `ZodDefault`
+ * type doesn't line up with a plain `ZodType<number>` parameter.
+ */
+export const HomeViewNumberSchema = {
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    zoom: z.number().min(1).max(19),
+};
+
 const HomeViewSchema = z.object({
-    lat: z.number().min(-90).max(90).default(68.6984),
-    lng: z.number().min(-180).max(180).default(15.4129),
-    zoom: z.number().min(1).max(19).default(11),
+    lat: HomeViewNumberSchema.lat.default(68.6984),
+    lng: HomeViewNumberSchema.lng.default(15.4129),
+    zoom: HomeViewNumberSchema.zoom.default(11),
 });
 
 const PageIdSchema = z.enum(['map', 'weather', 'aurora', 'tide', 'cameras']);

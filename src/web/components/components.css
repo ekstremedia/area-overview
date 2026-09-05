@@ -1,0 +1,292 @@
+/**
+ * Shared component CSS (`StatCard`, `ImageWithAge`, `ErrorBand`) -- used
+ * across the weather, aurora, tide and camera pages. Every color/size
+ * here reads a token from `../styles/tokens.css`, no raw hex.
+ */
+
+/* — StatCard — */
+.stat-card-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+}
+
+.stat-card-value {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    line-height: 1.1;
+}
+
+.stat-card-unit {
+    font-family: var(--font-body);
+    font-weight: 400;
+    color: var(--color-muted);
+}
+
+.stat-card--sm .stat-card-value {
+    font-size: clamp(22px, 3.2vw, 30px);
+}
+.stat-card--sm .stat-card-unit {
+    font-size: 15px;
+}
+
+.stat-card--md .stat-card-value {
+    font-size: clamp(28px, 4.2vw, 40px);
+    letter-spacing: -0.02em;
+}
+.stat-card--md .stat-card-unit {
+    font-size: 17px;
+}
+
+.stat-card--lg .stat-card-value {
+    font-size: clamp(30px, 4.6vw, 44px);
+    letter-spacing: -0.025em;
+}
+.stat-card--lg .stat-card-unit {
+    font-size: 17px;
+}
+
+/* — ImageWithAge — */
+.image-with-age {
+    position: relative;
+    width: 100%;
+    background: var(--color-divider);
+}
+
+.image-with-age-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-with-age-no-image {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    text-align: center;
+    padding: var(--space-3);
+}
+
+.image-with-age-badge {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 17px;
+}
+
+.image-with-age-badge--fresh {
+    color: var(--color-accent);
+}
+
+.image-with-age-badge--stale {
+    color: var(--color-process-yellow);
+}
+
+/* — ErrorBand — */
+.error-band {
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--color-process-yellow);
+    padding: var(--space-2) 0;
+}
+
+/* — SaveIndicator (Phase 9) — */
+.save-indicator {
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    min-height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.save-indicator--idle {
+    color: var(--color-muted);
+}
+
+.save-indicator--pending {
+    color: var(--color-muted);
+}
+
+.save-indicator--saved {
+    color: var(--color-accent);
+}
+
+.save-indicator--error {
+    color: var(--color-accent-2);
+}
+
+.save-indicator-retry {
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    padding: 0;
+    min-height: var(--tap-min);
+    cursor: pointer;
+}
+
+/* — Toggle (Phase 9): 62x34 track, 28px knob — */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--tap-min);
+}
+
+.toggle-label {
+    font-size: 19px;
+}
+
+.toggle {
+    flex: none;
+    width: 62px;
+    height: 34px;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    background: var(--color-divider);
+    border: none;
+    cursor: pointer;
+    min-height: 34px;
+}
+
+.toggle--on {
+    background: var(--color-accent);
+    justify-content: flex-end;
+}
+
+.toggle:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.toggle-knob {
+    width: 28px;
+    height: 28px;
+    background: var(--color-muted);
+    flex: none;
+}
+
+.toggle--on .toggle-knob {
+    background: var(--color-bg);
+}
+
+/* — Stepper (Phase 9) — */
+.stepper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.stepper-button {
+    width: 52px;
+    height: 52px;
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: var(--color-muted);
+    background: none;
+    border: 1px solid var(--color-divider);
+    cursor: pointer;
+}
+
+.stepper-button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.stepper-value {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 44px;
+    letter-spacing: -0.03em;
+    min-width: 2.4em;
+    text-align: center;
+}
+
+/* — SelectField (Phase 9): 44px segmented tiles — */
+.select-field {
+    display: flex;
+    gap: 2px;
+}
+
+.select-field-tile {
+    min-height: var(--tap-min);
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+    color: var(--color-muted);
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--color-divider);
+    border: none;
+    cursor: pointer;
+}
+
+.select-field-tile--active {
+    color: var(--color-bg);
+    background: var(--color-accent);
+    box-shadow: none;
+}
+
+.select-field-tile:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* — NumberField / TimeField (Phase 9) — */
+.number-field-input,
+.time-field-input {
+    min-height: 52px;
+    min-width: var(--tap-min);
+    padding: 0 14px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 22px;
+    color: var(--color-text);
+    background: var(--color-divider);
+    border: none;
+    box-shadow: inset 0 -2px 0 0 var(--color-accent);
+    width: 100%;
+}
+
+.number-field-input--invalid,
+.time-field-input--invalid {
+    box-shadow: inset 0 -2px 0 0 var(--color-accent-2);
+}
+
+.number-field-input:disabled,
+.time-field-input:disabled {
+    opacity: 0.6;
+}
+
+.number-field-error,
+.time-field-error {
+    font-size: 13px;
+    color: var(--color-accent-2);
+    min-height: 1.2em;
+}

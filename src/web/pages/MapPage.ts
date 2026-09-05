@@ -6,10 +6,12 @@
  * lazily-loaded chunk, not folded into the small entry chunk every other
  * page shares.
  *
- * Ships/aircraft (Phase 7) are NOT wired here -- see `map/layers.ts` for
- * the minimal registry seam Phase 7 mounts into, and cameras deliberately
- * bypass it (`map/markers.ts` is hand-wired directly, per Terje's
- * explicit choice).
+ * Ships/aircraft (Phase 7) mount through `map/layers.ts`'s
+ * `mountLiveLayers` -- this file never imports `map/ships.ts`/
+ * `map/aircraft.ts` directly, so a future third live layer is added
+ * entirely within `layers.ts` with no change here. Cameras deliberately
+ * bypass that registry (`map/markers.ts` is hand-wired directly, per
+ * Terje's explicit choice).
  */
 import type * as Leaflet from 'leaflet';
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
@@ -18,9 +20,11 @@ import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { nightSchedule } from '../shell/night-schedule.js';
 import './map/map.css';
+import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
 import { startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer, markerData } from './map/markers.js';
+import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
 import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
 
@@ -94,6 +98,7 @@ export function render(container: HTMLElement): () => void {
         if (isDisposed()) return; // navigated away before Leaflet finished loading
 
         const map = L.map(mapDiv);
+        activeMapInstance.set(map);
 
         // — theme-driven tiles, reactive: a device-theme or night-schedule
         // change while this page is open swaps tiles live (via `applyTiles`'s
@@ -126,6 +131,10 @@ export function render(container: HTMLElement): () => void {
             }),
         );
 
+        // — live layers (ships, aircraft): canvas-rendered, heading-rotated
+        // glyphs, polled per the current viewport. See `map/layers.ts`. —
+        const disposeLiveLayers = mountLiveLayers(L, map);
+
         // — "N cameras without placement" link, bottom-left. —
         const unplacedLink = document.createElement('a');
         unplacedLink.className = 'map-unplaced-link';
@@ -155,11 +164,13 @@ export function render(container: HTMLElement): () => void {
         map.on('click', onMapClick);
 
         cleanupInner = (): void => {
+            activeMapInstance.set(null);
             map.off('click', onMapClick);
             disposeForecastPanel();
             forecastController.dispose();
             disposeUnplacedEffect();
             unplacedLink.remove();
+            disposeLiveLayers();
             markerLayer.dispose();
             disposeHomeViewSync();
             disposeThemeEffect();

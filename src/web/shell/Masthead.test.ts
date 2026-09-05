@@ -6,7 +6,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { liveLayerCounts, pageFreshness } = await import('./page-status.js');
+const { liveLayerCounts, pageAccountStatus, pageFreshness, pageLocalityOverride } = await import('./page-status.js');
 
 function navigate(hash: string): void {
     location.hash = hash;
@@ -112,6 +112,53 @@ describe('mountMasthead', () => {
         expect(staleBanner?.textContent).toContain('Gamle data');
 
         pageFreshness.set(null);
+        dispose();
+    });
+
+    it('shows a page-supplied locality override in place of the static localityKey text, and clears it when unset', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        pageLocalityOverride.set(null);
+        navigate('#/cameras');
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const locality = container.querySelector<HTMLElement>('.masthead-locality');
+        expect(locality?.textContent).toBe('To kameraer');
+
+        pageLocalityOverride.set('Tre kameraer');
+        expect(locality?.textContent).toBe('Tre kameraer');
+
+        pageLocalityOverride.set(null);
+        expect(locality?.textContent).toBe('To kameraer');
+
+        dispose();
+    });
+
+    it('shows a page-supplied account status and logout button, and hides both when unset', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        pageAccountStatus.set(null);
+        navigate('#/settings');
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const statusEl = container.querySelector<HTMLElement>('.masthead-account-status');
+        const logoutButton = container.querySelector<HTMLButtonElement>('.masthead-account-logout');
+        expect(statusEl?.style.display).toBe('none');
+        expect(logoutButton?.style.display).toBe('none');
+
+        const onLogout = vi.fn();
+        pageAccountStatus.set({ text: 'Innlogget · lagrer automatisk', logoutLabel: 'Logg ut', onLogout });
+
+        expect(statusEl?.style.display).not.toBe('none');
+        expect(statusEl?.textContent).toBe('Innlogget · lagrer automatisk');
+        expect(logoutButton?.textContent).toBe('Logg ut');
+
+        logoutButton?.click();
+        expect(onLogout).toHaveBeenCalledTimes(1);
+
+        pageAccountStatus.set(null);
+        expect(statusEl?.style.display).toBe('none');
+
         dispose();
     });
 });

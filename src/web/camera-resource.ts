@@ -11,7 +11,7 @@ import { CameraListResponseSchema, type CameraListResponse } from '../shared/sch
 import { resource, type Resource } from './core/resource.js';
 
 /** How often the kiosk re-fetches the camera list from the BFF. */
-const CAMERAS_POLL_INTERVAL_MS = 30_000;
+export const CAMERAS_POLL_INTERVAL_MS = 30_000;
 
 async function fetchCameras(): Promise<Result<CameraListResponse>> {
     try {
