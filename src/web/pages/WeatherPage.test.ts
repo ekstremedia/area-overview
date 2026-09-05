@@ -28,6 +28,9 @@ function mockFetch(weatherBody: unknown, summaryBody: unknown): void {
 
 describe('WeatherPage', () => {
     it('renders temperature, condition and stat cards from a cold mount, no prior navigation', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
+
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
@@ -41,9 +44,13 @@ describe('WeatherPage', () => {
         expect(container.querySelectorAll('.weather-forecast-column')).toHaveLength(8);
 
         dispose();
+        vi.useRealTimers();
     });
 
     it('renders nothing at all in the summary slot when the summary is the {summary: null} shape -- no error, no empty box', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
+
         mockFetch(weatherFixture, weatherSummaryEmptyFixture);
         const container = document.createElement('div');
         const dispose = render(container);
@@ -56,9 +63,13 @@ describe('WeatherPage', () => {
         expect(container.querySelector('.weather-summary-label')).toBeNull();
 
         dispose();
+        vi.useRealTimers();
     });
 
     it('shows the populated summary text in the selected language', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
+
         mockSettings.set(SettingsSchema.parse({ language: 'en' }));
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
@@ -72,9 +83,13 @@ describe('WeatherPage', () => {
 
         mockSettings.set(SettingsSchema.parse({}));
         dispose();
+        vi.useRealTimers();
     });
 
     it('shows an error band and no crash when the weather fetch fails outright', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
+
         vi.stubGlobal(
             'fetch',
             vi.fn(() => Promise.reject(new Error('network down'))),
@@ -87,9 +102,13 @@ describe('WeatherPage', () => {
         });
 
         dispose();
+        vi.useRealTimers();
     });
 
     it('sets and clears page attribution/freshness on mount/unmount', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T00:00:00Z'));
+
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
@@ -102,5 +121,6 @@ describe('WeatherPage', () => {
         dispose();
         expect(pageAttribution.get()).toBeNull();
         expect(pageFreshness.get()).toBeNull();
+        vi.useRealTimers();
     });
 });

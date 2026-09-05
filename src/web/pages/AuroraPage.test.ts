@@ -15,6 +15,9 @@ function jsonResponse(body: unknown, ok = true): Response {
 
 describe('AuroraPage', () => {
     it('renders the Kp figure, activity band, bars, stats and the alert band from a cold mount', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-04T21:00:00Z'));
+
         vi.stubGlobal(
             'fetch',
             vi.fn(() => Promise.resolve(jsonResponse(auroraFixture))),
@@ -37,9 +40,13 @@ describe('AuroraPage', () => {
         expect(pageAttribution.get()).toBe(auroraFixture.attribution);
 
         dispose();
+        vi.useRealTimers();
     });
 
     it('shows no alert band at all when there are no alerts', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-04T21:00:00Z'));
+
         const noAlerts = { ...auroraFixture, alerts: { ...auroraFixture.alerts, alerts: [] } };
         vi.stubGlobal(
             'fetch',
@@ -55,9 +62,13 @@ describe('AuroraPage', () => {
         expect(container.querySelector('.aurora-alert-label')).toBeNull();
 
         dispose();
+        vi.useRealTimers();
     });
 
     it('shows an error band when the fetch fails, and clears attribution/freshness on unmount', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-04T21:00:00Z'));
+
         vi.stubGlobal(
             'fetch',
             vi.fn(() => Promise.reject(new Error('network down'))),
@@ -72,5 +83,6 @@ describe('AuroraPage', () => {
         dispose();
         expect(pageAttribution.get()).toBeNull();
         expect(pageFreshness.get()).toBeNull();
+        vi.useRealTimers();
     });
 });
