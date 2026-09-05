@@ -9,6 +9,7 @@ import type { ServerConfig } from './config.js';
 import { registerAuroraRoutes } from './routes/aurora.js';
 import { registerCameraRoutes } from './routes/cameras.js';
 import { registerHealthzRoute } from './routes/healthz.js';
+import { registerSettingsRoutes } from './routes/settings.js';
 import { registerTideRoutes } from './routes/tide.js';
 import { registerWeatherRoutes } from './routes/weather.js';
 import { registerStaticPlugin } from './static.js';
@@ -16,6 +17,14 @@ import { registerStaticPlugin } from './static.js';
 export interface BuildAppOptions {
     /** Defaults to `true`; tests pass `false` to keep output quiet. */
     logger?: boolean;
+    /**
+     * Overrides the settings auth failure delay (production default:
+     * 1000ms, see `requireSettingsPassword`). Test-only: never set this
+     * from `index.ts` or from any environment variable -- the delay is a
+     * security property, not something a deployment should be able to
+     * turn down.
+     */
+    settingsAuthFailureDelayMs?: number;
 }
 
 export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): FastifyInstance {
@@ -28,6 +37,11 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     registerAuroraRoutes(app, config);
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
+    registerSettingsRoutes(
+        app,
+        config,
+        options.settingsAuthFailureDelayMs === undefined ? {} : { authFailureDelayMs: options.settingsAuthFailureDelayMs },
+    );
 
     registerStaticPlugin(app);
 

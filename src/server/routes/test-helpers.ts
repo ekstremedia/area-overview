@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { buildApp } from '../app.js';
+import { buildApp, type BuildAppOptions } from '../app.js';
 import type { ServerConfig } from '../config.js';
 
 /**
@@ -33,8 +33,12 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     };
 }
 
-export function buildTestApp(overrides: Partial<ServerConfig> = {}) {
-    return buildApp(testConfig(overrides), { logger: false });
+export function buildTestApp(overrides: Partial<ServerConfig> = {}, options: BuildAppOptions = {}) {
+    // A short default failure delay keeps unrelated route tests (which
+    // never touch settings auth) and settings-route tests alike fast;
+    // `auth.test.ts` separately asserts the real production default is
+    // still 1000ms via `requireSettingsPassword`'s own default parameter.
+    return buildApp(testConfig(overrides), { logger: false, settingsAuthFailureDelayMs: 5, ...options });
 }
 
 export function jsonResponse(body: unknown, status = 200): Response {
