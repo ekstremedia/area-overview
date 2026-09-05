@@ -12,11 +12,17 @@
  *    fix and silently overwrite a file a human needs to look at.
  *  - a failed write (e.g. a failed `rename`) never touches the file
  *    that was already on disk: the new content is written to a `.tmp`
- *    sibling first and only `rename`d over the real path once it is
- *    fully flushed, so a crash or failure mid-write leaves the previous
- *    file (or nothing extra) -- never a truncated/partial one.
+ *    sibling first and only `rename`d over the real path afterwards.
+ *    `rename` on the same filesystem is atomic, so a crash or failure
+ *    between the two steps leaves either the old file or nothing extra
+ *    -- never a truncated/partial one. This is atomicity of the swap,
+ *    not a durability guarantee against power loss: there is no
+ *    `fsync`, so a failure or power loss between the `writeFile` and the
+ *    `rename` (or even briefly after a successful `rename`, before the
+ *    OS flushes it) could still lose the write entirely -- it just can't
+ *    corrupt the *previous* file into a half-written one.
  */
-import { mkdir as fsMkdir, readFile as fsReadFile, rename as fsRename, writeFile as fsWriteFile } from 'node:fs/promises';
+import { mkdir as fsMkdir, readFile as fsReadFile, rename as fsRename, unlink as fsUnlink, writeFile as fsWriteFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SettingsSchema, type Placement, type Settings, type SettingsPatch } from '../../shared/schemas/settings.js';
 
@@ -37,9 +43,10 @@ export interface SettingsStoreFs {
     writeFile: typeof fsWriteFile;
     rename: typeof fsRename;
     mkdir: typeof fsMkdir;
+    unlink: typeof fsUnlink;
 }
 
-const defaultFs: SettingsStoreFs = { readFile: fsReadFile, writeFile: fsWriteFile, rename: fsRename, mkdir: fsMkdir };
+const defaultFs: SettingsStoreFs = { readFile: fsReadFile, writeFile: fsWriteFile, rename: fsRename, mkdir: fsMkdir, unlink: fsUnlink };
 
 const KNOWN_TOP_LEVEL_KEYS = new Set(Object.keys(SettingsSchema.shape));
 
@@ -135,21 +142,30 @@ export class SettingsStore {
         this.writesRefusedReason = null;
     }
 
-    /** The current in-memory settings. Assumes `load()` has already run at boot. */
+    /**
+     * The current in-memory settings. Assumes `load()` has already run at
+     * boot. Returns a shallow copy, not the live internal object -- a
+     * caller mutating the returned value must not be able to change this
+     * store's state (or a future write's starting point) without going
+     * through `patch`/`setPlacement` and the write chain/disk write that
+     * come with them.
+     */
     get(): Settings {
-        return this.settings;
+        return { ...this.settings };
     }
 
     async patch(p: SettingsPatch): Promise<Settings> {
         return this.enqueueWrite(async () => {
             this.assertWritable();
             const previous = this.settings;
-            // `SettingsPatch`'s keys are all optional (it's `.partial()`),
-            // so TS can't statically see that a spread of it only ever
-            // overwrites keys with defined values -- the assertion is safe
-            // because every field it *does* carry already passed
-            // `SettingsPatchSchema` validation upstream, and every field it
-            // omits falls through to `previous`'s already-valid value.
+            // `SettingsPatch`'s keys are all optional, so TS can't
+            // statically see that a spread of it only ever overwrites keys
+            // with defined values -- the assertion is safe because every
+            // field it *does* carry already passed `SettingsPatchSchema`
+            // validation upstream (which parses an omitted key to
+            // `undefined`, not a default -- see that schema's own comment),
+            // and every field it omits falls through to `previous`'s
+            // already-valid value untouched.
             this.settings = { ...previous, ...p, updatedAt: new Date().toISOString() } as Settings;
             await this.persistOrRollback(previous);
             return this.settings;
@@ -214,6 +230,17 @@ export class SettingsStore {
 
         await this.fs.mkdir(path.dirname(this.filePath), { recursive: true });
         await this.fs.writeFile(this.tmpPath, body, 'utf8');
-        await this.fs.rename(this.tmpPath, this.filePath);
+        try {
+            await this.fs.rename(this.tmpPath, this.filePath);
+        } catch (error) {
+            // Best-effort cleanup only: a failed `rename` (the case this is
+            // guarding against) would otherwise leave a stale `.tmp` file
+            // behind on every failed write attempt. If this unlink itself
+            // fails (e.g. the same underlying disk/permission problem),
+            // that's not a new failure mode worth surfacing -- the original
+            // `rename` error below is the one that matters to the caller.
+            await this.fs.unlink(this.tmpPath).catch(() => undefined);
+            throw error;
+        }
     }
 }

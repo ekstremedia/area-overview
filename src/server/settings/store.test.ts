@@ -38,6 +38,17 @@ describe('SettingsStore.load', () => {
         expect(store.get()).toEqual(defaultSettings());
     });
 
+    it('get() returns a copy, not the live internal object -- mutating it must not affect the store', async () => {
+        const store = new SettingsStore(settingsFile, { logger: silentLogger() });
+        await store.load();
+
+        const first = store.get();
+        first.pollIntervalSeconds = 999999;
+
+        expect(store.get().pollIntervalSeconds).not.toBe(999999);
+        expect(store.get()).not.toBe(first);
+    });
+
     it('allows writes after loading a missing file', async () => {
         const store = new SettingsStore(settingsFile, { logger: silentLogger() });
         await store.load();
@@ -183,6 +194,9 @@ describe('SettingsStore atomic write', () => {
         const onDisk: unknown = JSON.parse(await readFile(settingsFile, 'utf8'));
         expect(onDisk).toMatchObject({ pollIntervalSeconds: 200 });
         expect(store.get().pollIntervalSeconds).toBe(200);
+
+        // A failed rename shouldn't leave the `.tmp` sibling behind either.
+        await expect(readFile(`${settingsFile}.tmp`, 'utf8')).rejects.toThrow();
     });
 
     it('recovers on the next write once rename succeeds again', async () => {
