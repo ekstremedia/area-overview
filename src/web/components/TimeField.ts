@@ -35,7 +35,11 @@ export function timeField(options: TimeFieldOptions): TimeFieldHandle {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.inputMode = 'numeric';
+    // 'decimal', not the more semantically apt 'numeric': `OnScreenKeyboard`'s
+    // layout rule keys off `inputmode="decimal"` to pick the numeric keypad,
+    // and an HH:MM field should get that same keypad on this kiosk rather
+    // than the full alphanumeric layout -- see that module's doc comment.
+    input.inputMode = 'decimal';
     input.className = 'time-field-input';
     input.value = committed;
     input.placeholder = 'HH:MM';
