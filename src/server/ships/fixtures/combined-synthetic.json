@@ -58,5 +58,17 @@
         "trueHeading": 90,
         "rateOfTurn": 0,
         "shipType": 70
+    },
+    {
+        "mmsi": 257001810,
+        "name": null,
+        "msgtime": "2026-09-05T18:53:53Z",
+        "latitude": 68.72,
+        "longitude": 15.38,
+        "speedOverGround": 0,
+        "courseOverGround": 293.8,
+        "trueHeading": 122,
+        "rateOfTurn": 0,
+        "shipType": 38
     }
 ]

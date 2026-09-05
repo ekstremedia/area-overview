@@ -55,6 +55,27 @@ describe('mapRawShipsToShips (fixture-based, no network)', () => {
         const nordlys = ships.find((s) => s.name === 'MS NORDLYS');
         expect(nordlys?.timestamp).toBe('2026-09-05T10:00:00Z');
     });
+
+    it('maps null names to empty strings (UI fallback displays "Ukjent"/"Unknown")', () => {
+        const rawShips = [
+            {
+                mmsi: 257001810,
+                name: null,
+                msgtime: '2026-09-05T18:53:53Z',
+                latitude: 60.567695,
+                longitude: 4.95598,
+                speedOverGround: 0,
+                courseOverGround: 293.8,
+                trueHeading: 122,
+                shipType: 38,
+            },
+        ];
+        const mapped = mapRawShipsToShips(rawShips, { minLat: 60, maxLat: 61, minLng: 4, maxLng: 5 });
+        expect(mapped).toHaveLength(1);
+        expect(mapped[0]?.name).toBe('');
+        // Verify that an empty name passes the shared Ship schema validation
+        expect(mapped[0]?.mmsi).toBe('257001810');
+    });
 });
 
 describe('fetchShips', () => {
@@ -66,7 +87,7 @@ describe('fetchShips', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-            expect(result.value.map((s) => s.name).sort()).toEqual(['COASTAL EXPRESS', 'FISKEBAT SENIOR', 'MS NORDLYS']);
+            expect(result.value.map((s) => s.name).sort()).toEqual(['', 'COASTAL EXPRESS', 'FISKEBAT SENIOR', 'MS NORDLYS']);
         }
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         expect(url).toBe('https://live.ais.barentswatch.no/v1/latest/combined');
