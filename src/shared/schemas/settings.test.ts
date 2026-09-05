@@ -44,6 +44,33 @@ describe('SettingsPatchSchema', () => {
         expect(result.success).toBe(true);
     });
 
+    /**
+     * Regression test for a real bug: `SettingsSchema.omit(...).partial()`
+     * looked correct but wasn't, because `.partial()` wraps each field's
+     * *already-`.default()`-decorated* schema in `.optional()`, and in Zod
+     * v4 that composition (`optional(default(base))`) still lets the
+     * inner `.default()` fire for an absent key instead of leaving it
+     * `undefined`. The observed symptom: `SettingsPatchSchema.parse({
+     * brightness: 60 })` came back with all nine fields populated (each
+     * omitted one backfilled with its schema default), not just
+     * `brightness` -- silently turning every partial `PATCH` into a full
+     * overwrite back to defaults for every field the caller didn't
+     * mention. `SettingsPatchSchema` is now built from undecorated base
+     * field schemas instead, specifically to keep this from recurring.
+     */
+    it('parses a single-key patch into an object with exactly that one key -- no other fields backfilled with their defaults', () => {
+        const result = SettingsPatchSchema.parse({ brightness: 60 });
+
+        expect(Object.keys(result)).toEqual(['brightness']);
+        expect(result).toEqual({ brightness: 60 });
+    });
+
+    it('parses an empty patch into an empty object -- no keys at all', () => {
+        const result = SettingsPatchSchema.parse({});
+
+        expect(Object.keys(result)).toEqual([]);
+    });
+
     it('accepts an empty patch', () => {
         expect(SettingsPatchSchema.safeParse({}).success).toBe(true);
     });

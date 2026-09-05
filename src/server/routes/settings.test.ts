@@ -109,7 +109,7 @@ describe('PATCH /api/settings', () => {
         expect(after.json()).toEqual(defaultSettings());
     });
 
-    it('200s with a valid partial patch, and leaves untouched keys alone', async () => {
+    it('200s with a valid partial patch, and leaves untouched keys at their defaults', async () => {
         const app = buildApp();
 
         const response = await app.inject({
@@ -124,6 +124,49 @@ describe('PATCH /api/settings', () => {
         expect(body.pollIntervalSeconds).toBe(60);
         expect(body.homeView).toEqual(SettingsSchema.parse({}).homeView);
         expect(body.updatedAt).not.toBe(SettingsSchema.parse({}).updatedAt);
+    });
+
+    /**
+     * Regression test for a real bug (see `SettingsPatchSchema`'s own
+     * regression test in `src/shared/schemas/settings.test.ts` for the
+     * root cause): a `PATCH` that only mentions key B must never reset
+     * key A back to its default, even though key A's *current* value was
+     * itself set by an earlier `PATCH` and is not a default. The earlier
+     * version of this test only ever patched a fresh, all-defaults store,
+     * so it couldn't have caught this -- "untouched keys survive" was
+     * indistinguishable from "untouched keys were already at their
+     * (never-changed) default". This one patches key A to a non-default
+     * value first, confirms key A's non-default value is still present
+     * -- in the second response body *and* read back from disk -- after
+     * a second, unrelated `PATCH` to key B.
+     */
+    it('a non-default value set by an earlier PATCH survives a later PATCH to a different key', async () => {
+        const app = buildApp();
+
+        const first = await app.inject({
+            method: 'PATCH',
+            url: '/api/settings',
+            headers: { authorization: `Bearer ${PASSWORD}` },
+            payload: { pollIntervalSeconds: 99 },
+        });
+        expect(first.statusCode).toBe(200);
+        expect(first.json<{ pollIntervalSeconds: number }>().pollIntervalSeconds).toBe(99);
+
+        const second = await app.inject({
+            method: 'PATCH',
+            url: '/api/settings',
+            headers: { authorization: `Bearer ${PASSWORD}` },
+            payload: { brightness: 50 },
+        });
+        expect(second.statusCode).toBe(200);
+
+        const secondBody = second.json<{ pollIntervalSeconds: number; brightness: number }>();
+        expect(secondBody.pollIntervalSeconds).toBe(99);
+        expect(secondBody.brightness).toBe(50);
+
+        const onDisk = (await readSettingsFile()) as { pollIntervalSeconds: number; brightness: number };
+        expect(onDisk.pollIntervalSeconds).toBe(99);
+        expect(onDisk.brightness).toBe(50);
     });
 
     it('400s a PATCH that tries to sneak placements through, and does not apply it', async () => {

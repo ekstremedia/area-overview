@@ -42,21 +42,59 @@ const AircraftSettingsSchema = z.object({
 });
 
 /**
+ * The nine top-level fields a `PATCH` can touch, as *undecorated* schemas
+ * -- deliberately without their own `.default(...)`. `SettingsSchema`
+ * below applies `.default(...)` to each of these when building the full
+ * settings object (so `SettingsSchema.parse({})` is still fully
+ * populated); `SettingsPatchSchema` further down uses these same bases
+ * directly, wrapped only in a plain `.optional()`.
+ *
+ * This split exists because of a real Zod v4 interaction, not style
+ * preference: wrapping an already-`.default(...)`-decorated schema in
+ * `.optional()` -- which is exactly what `SomeSchema.partial()` does to
+ * every field -- does NOT make an absent key parse to `undefined`. The
+ * inner `.default(...)` still fires first (the composed shape is
+ * `optional(default(base))`, and `.optional()` here doesn't intercept
+ * `undefined` before `.default()` gets to substitute its value), so
+ * `.partial()` on a schema whose fields already carry defaults silently
+ * *backfills* every field the caller didn't mention with its default,
+ * instead of omitting it. A previous version of this schema built
+ * `SettingsPatchSchema` as `SettingsSchema.omit(...).partial()` and hit
+ * exactly this: `SettingsPatchSchema.parse({ brightness: 60 })` came
+ * back with all nine fields populated, not just `brightness` -- silently
+ * turning every partial `PATCH` into a full overwrite back to defaults
+ * for every field the caller didn't mention. Verify this doesn't
+ * regress by checking that `SettingsPatchSchema.parse({ brightness: 60
+ * })` has exactly one key.
+ */
+const patchableFieldSchemas = {
+    language: z.enum(['nb', 'en']),
+    homeView: HomeViewSchema,
+    pollIntervalSeconds: z.number().min(10).max(600),
+    enabledPages: z.array(PageIdSchema),
+    idleResetSeconds: z.number().min(0).max(3600),
+    night: NightModeSchema,
+    brightness: z.number().min(20).max(100),
+    ships: ShipsSettingsSchema,
+    aircraft: AircraftSettingsSchema,
+};
+
+/**
  * The shared, server-persisted settings. Every key has a `.default()`, so
  * `SettingsSchema.parse({})` yields a fully populated `Settings` object --
  * every default lives here, nowhere else.
  */
 export const SettingsSchema = z.object({
-    language: z.enum(['nb', 'en']).default('nb'),
-    homeView: HomeViewSchema.default({ lat: 68.6984, lng: 15.4129, zoom: 11 }),
+    language: patchableFieldSchemas.language.default('nb'),
+    homeView: patchableFieldSchemas.homeView.default({ lat: 68.6984, lng: 15.4129, zoom: 11 }),
     placements: z.record(z.string(), PlacementSchema).default({}),
-    pollIntervalSeconds: z.number().min(10).max(600).default(30),
-    enabledPages: z.array(PageIdSchema).default(['map', 'weather', 'aurora', 'tide', 'cameras']),
-    idleResetSeconds: z.number().min(0).max(3600).default(300),
-    night: NightModeSchema.default({ enabled: false, from: '23:00', to: '06:00', mode: 'dim' }),
-    brightness: z.number().min(20).max(100).default(100),
-    ships: ShipsSettingsSchema.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
-    aircraft: AircraftSettingsSchema.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
+    pollIntervalSeconds: patchableFieldSchemas.pollIntervalSeconds.default(30),
+    enabledPages: patchableFieldSchemas.enabledPages.default(['map', 'weather', 'aurora', 'tide', 'cameras']),
+    idleResetSeconds: patchableFieldSchemas.idleResetSeconds.default(300),
+    night: patchableFieldSchemas.night.default({ enabled: false, from: '23:00', to: '06:00', mode: 'dim' }),
+    brightness: patchableFieldSchemas.brightness.default(100),
+    ships: patchableFieldSchemas.ships.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
+    aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
     updatedAt: IsoTimestampSchema.default(() => new Date().toISOString()),
 });
 
@@ -64,9 +102,21 @@ export type Settings = z.infer<typeof SettingsSchema>;
 
 /**
  * A partial patch to settings. Excludes `placements` (which get their own
- * per-camera routes in a later phase) and `updatedAt` (server-set on every
- * write).
+ * per-camera routes) and `updatedAt` (server-set on every write). Built
+ * from `patchableFieldSchemas`' undecorated bases -- see the comment
+ * above them -- so a key the caller omits parses to `undefined` and is
+ * genuinely absent from the result, not silently replaced by its default.
  */
-export const SettingsPatchSchema = SettingsSchema.omit({ placements: true, updatedAt: true }).partial();
+export const SettingsPatchSchema = z.object({
+    language: patchableFieldSchemas.language.optional(),
+    homeView: patchableFieldSchemas.homeView.optional(),
+    pollIntervalSeconds: patchableFieldSchemas.pollIntervalSeconds.optional(),
+    enabledPages: patchableFieldSchemas.enabledPages.optional(),
+    idleResetSeconds: patchableFieldSchemas.idleResetSeconds.optional(),
+    night: patchableFieldSchemas.night.optional(),
+    brightness: patchableFieldSchemas.brightness.optional(),
+    ships: patchableFieldSchemas.ships.optional(),
+    aircraft: patchableFieldSchemas.aircraft.optional(),
+});
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
