@@ -48,6 +48,8 @@ export const nb = {
     'map.pointForecastRetry': 'Prøv igjen',
     'map.pointForecastCondition': '{condition}, {direction}',
     'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+    'map.unavailable': 'Kartet kunne ikke lastes.',
+    'map.reload': 'Last på nytt',
 
     'symbol.clearsky': 'klarvær',
     'symbol.fair': 'lettskyet',
