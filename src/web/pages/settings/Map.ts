@@ -53,6 +53,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.lat,
         step: '0.0001',
         disabled: !loggedIn,
+        id: 'settings-homeview-lat',
         write: (value) => {
             draft.lat = value;
             return writeHomeView();
@@ -64,6 +65,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.lng,
         step: '0.0001',
         disabled: !loggedIn,
+        id: 'settings-homeview-lng',
         write: (value) => {
             draft.lng = value;
             return writeHomeView();
@@ -75,6 +77,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.zoom,
         step: '1',
         disabled: !loggedIn,
+        id: 'settings-homeview-zoom',
         write: (value) => {
             draft.zoom = value;
             return writeHomeView();

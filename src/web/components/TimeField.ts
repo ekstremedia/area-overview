@@ -12,11 +12,26 @@ import { t } from '../i18n/index.js';
 
 const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+let fallbackIdCounter = 0;
+
+/** A reasonably-unique fallback id, for a caller that has no natural unique key to hand. */
+function nextFallbackId(): string {
+    fallbackIdCounter += 1;
+    return `time-field-${String(fallbackIdCounter)}`;
+}
+
 export interface TimeFieldOptions {
     value: string;
     disabled?: boolean;
     write: (value: string) => Promise<Result<unknown>>;
     debounceMs?: number;
+    /**
+     * A unique id for the rendered `<input>` (also used as its `name`) --
+     * see `NumberField.ts`'s identical option for why this matters (more
+     * than one instance of this component can exist on a page). Falls back
+     * to a module-local counter when omitted.
+     */
+    id?: string;
 }
 
 export interface TimeFieldHandle {
@@ -41,6 +56,9 @@ export function timeField(options: TimeFieldOptions): TimeFieldHandle {
     // than the full alphanumeric layout -- see that module's doc comment.
     input.inputMode = 'decimal';
     input.className = 'time-field-input';
+    const id = options.id ?? nextFallbackId();
+    input.id = id;
+    input.name = id;
     input.value = committed;
     input.placeholder = 'HH:MM';
     input.disabled = disabled;
