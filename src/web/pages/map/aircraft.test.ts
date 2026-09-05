@@ -107,6 +107,7 @@ describe('mountAircraftLayer', () => {
 
     it('does not poll while disabled, and reports the aircraft count once enabled', async () => {
         vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(oneAircraft)));
         const map = fakeMap();
         const reportCount = vi.fn();
@@ -128,6 +129,7 @@ describe('mountAircraftLayer', () => {
 
     it('hides on-ground aircraft when showOnGround is false, and shows them when true', async () => {
         vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
         const onGroundResponse = {
             configured: true,
             fetchedAt: '2026-09-05T12:00:00Z',
