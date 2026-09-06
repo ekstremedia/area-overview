@@ -146,6 +146,20 @@ else
     CHANGES+=("installed $SERVICE_DEST")
 fi
 
+echo "==> Installing udev rule to ignore HDMI-CEC phantom pointer devices"
+UDEV_RULE_DEST=/etc/udev/rules.d/99-kiosk-ignore-cec.rules
+mkdir -p /etc/udev/rules.d
+if [ -f "$UDEV_RULE_DEST" ] && cmp -s "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$UDEV_RULE_DEST"; then
+    SKIPPED+=("$UDEV_RULE_DEST already up to date")
+else
+    install -m 0644 "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$UDEV_RULE_DEST"
+    CHANGES+=("installed $UDEV_RULE_DEST")
+    # Reload udev rules and re-trigger for existing input devices so the rule
+    # takes effect without a reboot
+    udevadm control --reload-rules
+    udevadm trigger --subsystem-match=input
+fi
+
 systemctl daemon-reload
 if systemctl is-enabled --quiet area-kiosk.service 2>/dev/null; then
     SKIPPED+=("area-kiosk.service already enabled")

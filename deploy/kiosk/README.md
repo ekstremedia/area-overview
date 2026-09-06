@@ -182,7 +182,7 @@ is running). Alternatively, the kernel parameter `consoleblank=0` in
 shouldn't matter under a Wayland compositor). **This is unverified -- monitor
 the real hardware and update this section if the screen blanks.**
 
-## Cursor
+## Cursor and input injection security
 
 Touch is the only input this panel needs (USB HID, no driver required).
 
@@ -191,28 +191,36 @@ cursor visibility. The `-s` flag specifically means "allow VT switching" (the
 opposite of what a kiosk wants), not cursor-hiding, so `cage -s` was a mistake
 and has been removed.
 
-The absence of a visible cursor on a touch-only panel is likely because Wayland
-only creates and shows a pointer cursor when a `wl_pointer` device exists and
-generates motion events. A setup with no separate pointing device (mouse or
-trackpad) and only touch input typically never renders a cursor in the first
-place, because there's nothing to move it. **This needs to be verified
-empirically once the kiosk is actually running on the real hardware** — this
-section documents the theory, not confirmed fact.
+### What was actually found on the real hardware
 
-If a cursor DOES turn out to be visible in practice (e.g., if the touch panel's
-driver reports absolute pointer or tablet-style events that cage renders a
-cursor for), the untried follow-ups would be:
+The touchscreen itself (`QDtech MPI7003`, `EV=0x1b`, no `EV_REL`) is correctly
+touch-only and would never create a pointer on its own. **However**, two other
+devices exist on the same seat: `vc4-hdmi-0` and `vc4-hdmi-1`, the kernel's
+HDMI-CEC remote-control input devices (created by the RC subsystem for each
+HDMI controller, visible in `dmesg` as `rc rc0: vc4-hdmi-0` / `rc rc1: vc4-hdmi-1`).
+Their evdev capabilities are `EV=0x100017` → `SYN KEY REL MSC REP` with `REL_X|REL_Y`,
+and udev tags them `ID_INPUT_POINTINGSTICK=1` and `ID_INPUT_KEY=1`. libinput
+treats `POINTINGSTICK`-tagged devices as pointers, so it will enumerate a pointer
+on this seat regardless of there being no mouse — `loginctl seat-status seat0`
+confirms both vc4-hdmi devices are listed on `seat0`.
 
-- Setting `XCURSOR_THEME` and `XCURSOR_PATH` environment variables (cage's man
-  page confirms it reads these) to point to a fully transparent/invisible
-  Xcursor theme. Such a theme would need to be generated (e.g., via `xcursorgen`
-  from a transparent image) and installed — a legitimate mechanism, just not
-  implemented yet because it adds nontrivial complexity (building and packaging
-  a cursor theme) for a cosmetic issue that may not manifest at all.
-- Checking whether a newer cage release has gained a cursor flag since the
-  0.2.0 man page was written.
+### The fix
 
-**Do not claim cursor hiding is fixed until tested on the real touchscreen.**
+`install-kiosk.sh` now installs a udev rule (`99-kiosk-ignore-cec.rules`)
+that sets `LIBINPUT_IGNORE_DEVICE=1` on both CEC devices, making libinput
+never see them at all. This removes the phantom pointer at the source.
+
+**More importantly, this closes a real input-injection security surface:**
+these same CEC devices carry `EV_KEY`, so anything on the HDMI/CEC bus capable
+of sending CEC remote-control signals could otherwise inject keystrokes into
+whatever has seat focus (the kiosk's Chromium), compromising a kiosk that's
+supposed to be locked down to a Chromium managed policy (URL allow/blocklist).
+The udev rule closes that surface independently of the cursor issue.
+
+The `XCURSOR_THEME` and `XCURSOR_PATH` approach (setting a transparent cursor
+theme) remains documented as a fallback only, in case some other device the
+Pi session hasn't identified still produces a visible cursor after this rule
+is applied. The primary fix is at the source (udev rule).
 
 ## Network recommendation (not scripted, not enforced)
 
