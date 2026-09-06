@@ -36,6 +36,7 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         openskyClientSecret: '',
         shipsCacheTtlMs: 20,
         aircraftCacheTtlMs: 20,
+        cartoApiKey: '',
         ...overrides,
     };
 }

@@ -71,7 +71,7 @@ afterEach(() => {
 });
 
 describe('tileUrlFor', () => {
-    it('returns the CARTO dark_all template and attribution for dark', () => {
+    it('returns the CARTO dark_all template and attribution for dark, unkeyed by default', () => {
         expect(tileUrlFor('dark')).toEqual({
             url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
             attribution: '© OSM · © CARTO',
@@ -80,6 +80,31 @@ describe('tileUrlFor', () => {
 
     it('returns the OSM standard template and attribution for light', () => {
         expect(tileUrlFor('light')).toEqual({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            attribution: '© OpenStreetMap',
+        });
+    });
+
+    it('appends ?key= to the dark URL when a CARTO API key is given', () => {
+        expect(tileUrlFor('dark', 'my-carto-key')).toEqual({
+            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=my-carto-key',
+            attribution: '© OSM · © CARTO',
+        });
+    });
+
+    it('leaves the dark URL unkeyed for an empty CARTO API key', () => {
+        expect(tileUrlFor('dark', '')).toEqual({
+            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            attribution: '© OSM · © CARTO',
+        });
+    });
+
+    it('URL-encodes the key', () => {
+        expect(tileUrlFor('dark', 'a/b c').url).toContain('?key=a%2Fb%20c');
+    });
+
+    it('ignores a CARTO API key given for the light theme (OSM needs no key)', () => {
+        expect(tileUrlFor('light', 'my-carto-key')).toEqual({
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             attribution: '© OpenStreetMap',
         });
@@ -97,6 +122,28 @@ describe('preconnectOriginFor', () => {
 });
 
 describe('applyTiles', () => {
+    it('threads the CARTO API key through to the tile layer URL', () => {
+        const { L, tileLayerCalls } = createFakeLeaflet();
+        const map = createFakeMap() as unknown as Leaflet.Map;
+
+        applyTiles(L, map, 'dark', 'my-carto-key');
+
+        expect(tileLayerCalls).toEqual(['https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=my-carto-key']);
+    });
+
+    it('re-applies (rather than no-op) when a key arrives after an unkeyed dark layer is already showing', () => {
+        const { L, tileLayerCalls } = createFakeLeaflet();
+        const map = createFakeMap() as unknown as Leaflet.Map;
+
+        applyTiles(L, map, 'dark');
+        applyTiles(L, map, 'dark', 'my-carto-key');
+
+        expect(tileLayerCalls).toEqual([
+            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=my-carto-key',
+        ]);
+    });
+
     it('is a no-op when called again with the same theme (URL unchanged)', () => {
         const { L, tileLayerCalls } = createFakeLeaflet();
         const map = createFakeMap() as unknown as Leaflet.Map;

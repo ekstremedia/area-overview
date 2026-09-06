@@ -20,6 +20,17 @@ export interface TileSpec {
     attribution: string;
 }
 
+/**
+ * CARTO's raster basemap CDN now requires a `key` query parameter (added
+ * 2025-ish, per CARTO's own FAQ at docs.carto.com/faqs/carto-basemaps):
+ * without it, tiles still load (200, not blocked) but are covered by a
+ * repeated "API key required" watermark baked into the PNG itself.
+ * Verified against the real endpoint: a keyed request returns a smaller,
+ * unwatermarked image than the same tile fetched without a key. The URL
+ * *shape* (`{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png`) is
+ * unchanged -- only the trailing `?key=` is new. `light` (OSM) needs no
+ * key at all and is unaffected by any of this.
+ */
 const TILE_SPECS: Record<Theme, TileSpec> = {
     dark: {
         url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -31,8 +42,17 @@ const TILE_SPECS: Record<Theme, TileSpec> = {
     },
 };
 
-export function tileUrlFor(theme: Theme): TileSpec {
-    return TILE_SPECS[theme];
+/**
+ * `cartoApiKey` is appended as `?key=` to the `dark` theme's URL when
+ * non-empty; ignored for `light`, which is CARTO-independent. An empty
+ * key leaves the URL as-is -- CARTO still serves the tile, just
+ * watermarked, so this deliberately doesn't invent a fallback tile
+ * source or block rendering.
+ */
+export function tileUrlFor(theme: Theme, cartoApiKey = ''): TileSpec {
+    const spec = TILE_SPECS[theme];
+    if (theme !== 'dark' || cartoApiKey === '') return spec;
+    return { ...spec, url: `${spec.url}?key=${encodeURIComponent(cartoApiKey)}` };
 }
 
 /** The real host a browser will actually connect to for `theme`'s tiles, for a `<link rel="preconnect">`. Drops the `{s}.` subdomain placeholder (CARTO); OSM has none. */
@@ -68,9 +88,14 @@ const stateByMap = new WeakMap<Leaflet.Map, TileMapState>();
  * first, and only remove the old one once the new layer's `load` event
  * fires (or the safety timeout elapses) -- never remove-then-add, which
  * would blank the map for the round trip to the tile host.
+ *
+ * `cartoApiKey` is threaded straight through to `tileUrlFor` -- see its
+ * docstring. A no-op check based on `spec.url` (not the raw `theme`)
+ * means fetching the key *after* an unkeyed `dark` tile layer is already
+ * showing correctly swaps to the keyed URL on the next `applyTiles` call.
  */
-export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, theme: Theme): void {
-    const spec = tileUrlFor(theme);
+export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, theme: Theme, cartoApiKey = ''): void {
+    const spec = tileUrlFor(theme, cartoApiKey);
     const existing = stateByMap.get(map);
     if (existing?.appliedUrl === spec.url) return;
 
