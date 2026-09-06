@@ -25,6 +25,12 @@
 - One pull request per roadmap phase (see `docs/ROADMAP.md`); avoid mixing
   unrelated changes into a single PR.
 - Run `npm run check` before opening a PR; CI runs the same command.
+- Two real obstacles hit stacking multiple phase PRs (phases 2-10): squash-
+  merging one breaks git ancestry for any branch still stacked on its
+  pre-squash commits (retargeting then shows bogus conflicts -- merge in
+  order, or do a small sync PR to fix ancestry after); and CodeRabbit does
+  not auto-review PRs over ~150 changed files or targeting a non-default
+  branch, so a large combined PR can silently get zero review coverage.
 
 ## Where to look
 
