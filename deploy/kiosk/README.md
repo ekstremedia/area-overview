@@ -5,12 +5,18 @@ showing `https://area.nesthus.no/`, without touching pi5ai's existing day
 job (Apache + gunicorn/Flask OCR service on the same box) or its existing
 `pi` desktop session.
 
-**Status: scripts are authored and validated locally (`bash -n`, JSON
-parse, `systemd-analyze verify` -- `shellcheck` was not available on the
-authoring machine and was skipped rather than installed) but have NOT been
-run on the real Pi yet.** A separate session with interactive `sudo` on
-pi5ai runs `install-kiosk.sh` and reports back before this is considered
-done.
+**Status: installed and running on the real hardware.** `install-kiosk.sh`
+completed cleanly on pi5ai (kiosk user, cage, the udev rule, the policy, the
+unit -- chromium and curl were already present and correctly skipped). The
+VT takeover (`chvt 8`), the HDMI-CEC udev rule (phantom pointers gone,
+touchscreen untouched), and pi5ai's day job (Apache + the Flask OCR service,
+both unaffected) are all confirmed on hardware, not just reviewed. The one
+remaining blocker is `area.nesthus.no`'s TLS certificate, which doesn't
+cover that hostname yet (DNS itself is already live) -- once it's expanded,
+`start-kiosk.sh`'s retry loop picks it up within 5s and Chromium launches
+with no restart needed. After that, the remaining checks (touch on all six
+pages, policy blocking `127.0.0.1`/the LAN IP, cursor presence, panel
+blanking, reboot survival, NUC-restart recovery) still need running.
 
 ## What was found on the real hardware (2026-09-06)
 
@@ -40,10 +46,14 @@ Peripherals Inc MPI7002"`). **Not HDMI-A-1** -- that port is flaky on
   total. A Chromium kiosk tab with one canvas map is ~300-600 MB, so there
   is plenty of headroom; re-measure after the kiosk is running and record
   the number here.
-- `ddcutil` hardware-brightness testing is being done separately by Terje
-  and isn't gated on anything here; the existing software brightness
-  overlay (from an earlier phase) remains the real mechanism regardless of
-  what `ddcutil detect` says.
+- `ddcutil` was installed and tested on the real hardware: `ddcutil detect`
+  finds the panel over I2C (EDID reads fine, `Mfg id: MPI - Mediatrix
+Peripherals Inc / MPI7002`) but reports "DDC communication failed", and
+  `ddcutil getvcp 10` returns "Display not found". So this isn't an
+  assumption -- the panel implements no DDC/CI VCP layer at all, and
+  hardware brightness control does not exist on this display. The software
+  brightness overlay (from an earlier phase) is confirmed as the only
+  mechanism.
 - `--force-device-scale-factor=1` is the starting value in
   `start-kiosk.sh` -- the design is native 1024x600 and already sizes its
   type for a wall. Only bump to `1.25` if it reads too small on the real
