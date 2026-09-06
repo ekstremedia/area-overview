@@ -61,6 +61,8 @@ export function mountLoginDialog(container: HTMLElement, options: LoginDialogOpt
     const passwordInput = document.createElement('input');
     passwordInput.type = 'password';
     passwordInput.className = 'login-dialog-password';
+    passwordInput.id = 'login-dialog-password';
+    passwordInput.name = 'login-dialog-password';
     passwordInput.autocomplete = 'off';
     passwordInput.setAttribute('aria-label', t('login.title'));
 

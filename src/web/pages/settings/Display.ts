@@ -97,6 +97,7 @@ export const mount: SectionMount = (container, ctx) => {
     const nightFromField: TimeFieldHandle = timeField({
         value: nightDraft.from,
         disabled: !loggedIn,
+        id: 'settings-night-from',
         write: (value) => {
             nightDraft.from = value;
             return store.patchSettings({ night: { ...nightDraft } });
@@ -106,6 +107,7 @@ export const mount: SectionMount = (container, ctx) => {
     const nightToField: TimeFieldHandle = timeField({
         value: nightDraft.to,
         disabled: !loggedIn,
+        id: 'settings-night-to',
         write: (value) => {
             nightDraft.to = value;
             return store.patchSettings({ night: { ...nightDraft } });

@@ -138,6 +138,32 @@ describe('numberField', () => {
         expect(input.value).toBe('68.9');
     });
 
+    it('renders the input with a unique id/name when given an explicit id', () => {
+        const write = vi.fn<(v: number) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const a = numberField({ value: 68.7, schema: LAT_SCHEMA, write, id: 'camera-a-lat' });
+        const b = numberField({ value: 15.4, schema: LAT_SCHEMA, write, id: 'camera-b-lat' });
+
+        expect(a.input.id).toBe('camera-a-lat');
+        expect(a.input.name).toBe('camera-a-lat');
+        expect(b.input.id).toBe('camera-b-lat');
+        expect(b.input.name).toBe('camera-b-lat');
+        expect(a.input.id).not.toBe(b.input.id);
+        expect(a.input.name).not.toBe(b.input.name);
+    });
+
+    it('falls back to a non-empty, unique id/name when none is given', () => {
+        const write = vi.fn<(v: number) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const a = numberField({ value: 68.7, schema: LAT_SCHEMA, write });
+        const b = numberField({ value: 15.4, schema: LAT_SCHEMA, write });
+
+        expect(a.input.id).not.toBe('');
+        expect(a.input.name).not.toBe('');
+        expect(a.input.id).toBe(a.input.name);
+        expect(b.input.id).toBe(b.input.name);
+        expect(a.input.id).not.toBe(b.input.id);
+        expect(a.input.name).not.toBe(b.input.name);
+    });
+
     it('update() syncs the displayed value when the input is not focused', () => {
         const write = vi.fn<(v: number) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
         const { input, update } = numberField({ value: 68.7, schema: LAT_SCHEMA, write });

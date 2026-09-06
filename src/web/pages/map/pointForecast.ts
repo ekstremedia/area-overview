@@ -149,12 +149,22 @@ export function mountPointForecastPanel(
 
         const stats = document.createElement('div');
         stats.className = 'point-forecast-stats';
-        stats.textContent = t('map.pointForecastStats', {
-            wind: formatNumber(weather.current.wind.speed, t('unit.metersPerSecond')),
-            precip: formatNumber(weather.current.rain.current, t('unit.millimeters')),
-            lat: formatNumber(current.lat),
-            lng: formatNumber(current.lng),
-        });
+        // Rain data can be absent (e.g. the Netatmo rain gauge offline) --
+        // hidden from the stats line rather than shown as a placeholder/zero,
+        // same convention as `WeatherPage.ts`'s precipitation stat card.
+        stats.textContent =
+            typeof weather.current.rain.current === 'number'
+                ? t('map.pointForecastStats', {
+                      wind: formatNumber(weather.current.wind.speed, t('unit.metersPerSecond')),
+                      precip: formatNumber(weather.current.rain.current, t('unit.millimeters')),
+                      lat: formatNumber(current.lat),
+                      lng: formatNumber(current.lng),
+                  })
+                : t('map.pointForecastStatsNoPrecip', {
+                      wind: formatNumber(weather.current.wind.speed, t('unit.metersPerSecond')),
+                      lat: formatNumber(current.lat),
+                      lng: formatNumber(current.lng),
+                  });
 
         panel.append(temp, condition, stats);
     });

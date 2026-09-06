@@ -75,6 +75,17 @@ describe('timeField', () => {
         expect(write).toHaveBeenCalledWith('07:30');
     });
 
+    it('renders the input with a unique id/name when given an explicit id, and a non-empty fallback otherwise', () => {
+        const write = vi.fn<(v: string) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
+        const a = timeField({ value: '23:00', write, id: 'settings-night-from' });
+        const b = timeField({ value: '06:00', write });
+
+        expect(a.input.id).toBe('settings-night-from');
+        expect(a.input.name).toBe('settings-night-from');
+        expect(b.input.id).not.toBe('');
+        expect(a.input.id).not.toBe(b.input.id);
+    });
+
     it('update() does not clobber the input while it has focus', () => {
         const write = vi.fn<(v: string) => Promise<Result<unknown>>>().mockResolvedValue(ok(undefined));
         const { input, update } = timeField({ value: '23:00', write });

@@ -33,6 +33,17 @@ export interface NumberFieldOptions {
     disabled?: boolean;
     write: (value: number) => Promise<Result<unknown>>;
     debounceMs?: number;
+    /**
+     * A unique id for the rendered `<input>` (also used as its `name`).
+     * A page can mount more than one `NumberField` (e.g. one lat/lng pair
+     * per camera on the settings page), so this must be unique per
+     * instance -- pass something derived from the caller's own unique key
+     * (a camera id, a field's fixed name, ...). When omitted, a
+     * module-local counter provides a fallback so every rendered input
+     * still has an id/name, even for a caller that doesn't have a natural
+     * unique key to hand.
+     */
+    id?: string;
 }
 
 export interface NumberFieldHandle {
@@ -44,6 +55,14 @@ export interface NumberFieldHandle {
 
 function formatForDisplay(value: number): string {
     return String(value);
+}
+
+let fallbackIdCounter = 0;
+
+/** A reasonably-unique fallback id, for a caller that has no natural unique key to hand. */
+function nextFallbackId(): string {
+    fallbackIdCounter += 1;
+    return `number-field-${String(fallbackIdCounter)}`;
 }
 
 function parseCandidate(raw: string, schema: ZodType<number>): { valid: true; value: number } | { valid: false } {
@@ -67,6 +86,9 @@ export function numberField(options: NumberFieldOptions): NumberFieldHandle {
     input.inputMode = 'decimal';
     if (options.step !== undefined) input.step = options.step;
     input.className = 'number-field-input';
+    const id = options.id ?? nextFallbackId();
+    input.id = id;
+    input.name = id;
     input.value = formatForDisplay(committed);
     input.disabled = disabled;
 

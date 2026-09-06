@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import weatherFixture from '../../shared/fixtures/weather.json' with { type: 'json' };
+import weatherNetatmoOfflineFixture from '../../shared/fixtures/weather-netatmo-offline.json' with { type: 'json' };
 import weatherSummaryFixture from '../../shared/fixtures/weather-summary.json' with { type: 'json' };
 import weatherSummaryEmptyFixture from '../../shared/fixtures/weather-summary-empty.json' with { type: 'json' };
 import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js';
@@ -43,6 +44,21 @@ describe('WeatherPage', () => {
         expect(container.querySelector('.weather-temp')?.textContent).toBe('6,2°');
         expect(container.querySelectorAll('.stat-card')).toHaveLength(4);
         expect(container.querySelectorAll('.weather-forecast-column')).toHaveLength(8);
+
+        dispose();
+    });
+
+    it('hides the precipitation stat card (not a placeholder/zero) when rain data is absent, e.g. Netatmo offline', async () => {
+        mockFetch(weatherNetatmoOfflineFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-temp')).not.toBeNull();
+        });
+
+        // wind, humidity, pressure -- no precipitation card.
+        expect(container.querySelectorAll('.stat-card')).toHaveLength(3);
 
         dispose();
     });

@@ -87,13 +87,21 @@ function buildLeftColumn(weather: Weather): HTMLElement {
         statCard({ label: t('weather.wind'), value: formatNumber(weather.current.wind.speed), unit: t('unit.metersPerSecond'), size: 'md' }),
         statCard({ label: t('weather.humidity'), value: formatNumber(weather.current.humidity.value), unit: t('unit.percent'), size: 'md' }),
         statCard({ label: t('weather.pressure'), value: formatNumber(weather.current.pressure.value), unit: t('unit.hectopascal'), size: 'md' }),
-        statCard({
-            label: t('weather.precipitation'),
-            value: formatNumber(weather.current.rain.last_hour),
-            unit: t('unit.millimeters'),
-            size: 'md',
-        }),
     );
+    // Rain data comes from the Netatmo rain gauge module specifically --
+    // absent (not zero) when the station is offline. Following the same
+    // convention as `TidePage.ts`'s `ocean` stats: hide the card entirely
+    // rather than show a placeholder/zero.
+    if (typeof weather.current.rain.last_hour === 'number') {
+        stats.append(
+            statCard({
+                label: t('weather.precipitation'),
+                value: formatNumber(weather.current.rain.last_hour),
+                unit: t('unit.millimeters'),
+                size: 'md',
+            }),
+        );
+    }
 
     left.append(label, temp, condition, stats);
     return left;

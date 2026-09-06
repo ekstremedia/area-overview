@@ -32,7 +32,7 @@ import type { SectionMount } from './sectionContext.js';
 
 const UNDO_WINDOW_MS = 6000;
 
-interface RowHandle {
+export interface RowHandle {
     el: HTMLElement;
     cameraId: string;
     isPlaced: boolean;
@@ -66,6 +66,7 @@ function buildPlacedDetail(
         schema: PlacementSchema.shape.lat,
         step: '0.0001',
         disabled: !loggedIn,
+        id: `camera-${cameraId}-lat`,
         write: (value) => {
             draft.lat = value;
             return write({ ...draft });
@@ -76,6 +77,7 @@ function buildPlacedDetail(
         schema: PlacementSchema.shape.lng,
         step: '0.0001',
         disabled: !loggedIn,
+        id: `camera-${cameraId}-lng`,
         write: (value) => {
             draft.lng = value;
             return write({ ...draft });
@@ -107,7 +109,11 @@ function buildPlacedDetail(
     return { el, latField, lngField };
 }
 
-function buildRow(
+// Exported so a test can assert `isPlaced`'s *liveness* on the returned
+// handle directly (see `Cameras.test.ts`'s "returns a live isPlaced" test) --
+// `mount()`'s own tests only assert on rendered DOM, which the pre-fix bug
+// (a snapshotted, not live, `isPlaced` property) would not have caught.
+export function buildRow(
     camera: Camera,
     placement: Placement | null,
     ctx: { store: import('../../settings/sharedStore.js').SettingsStore; loggedIn: boolean },
@@ -274,7 +280,20 @@ function buildRow(
         clearTimeout(undoTimer);
     }
 
-    return { el: root, cameraId: camera.camera_id, isPlaced, update, dispose };
+    return {
+        el: root,
+        cameraId: camera.camera_id,
+        // A live getter, not a snapshotted property: `{ isPlaced }` shorthand
+        // would copy the `let` variable's value at the moment this object is
+        // created, which can be stale before placement data finishes loading
+        // on first render -- `update()` reassigns the `isPlaced` variable
+        // afterward, and this getter must observe that reassignment.
+        get isPlaced() {
+            return isPlaced;
+        },
+        update,
+        dispose,
+    };
 }
 
 export const mount: SectionMount = (container, ctx) => {

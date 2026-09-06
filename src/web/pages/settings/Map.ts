@@ -24,13 +24,31 @@ import { activeMapInstance } from '../map/activeMap.js';
 import { readCurrentView } from '../map/homeView.js';
 import type { SectionMount } from './sectionContext.js';
 
-function field(labelText: string, control: HTMLElement): HTMLElement {
+function field(labelText: string, control: HTMLElement): HTMLElement;
+function field(labelText: string, inputId: string, control: HTMLElement): HTMLElement;
+function field(labelText: string, inputIdOrControl: string | HTMLElement, control?: HTMLElement): HTMLElement {
+    // If only two args: labelText and control (backward compat, no inputId)
+    // If three args: labelText, inputId, control
+    let actualControl: HTMLElement;
+    let inputId: string | undefined;
+
+    if (typeof inputIdOrControl === 'string') {
+        // This is the 3-arg form: labelText, inputId, control
+        inputId = inputIdOrControl;
+        actualControl = control ?? document.createElement('div');
+    } else {
+        // This is the 2-arg form: labelText, control
+        actualControl = inputIdOrControl;
+        inputId = undefined;
+    }
+
     const row = document.createElement('div');
     row.className = 'settings-field';
-    const label = document.createElement('div');
+    const label = document.createElement('label');
     label.className = 'settings-field-label';
+    if (inputId) label.htmlFor = inputId;
     label.textContent = labelText;
-    row.append(label, control);
+    row.append(label, actualControl);
     return row;
 }
 
@@ -53,6 +71,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.lat,
         step: '0.0001',
         disabled: !loggedIn,
+        id: 'settings-homeview-lat',
         write: (value) => {
             draft.lat = value;
             return writeHomeView();
@@ -64,6 +83,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.lng,
         step: '0.0001',
         disabled: !loggedIn,
+        id: 'settings-homeview-lng',
         write: (value) => {
             draft.lng = value;
             return writeHomeView();
@@ -75,6 +95,7 @@ export const mount: SectionMount = (container, ctx) => {
         schema: HomeViewNumberSchema.zoom,
         step: '1',
         disabled: !loggedIn,
+        id: 'settings-homeview-zoom',
         write: (value) => {
             draft.zoom = value;
             return writeHomeView();
@@ -83,7 +104,11 @@ export const mount: SectionMount = (container, ctx) => {
 
     const row = document.createElement('div');
     row.className = 'settings-homeview-row';
-    row.append(field(t('settings.map.lat'), latField.el), field(t('settings.map.lng'), lngField.el), field(t('settings.map.zoom'), zoomField.el));
+    row.append(
+        field(t('settings.map.lat'), 'settings-homeview-lat', latField.el),
+        field(t('settings.map.lng'), 'settings-homeview-lng', lngField.el),
+        field(t('settings.map.zoom'), 'settings-homeview-zoom', zoomField.el),
+    );
 
     const useCurrentButton = document.createElement('button');
     useCurrentButton.type = 'button';
