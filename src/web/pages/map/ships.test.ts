@@ -16,11 +16,15 @@ vi.mock('../../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountShipsLayer } = await import('./ships.js');
 
-function fakePolygon() {
+function fakePolygon(initial: Record<string, unknown> = {}) {
     const polygon = {
+        style: { ...initial },
         addTo: () => polygon,
         setLatLngs: () => polygon,
-        setStyle: () => polygon,
+        setStyle: (style: Record<string, unknown>) => {
+            polygon.style = { ...polygon.style, ...style };
+            return polygon;
+        },
         bindPopup: () => polygon,
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
@@ -37,11 +41,70 @@ function fakeLayerGroup() {
     return group;
 }
 
-function fakeLeaflet(): typeof Leaflet {
+interface FakeMarker {
+    latlng: unknown;
+    icon: unknown;
+    popupOpen: boolean;
+    popupContentFn: (() => HTMLElement) | undefined;
+    lastContent: HTMLElement | undefined;
+    addTo: () => FakeMarker;
+    setLatLng: (latlng: unknown) => FakeMarker;
+    setIcon: (icon: unknown) => FakeMarker;
+    bindPopup: (content: () => HTMLElement) => FakeMarker;
+    isPopupOpen: () => boolean;
+    setPopupContent: (content: HTMLElement) => FakeMarker;
+    openPopup: () => FakeMarker;
+}
+
+function fakeMarker(latlng: unknown, options: { icon?: unknown } = {}): FakeMarker {
+    const marker: FakeMarker = {
+        latlng,
+        icon: options.icon,
+        popupOpen: false,
+        popupContentFn: undefined,
+        lastContent: undefined,
+        addTo: () => marker,
+        setLatLng: (nextLatLng) => {
+            marker.latlng = nextLatLng;
+            return marker;
+        },
+        setIcon: (icon) => {
+            marker.icon = icon;
+            return marker;
+        },
+        bindPopup: (content) => {
+            marker.popupContentFn = content;
+            return marker;
+        },
+        isPopupOpen: () => marker.popupOpen,
+        setPopupContent: (content) => {
+            marker.lastContent = content;
+            return marker;
+        },
+        openPopup: () => {
+            marker.popupOpen = true;
+            marker.lastContent = marker.popupContentFn?.();
+            return marker;
+        },
+    };
+    return marker;
+}
+
+function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = [], createdMarkers: FakeMarker[] = []): typeof Leaflet {
     return {
         canvas: () => ({}),
         layerGroup: fakeLayerGroup,
-        polygon: fakePolygon,
+        polygon: (_latlngs: unknown, options: Record<string, unknown> = {}) => {
+            const polygon = fakePolygon(options);
+            createdPolygons.push(polygon);
+            return polygon;
+        },
+        marker: (latlng: unknown, options: { icon?: unknown } = {}) => {
+            const marker = fakeMarker(latlng, options);
+            createdMarkers.push(marker);
+            return marker;
+        },
+        divIcon: (options: Record<string, unknown>) => ({ __divIcon: true, ...options }),
         latLng: (lat: number, lng: number) => ({ lat, lng }),
         point: (x: number, y: number) => ({ x, y }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,8 +116,13 @@ function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[] } 
     const offCalls: string[] = [];
     const map = {
         getZoom: () => 10,
-        project: () => ({ x: 0, y: 0 }),
-        unproject: () => ({ lat: 0, lng: 0 }),
+        // A simple, invertible linear "projection" -- not Web Mercator,
+        // but distinct ships get distinct, controllable pixel positions
+        // (needed for clustering assertions), and project/unproject
+        // round-trip exactly, which is all `cornersToLatLngs`/cluster
+        // centroid placement need from a fake.
+        project: (latlng: { lat: number; lng: number }) => ({ x: latlng.lng * 1000, y: latlng.lat * 1000 }),
+        unproject: (point: { x: number; y: number }) => ({ lat: point.y / 1000, lng: point.x / 1000 }),
         on: (event: string) => {
             onCalls.push(event);
         },
@@ -70,6 +138,26 @@ function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[] } 
 
 function jsonResponse(body: unknown): Response {
     return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+function ship(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+    return {
+        mmsi: '257123456',
+        name: 'MS NORDLYS',
+        lat: 68.7,
+        lng: 15.4,
+        speedOverGround: 12.3,
+        courseOverGround: 45,
+        heading: 47,
+        shipType: '60',
+        navigationalStatus: 0,
+        timestamp: '2026-09-05T12:00:00Z',
+        ...overrides,
+    };
+}
+
+function configuredResponse(ships: Record<string, unknown>[]): { configured: true; ships: Record<string, unknown>[]; fetchedAt: string } {
+    return { configured: true, ships, fetchedAt: '2026-09-05T12:00:00Z' };
 }
 
 describe('mountShipsLayer', () => {
@@ -140,5 +228,153 @@ describe('mountShipsLayer', () => {
         expect(reportAttribution).toHaveBeenLastCalledWith(undefined);
         // Every `map.on(...)` registered by the canvas glyph layer (e.g. 'zoomend') is matched by a `map.off(...)` on dispose.
         expect(offCalls.sort()).toEqual(onCalls.sort());
+    });
+});
+
+describe('mountShipsLayer -- colouring by navigationalStatus', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: false, pollSeconds: 10, maxAgeMinutes: 30 } }));
+    });
+
+    it('colors a ship with navigationalStatus 0 green, and any other status the default cyan', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const underway = ship({ mmsi: '1', lat: 68.7, lng: 15.4, navigationalStatus: 0 });
+        const moored = ship({ mmsi: '2', lat: 60.0, lng: 5.0, navigationalStatus: 5 }); // far away -- must not cluster with the first
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([underway, moored]))));
+        const { map } = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Each ship is a (visible, hitArea) pair, in the order it was added.
+        const visiblePolygons = createdPolygons.filter((_, index) => index % 2 === 0);
+        expect(visiblePolygons).toHaveLength(2);
+        expect(visiblePolygons[0]?.style.color).toBe('#4ade80');
+        expect(visiblePolygons[1]?.style.color).toBe('#62c5ee');
+
+        dispose();
+    });
+});
+
+describe('mountShipsLayer -- clustering', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: false, pollSeconds: 10, maxAgeMinutes: 30 } }));
+    });
+
+    it('a lone ship (no nearby others) renders as an ordinary triangle, with no cluster badge', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([ship()]))));
+        const { map } = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+        const createdMarkers: FakeMarker[] = [];
+        const reportCount = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount, reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(createdPolygons).toHaveLength(2); // visible + hit area
+        expect(createdMarkers).toHaveLength(0); // no cluster badge
+        expect(reportCount).toHaveBeenLastCalledWith(1);
+
+        dispose();
+    });
+
+    it('renders two close-together ships as a single cluster badge, not two triangles', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        // lng differs by 0.01 -> 10px apart at this fake map's scale, well under the 44px threshold.
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([a, b]))));
+        const { map } = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+        const createdMarkers: FakeMarker[] = [];
+        const reportCount = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount, reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(createdPolygons).toHaveLength(0); // neither ship rendered as an individual triangle
+        expect(createdMarkers).toHaveLength(1); // one badge for both
+        const [badge] = createdMarkers;
+        const icon = badge?.icon as { html: HTMLElement } | undefined;
+        expect(icon?.html.textContent).toBe('2');
+        expect(reportCount).toHaveBeenLastCalledWith(2); // total ship count is unaffected by clustering
+
+        dispose();
+    });
+
+    it("tapping a cluster badge shows a list, and tapping a row shows that ship's own detail, with a way back", async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([a, b]))));
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [badge] = createdMarkers;
+        badge?.openPopup();
+        const listContent = badge?.lastContent;
+        expect(listContent?.textContent).toContain('ALPHA');
+        expect(listContent?.textContent).toContain('BRAVO');
+
+        const rows = listContent?.querySelectorAll('.ship-cluster-popup-row');
+        expect(rows).toHaveLength(2);
+        (rows?.[0] as HTMLElement).click();
+
+        const detailContent = badge?.lastContent;
+        expect(detailContent?.textContent).toContain('ALPHA');
+        expect(detailContent?.textContent).not.toContain('BRAVO');
+        const back = detailContent?.querySelector('.ship-cluster-popup-back');
+        expect(back).not.toBeNull();
+
+        (back as HTMLElement).click();
+        const backToListContent = badge?.lastContent;
+        expect(backToListContent?.textContent).toContain('ALPHA');
+        expect(backToListContent?.textContent).toContain('BRAVO');
+
+        dispose();
+    });
+
+    it('closes/replaces a cluster badge (never a stale list) once its membership changes between polls', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41 });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse(configuredResponse([a, b])))
+            .mockResolvedValueOnce(jsonResponse(configuredResponse([a]))); // b aged out/gone
+        vi.stubGlobal('fetch', fetchMock);
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(createdMarkers).toHaveLength(1);
+        createdMarkers[0]?.openPopup();
+
+        await vi.advanceTimersByTimeAsync(10_000); // next poll: only `a` remains
+        // The two-member badge is gone -- `a` now renders as an ordinary single triangle instead.
+        expect(createdPolygons.length).toBeGreaterThan(0);
+
+        dispose();
     });
 });

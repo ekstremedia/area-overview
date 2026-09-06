@@ -77,6 +77,8 @@ export const nb = {
     'map.shipCourse': '{course} kurs',
     'map.shipType': 'Type {type}',
     'map.shipUnknownType': 'Ukjent type',
+    'map.shipClusterCount': '{count} skip',
+    'map.shipClusterBack': '← Til liste',
 
     'map.aircraftUnknown': 'Ukjent',
     'map.aircraftAltitude': '{feet} / {meters}',
