@@ -51,6 +51,17 @@ const ServerConfigSchema = z.object({
     /** Optional OpenSky OAuth2 client-credentials pair, for the registered tier's higher anonymous-quota-free rate limit. Never logged. */
     openskyClientId: z.string().default(''),
     openskyClientSecret: z.string().default(''),
+    /**
+     * CARTO basemap API key -- optional, like the BarentsWatch credentials
+     * above. Empty is a fully valid, expected running state: the map's
+     * dark theme still boots, its tiles just come back watermarked
+     * "API key required" by CARTO rather than failing to load (see
+     * `src/server/routes/map-config.ts` and `src/web/pages/map/tiles.ts`).
+     * This key is meant to be public/client-visible (like a Mapbox public
+     * token), unlike BarentsWatch's server-only secret, so it is exposed
+     * to the frontend as-is rather than used to sign a server-side request.
+     */
+    cartoApiKey: z.string().default(''),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -77,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         openskyClientSecret: env.OPENSKY_CLIENT_SECRET,
         shipsCacheTtlMs: env.SHIPS_CACHE_TTL_MS,
         aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
+        cartoApiKey: env.CARTO_API_KEY,
     });
 
     if (!parsed.success) {

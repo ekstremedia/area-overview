@@ -26,6 +26,7 @@ function fakeConfig(): ServerConfig {
         openskyClientSecret: '',
         shipsCacheTtlMs: 10_000,
         aircraftCacheTtlMs: 10_000,
+        cartoApiKey: '',
     };
 }
 

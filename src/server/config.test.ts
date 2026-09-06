@@ -96,6 +96,22 @@ describe('loadConfig / live-layer credentials', () => {
     });
 });
 
+describe('loadConfig / CARTO_API_KEY', () => {
+    it('defaults cartoApiKey to an empty string', () => {
+        const config = loadConfig({ ...baseEnv, SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough' });
+        expect(config.cartoApiKey).toBe('');
+    });
+
+    it('reads CARTO_API_KEY when set', () => {
+        const config = loadConfig({
+            ...baseEnv,
+            SETTINGS_PASSWORD: 'a-test-password-that-is-long-enough',
+            CARTO_API_KEY: 'a-test-carto-key',
+        });
+        expect(config.cartoApiKey).toBe('a-test-carto-key');
+    });
+});
+
 describe('loadConfig / UPSTREAM_BASE_URL', () => {
     it('throws at boot when UPSTREAM_BASE_URL is not a valid URL', () => {
         expect(() =>

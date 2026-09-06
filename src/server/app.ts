@@ -10,6 +10,7 @@ import { registerAuroraRoutes } from './routes/aurora.js';
 import { registerCameraRoutes } from './routes/cameras.js';
 import { registerAircraftRoutes } from './routes/aircraft.js';
 import { registerHealthzRoute } from './routes/healthz.js';
+import { registerMapConfigRoute } from './routes/map-config.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
 import { registerTideRoutes } from './routes/tide.js';
@@ -35,6 +36,7 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     app.register(fastifyCompress);
 
     registerHealthzRoute(app, config);
+    registerMapConfigRoute(app, config);
     registerWeatherRoutes(app, config);
     registerAuroraRoutes(app, config);
     registerTideRoutes(app, config);

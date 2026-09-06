@@ -15,6 +15,7 @@
  */
 import type * as Leaflet from 'leaflet';
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
+import { MapConfigResponseSchema } from '../../shared/schemas/map-config.js';
 import { deviceSettings } from '../device-settings.js';
 import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
@@ -27,6 +28,27 @@ import { createCameraMarkerLayer, markerData } from './map/markers.js';
 import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
 import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
+
+/**
+ * Fetches the CARTO basemap key from `GET /api/map-config` (see
+ * `src/server/routes/map-config.ts`). Never throws: a network error, a
+ * non-2xx response, or a payload that fails schema validation all fall
+ * back to `''`, same as an unconfigured key on the server -- the `dark`
+ * theme's tiles still load, just watermarked by CARTO, matching how the
+ * BarentsWatch/OpenSky live layers degrade on missing credentials rather
+ * than blocking the page.
+ */
+async function fetchCartoApiKey(): Promise<string> {
+    try {
+        const response = await fetch('/api/map-config');
+        if (!response.ok) return '';
+        const json: unknown = await response.json();
+        const parsed = MapConfigResponseSchema.safeParse(json);
+        return parsed.success ? parsed.data.cartoApiKey : '';
+    } catch {
+        return '';
+    }
+}
 
 /** Mirrors `shell/theme.ts`'s `resolveBaseTheme` -- kept local rather than importing from there, since that module's `matchMedia` listener is owned by `startThemeApplication`'s own lifecycle (started once, for the app's lifetime), not something this page's mount/unmount should share or re-trigger. */
 function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean): 'dark' | 'light' {
@@ -97,6 +119,9 @@ export function render(container: HTMLElement): () => void {
         const [L] = await Promise.all([import('leaflet'), import('leaflet/dist/leaflet.css')]);
         if (isDisposed()) return; // navigated away before Leaflet finished loading
 
+        const cartoApiKey = await fetchCartoApiKey();
+        if (isDisposed()) return; // navigated away while fetching the map config
+
         const map = L.map(mapDiv);
         activeMapInstance.set(map);
 
@@ -114,7 +139,7 @@ export function render(container: HTMLElement): () => void {
             const night = nightSchedule.get();
             const base = resolveBaseTheme(deviceSettings.get().theme, systemPrefersLight.get());
             const theme: Theme = night.mode === 'dark' && night.active ? 'dark' : base;
-            applyTiles(L, map, theme);
+            applyTiles(L, map, theme, cartoApiKey);
             preconnectLink.href = preconnectOriginFor(theme);
         });
 
