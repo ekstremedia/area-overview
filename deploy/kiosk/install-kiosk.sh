@@ -13,8 +13,10 @@
 #
 # What this script does NOT do, ever: touch pi5ai's Apache or gunicorn
 # config, `pi`'s home directory, session or lightdm config, or any
-# firewall. It also never starts area-kiosk.service -- it only enables it,
-# so a human reviews before the kiosk takes over a VT.
+# firewall. It also never enables or starts area-kiosk.service -- it only
+# installs the unit file and reloads the systemd daemon, so a human
+# confirms the /dev/tty8 preflight (see README.md) before the kiosk takes
+# over a VT.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -186,9 +188,9 @@ done
 
 echo ""
 echo "==> NOT done by this script, on purpose:"
-echo "  - area-kiosk.service was enabled but NOT started."
-echo "    Review deploy/kiosk/README.md (especially the VT assignment section),"
-echo "    then start it yourself:"
-echo "      sudo systemctl start area-kiosk"
+echo "  - area-kiosk.service was installed but NOT enabled or started."
+echo "    First confirm /dev/tty8 is free (see the preflight check in"
+echo "    deploy/kiosk/README.md), then enable and start it yourself:"
+echo "      sudo systemctl enable --now area-kiosk"
 echo "      sudo systemctl status area-kiosk"
 echo "      journalctl -u area-kiosk -f"
