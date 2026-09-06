@@ -184,12 +184,35 @@ the real hardware and update this section if the screen blanks.**
 
 ## Cursor
 
-Touch is the only input this panel needs (USB HID, no driver required). The
-mouse cursor is hidden via `cage -s`, cage's built-in "hide cursor" flag,
-applied at the compositor level so it applies to Chromium too. This is
-configured in `area-kiosk.service` with `ExecStart=/usr/bin/cage -s --
-/usr/local/bin/start-kiosk.sh`. The cursor is hidden even if Chromium is
-running, so no additional client-side configuration is needed.
+Touch is the only input this panel needs (USB HID, no driver required).
+
+Cage 0.2.0 has five command-line flags: `-d -h -m -s -v`. None of them control
+cursor visibility. The `-s` flag specifically means "allow VT switching" (the
+opposite of what a kiosk wants), not cursor-hiding, so `cage -s` was a mistake
+and has been removed.
+
+The absence of a visible cursor on a touch-only panel is likely because Wayland
+only creates and shows a pointer cursor when a `wl_pointer` device exists and
+generates motion events. A setup with no separate pointing device (mouse or
+trackpad) and only touch input typically never renders a cursor in the first
+place, because there's nothing to move it. **This needs to be verified
+empirically once the kiosk is actually running on the real hardware** — this
+section documents the theory, not confirmed fact.
+
+If a cursor DOES turn out to be visible in practice (e.g., if the touch panel's
+driver reports absolute pointer or tablet-style events that cage renders a
+cursor for), the untried follow-ups would be:
+
+- Setting `XCURSOR_THEME` and `XCURSOR_PATH` environment variables (cage's man
+  page confirms it reads these) to point to a fully transparent/invisible
+  Xcursor theme. Such a theme would need to be generated (e.g., via `xcursorgen`
+  from a transparent image) and installed — a legitimate mechanism, just not
+  implemented yet because it adds nontrivial complexity (building and packaging
+  a cursor theme) for a cosmetic issue that may not manifest at all.
+- Checking whether a newer cage release has gained a cursor flag since the
+  0.2.0 man page was written.
+
+**Do not claim cursor hiding is fixed until tested on the real touchscreen.**
 
 ## Network recommendation (not scripted, not enforced)
 

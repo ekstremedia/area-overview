@@ -34,7 +34,7 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=tty8
 UtmpMode=user
-ExecStart=/usr/bin/cage -s -- /usr/local/bin/start-kiosk.sh
+ExecStart=/usr/bin/cage -- /usr/local/bin/start-kiosk.sh
 Restart=always
 RestartSec=5
 
