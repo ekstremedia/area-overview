@@ -73,8 +73,8 @@ fi
 # default, but make it explicit and idempotent rather than relying on that.
 passwd -l kiosk >/dev/null 2>&1 || true
 
-echo "==> Adding 'kiosk' to render/video/input groups (whichever exist here)"
-for group in render video input; do
+echo "==> Adding 'kiosk' to render/video groups (whichever exist here)"
+for group in render video; do
     if ! getent group "$group" >/dev/null 2>&1; then
         SKIPPED+=("group '$group' does not exist on this system -- not added")
         continue
@@ -87,9 +87,9 @@ for group in render video input; do
     fi
 done
 
-echo "==> Checking for cage and chromium"
+echo "==> Checking for cage, chromium and curl"
 PACKAGES_NEEDED=()
-for pkg in cage chromium; do
+for pkg in cage chromium curl; do
     if dpkg -s "$pkg" >/dev/null 2>&1; then
         SKIPPED+=("package '$pkg' already installed")
     else
@@ -154,23 +154,19 @@ if [ -f "$UDEV_RULE_DEST" ] && cmp -s "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$
 else
     install -m 0644 "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$UDEV_RULE_DEST"
     CHANGES+=("installed $UDEV_RULE_DEST")
-    # Reload udev rules and re-trigger so the udev database reflects the new
-    # rule immediately. libinput reads LIBINPUT_IGNORE_DEVICE at device-add
-    # time, so this does not retroactively affect a compositor that is
-    # already running (e.g. pi's own desktop session on VT7 keeps its
-    # phantom pointer until it restarts) -- but it does mean the kiosk gets
-    # the correct behaviour on its first start, with no reboot needed.
-    udevadm control --reload-rules
-    udevadm trigger --subsystem-match=input
 fi
 
+# Always (re-)activate, including after a partial previous run that wrote
+# the rule file but didn't finish reloading/triggering udev. libinput reads
+# LIBINPUT_IGNORE_DEVICE at device-add time, so this does not retroactively
+# affect a compositor that is already running (e.g. pi's own desktop session
+# on VT7 keeps its phantom pointer until it restarts) -- but it does mean
+# the kiosk gets the correct behaviour on its first start, with no reboot
+# needed.
+udevadm control --reload-rules
+udevadm trigger --subsystem-match=input
+
 systemctl daemon-reload
-if systemctl is-enabled --quiet area-kiosk.service 2>/dev/null; then
-    SKIPPED+=("area-kiosk.service already enabled")
-else
-    systemctl enable area-kiosk.service
-    CHANGES+=("enabled area-kiosk.service")
-fi
 
 echo ""
 echo "==> Done. Changes made:"

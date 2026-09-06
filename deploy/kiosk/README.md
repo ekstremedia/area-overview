@@ -98,34 +98,40 @@ Replace `<nuc-lan-ip>` with the NUC's real LAN IP (this repo is public, so
 no real IP is committed anywhere in these files). The script:
 
 - creates the `kiosk` system user (no login password, home
-  `/home/kiosk`, added to whichever of `render`/`video`/`input` groups
+  `/home/kiosk`, added to whichever of `render`/`video` groups
   actually exist on this system),
-- installs `cage` and `chromium` if missing,
+- installs `cage`, `chromium` and `curl` if missing,
 - adds `<nuc-lan-ip> area.nesthus.no` to `/etc/hosts` if not already
   present (skips the router hairpin; the certificate is valid for the
   name either way, so this is an optimisation, not a correctness fix),
 - installs the Chromium managed policy to
   `/etc/chromium/policies/managed/area-kiosk.json`,
 - installs `start-kiosk.sh` to `/usr/local/bin/start-kiosk.sh` (owned by
-  `kiosk`, executable) -- kept out of `/home/kiosk` deliberately, so that
+  root, executable) -- kept out of `/home/kiosk` deliberately, so that
   directory holds only the Chromium profile,
-- installs `area-kiosk.service` to `/etc/systemd/system/`, runs
-  `systemctl daemon-reload`, and `systemctl enable`s it,
+- installs `area-kiosk.service` to `/etc/systemd/system/` and runs
+  `systemctl daemon-reload`,
 - prints a summary of what changed vs. what was already in place.
 
 It never touches Apache, gunicorn, `pi`'s home/session/lightdm config, or
 any firewall rule, on the Pi or the NUC.
 
-**It deliberately does not start the service.** Before starting it:
+**It deliberately does not enable the service.** Before enabling and starting it:
 
 1. **Confirm the VT assignment.** `area-kiosk.service` is bound to `/dev/tty8`
    (above `NAutoVTs=6` and above lightdm's VT7, so logind will never auto-spawn
    a getty on it or steal the kiosk via the `Conflicts=` mechanism). This choice
    protects the kiosk from accidental keyboard input (e.g., Ctrl+Alt+F2) that would
-   trigger logind's `getty@tty2.service` and cause an unrecoverable kiosk death.
-   Confirm that VT8 is free before starting: `ls /dev/tty8` should succeed, and
+   trigger logind's `getty@tty8.service` and cause an unrecoverable kiosk death.
+   Confirm that VT8 is free before enabling: `ls /dev/tty8` should succeed, and
    `systemctl status getty@tty8.service` should not be active.
-2. Start it and watch it come up:
+2. Enable it:
+
+    ```bash
+    sudo systemctl enable area-kiosk.service
+    ```
+
+3. Start it and watch it come up:
 
     ```bash
     sudo systemctl start area-kiosk
@@ -133,7 +139,7 @@ any firewall rule, on the Pi or the NUC.
     journalctl -u area-kiosk -f
     ```
 
-3. Confirm pi5ai's existing services are unaffected:
+4. Confirm pi5ai's existing services are unaffected:
 
     ```bash
     free -m                    # compare against the 6754 MB baseline above
@@ -144,7 +150,7 @@ any firewall rule, on the Pi or the NUC.
 ## How the pieces fit together
 
 - `area-kiosk.service` is a systemd **system** unit running as `User=kiosk`
-  with `PAMName=login`, bound to a specific VT (`TTYPath=/dev/tty2`) via
+  with `PAMName=login`, bound to a specific VT (`TTYPath=/dev/tty8`) via
   the standard "cage as a systemd service on its own tty" pattern (see
   cage's own wiki, "Starting cage on a tty with systemd"). `Restart=always`
   restarts the whole thing -- cage and its client together -- if either
@@ -175,12 +181,17 @@ idle-inhibit flag. With a single fullscreen client and no compositor-level
 idle policy configured, cage's default behavior (via wlroots) is to not
 blank the display. This is documented cage behavior, not something this repo
 has independently verified on the real 7" panel. If the screen blanks in
-practice and needs to stay on, the fix would be to run `wlr-randr --output
-HDMI-A-2 --dpms off` during boot (likely in `start-kiosk.sh` after Chromium
-is running). Alternatively, the kernel parameter `consoleblank=0` in
-`/boot/firmware/cmdline.txt` would prevent console blanking (though this
-shouldn't matter under a Wayland compositor). **This is unverified -- monitor
-the real hardware and update this section if the screen blanks.**
+practice and needs to stay on, possible fixes include:
+
+- `wlr-dpms` (https://git.sr.ht/~dsemy/wlr-dpms) — a utility for direct DPMS
+  control under wlroots. Whether it is available on the Pi's image is
+  unverified; if needed, it would have to be installed first.
+- The kernel parameter `consoleblank=0` in `/boot/firmware/cmdline.txt` would
+  prevent console blanking (though this shouldn't matter under a Wayland
+  compositor).
+
+**Both are unverified — monitor the real hardware and update this section if
+the screen blanks.**
 
 ## Cursor and input injection security
 
