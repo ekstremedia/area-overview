@@ -56,7 +56,8 @@ reference a tile URL) rather than assumed:
 
 - `basemaps.cartocdn.com` (dark theme, CARTO `dark_all`, `{s}` subdomain
   placeholder -- Leaflet's default subdomains are `a`/`b`/`c`, all covered
-  by the leading-dot policy entry `.basemaps.cartocdn.com`)
+  by the policy entry `basemaps.cartocdn.com` without a leading dot, which
+  matches the host and all its subdomains in Chromium's URLAllowlist format)
 - `tile.openstreetmap.org` (light theme)
 
 `src/web/index.html` self-hosts its one font (`Source Serif 4`, woff2, no
@@ -65,14 +66,24 @@ external host is fetched from `src/web` -- everything else (weather, AIS,
 aurora, etc.) is server-proxied through the BFF at `area.nesthus.no`
 itself.
 
-## One judgment call worth flagging: `IncognitoModeAvailability`
+## Chromium managed-policy configuration notes
 
-Chromium's managed-policy schema defines `IncognitoModeAvailability` as an
-**integer enum** (`0` = Enabled, `1` = Disabled, `2` = Forced), not a
-string. `area-kiosk.json` uses the integer `1`. A string value there would
-most likely be silently ignored by Chromium's policy parser, defeating the
-point of setting it, so this was corrected to the schema's actual type
-rather than shipped as a string that looks right but does nothing.
+`area-kiosk.json` is installed to `/etc/chromium/policies/managed/` and
+defines Chromium's behavior:
+
+- `RestoreOnStartup: 4` — restores the URLs in `RestoreOnStartupURLs` on
+  startup (value `1` would restore the last session and ignore the URL list).
+  This ensures the kiosk always opens `https://area.nesthus.no/` rather than
+  whatever was last viewed.
+- `URLAllowlist` — only allows navigation to `area.nesthus.no` (the app
+  itself, served through Apache), `basemaps.cartocdn.com` (map tiles), and
+  `tile.openstreetmap.org` (alternate map tiles). All other URLs are blocked
+  by the `URLBlocklist: ["*"]` catchall.
+- `IncognitoModeAvailability: 1` — Disabled (integer enum; a string value
+  would be silently ignored). `DeveloperToolsAvailability: 2` — Disabled.
+  `PasswordManagerEnabled: false`, `BrowserAddPersonEnabled: false`,
+  `BrowserGuestModeEnabled: false` — all prevent user escapes from the kiosk
+  view.
 
 ## Running it
 
@@ -107,14 +118,13 @@ any firewall rule, on the Pi or the NUC.
 
 **It deliberately does not start the service.** Before starting it:
 
-1. **Confirm `tty2` is actually free.** `area-kiosk.service` claims
-   `/dev/tty2` for cage; it was chosen because `pi`/lightdm already own
-   tty1, but this was not confirmed from a live session on the Pi. Check
-   `ls /dev/tty2`, `who`, and whether anything (a getty, another session)
-   is already attached to it before enabling. If it's not free, change
-   `TTYPath=` in `area-kiosk.service` (and the matching
-   `Conflicts=getty@<ttyN>.service` line) to a VT that is, then re-run
-   `install-kiosk.sh` so the updated unit gets installed.
+1. **Confirm the VT assignment.** `area-kiosk.service` is bound to `/dev/tty8`
+   (above `NAutoVTs=6` and above lightdm's VT7, so logind will never auto-spawn
+   a getty on it or steal the kiosk via the `Conflicts=` mechanism). This choice
+   protects the kiosk from accidental keyboard input (e.g., Ctrl+Alt+F2) that would
+   trigger logind's `getty@tty2.service` and cause an unrecoverable kiosk death.
+   Confirm that VT8 is free before starting: `ls /dev/tty8` should succeed, and
+   `systemctl status getty@tty8.service` should not be active.
 2. Start it and watch it come up:
 
     ```bash
@@ -160,24 +170,26 @@ any firewall rule, on the Pi or the NUC.
 
 ## Screen blanking / idle
 
-Cage does not set a DPMS timeout of its own and has no idle-inhibit flag
--- with a single fullscreen client and no compositor-level idle policy
-configured, there is nothing in this stack that blanks or sleeps the
-display. This is the documented default behaviour (cage does not manage
-power state), not something this repo verified by leaving hardware
-running unattended; if a re-verification on the real panel shows
-otherwise, add `wlr-randr`'s DPMS control or a small `swayidle`-equivalent
-here and update this note.
+Cage does not set a DPMS timeout or blanking interval of its own and has no
+idle-inhibit flag. With a single fullscreen client and no compositor-level
+idle policy configured, cage's default behavior (via wlroots) is to not
+blank the display. This is documented cage behavior, not something this repo
+has independently verified on the real 7" panel. If the screen blanks in
+practice and needs to stay on, the fix would be to run `wlr-randr --output
+HDMI-A-2 --dpms off` during boot (likely in `start-kiosk.sh` after Chromium
+is running). Alternatively, the kernel parameter `consoleblank=0` in
+`/boot/firmware/cmdline.txt` would prevent console blanking (though this
+shouldn't matter under a Wayland compositor). **This is unverified -- monitor
+the real hardware and update this section if the screen blanks.**
 
 ## Cursor
 
-Touch is the only input this panel needs (USB HID, no driver required).
-Neither `start-kiosk.sh` nor the unit currently hides the mouse cursor
-explicitly. If a cursor is visible on the real panel and it bothers Terje,
-`cage -s` (cage's built-in "hide cursor" flag, added at the compositor
-level so it applies to Chromium too) is the first thing to try; adjust
-`ExecStart=` in `area-kiosk.service` to `cage -s -- /usr/local/bin/start-kiosk.sh`
-if so, and update this note once confirmed.
+Touch is the only input this panel needs (USB HID, no driver required). The
+mouse cursor is hidden via `cage -s`, cage's built-in "hide cursor" flag,
+applied at the compositor level so it applies to Chromium too. This is
+configured in `area-kiosk.service` with `ExecStart=/usr/bin/cage -s --
+/usr/local/bin/start-kiosk.sh`. The cursor is hidden even if Chromium is
+running, so no additional client-side configuration is needed.
 
 ## Network recommendation (not scripted, not enforced)
 

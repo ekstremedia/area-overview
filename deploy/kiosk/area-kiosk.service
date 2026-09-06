@@ -1,16 +1,17 @@
 [Unit]
 Description=Area Overview kiosk (cage + Chromium on a dedicated VT)
 Documentation=https://github.com/ekstremedia/area-overview
-# pi5ai already has a graphical session on tty1: lightdm autologin as `pi`,
-# running rpi-connectd/wayvnc (Terje's remote screen access to this Pi for
-# other work). This unit deliberately does NOT touch that session -- it
-# takes over a *different*, currently-free VT instead. tty2 is a guess made
-# without shell access to the Pi; confirm it is actually free before
-# enabling (see deploy/kiosk/README.md) and change TTYPath/Conflicts below
-# together if it isn't.
+# pi5ai has a graphical session (lightdm + labwc) on VT7, with lightdm
+# autologin as `pi` and a getty on tty1 (idle). This unit deliberately does
+# NOT touch that session -- it takes over a *different*, dedicated VT
+# instead. VT8 is chosen because logind's default NAutoVTs=6 means it will
+# never auto-spawn a getty on tty8, and it's above the lightdm VT7, so
+# logind will never steal this service via the Conflicts mechanism if
+# someone hits Ctrl+Alt+F2. This ensures the kiosk survives unattended
+# without accidental user input on the keyboard.
 After=network-online.target
 Wants=network-online.target
-Conflicts=getty@tty2.service
+Conflicts=getty@tty8.service
 
 [Service]
 # Standard pattern for running a single-app Wayland compositor (cage) as a
@@ -24,16 +25,16 @@ Type=simple
 User=kiosk
 Group=kiosk
 PAMName=login
-TTYPath=/dev/tty2
+TTYPath=/dev/tty8
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
 StandardInput=tty
 StandardOutput=journal
 StandardError=journal
-UtmpIdentifier=tty2
+UtmpIdentifier=tty8
 UtmpMode=user
-ExecStart=/usr/bin/cage -- /usr/local/bin/start-kiosk.sh
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/start-kiosk.sh
 Restart=always
 RestartSec=5
 

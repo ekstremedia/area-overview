@@ -133,8 +133,8 @@ START_DEST=/usr/local/bin/start-kiosk.sh
 if [ -f "$START_DEST" ] && cmp -s "$SCRIPT_DIR/start-kiosk.sh" "$START_DEST"; then
     SKIPPED+=("$START_DEST already up to date")
 else
-    install -m 0755 -o kiosk -g kiosk "$SCRIPT_DIR/start-kiosk.sh" "$START_DEST"
-    CHANGES+=("installed $START_DEST (owned by kiosk, executable)")
+    install -m 0755 -o root -g root "$SCRIPT_DIR/start-kiosk.sh" "$START_DEST"
+    CHANGES+=("installed $START_DEST (owned by root, executable)")
 fi
 
 echo "==> Installing area-kiosk.service"
@@ -173,7 +173,7 @@ done
 echo ""
 echo "==> NOT done by this script, on purpose:"
 echo "  - area-kiosk.service was enabled but NOT started."
-echo "    Review deploy/kiosk/README.md (especially the tty2-is-free check),"
+echo "    Review deploy/kiosk/README.md (especially the VT assignment section),"
 echo "    then start it yourself:"
 echo "      sudo systemctl start area-kiosk"
 echo "      sudo systemctl status area-kiosk"
