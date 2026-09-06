@@ -222,7 +222,7 @@ theme) remains documented as a fallback only, in case some other device the
 Pi session hasn't identified still produces a visible cursor after this rule
 is applied. The primary fix is at the source (udev rule).
 
-**Note:** this rule disables HDMI-CEC remote input for *any* libinput
+**Note:** this rule disables HDMI-CEC remote input for _any_ libinput
 compositor on this Pi, not just the kiosk -- it's a system-wide udev rule,
 not scoped to the `kiosk` user or session. If Terje ever wants to drive this
 Pi from a TV remote over CEC, this is where that got turned off. Trivial
