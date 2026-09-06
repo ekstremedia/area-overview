@@ -30,17 +30,27 @@ import { buildPopupContent } from './map/popup.js';
 import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
 
 /**
+ * Timeout (ms) for fetching the CARTO basemap key. This is a local
+ * BFF call, so a few seconds is plenty; we pick a middle ground between
+ * the 2s healthz probe and the 4s tile safety timeout.
+ */
+const MAP_CONFIG_FETCH_TIMEOUT_MS = 3000;
+
+/**
  * Fetches the CARTO basemap key from `GET /api/map-config` (see
  * `src/server/routes/map-config.ts`). Never throws: a network error, a
- * non-2xx response, or a payload that fails schema validation all fall
- * back to `''`, same as an unconfigured key on the server -- the `dark`
- * theme's tiles still load, just watermarked by CARTO, matching how the
- * BarentsWatch/OpenSky live layers degrade on missing credentials rather
- * than blocking the page.
+ * non-2xx response, timeout, abortion, or a payload that fails schema
+ * validation all fall back to `''`, same as an unconfigured key on the
+ * server -- the `dark` theme's tiles still load, just watermarked by
+ * CARTO, matching how the BarentsWatch/OpenSky live layers degrade on
+ * missing credentials rather than blocking the page.
+ *
+ * The provided `signal` will abort the fetch if this page is disposed
+ * (navigation away) or the timeout elapses, whichever comes first.
  */
-async function fetchCartoApiKey(): Promise<string> {
+async function fetchCartoApiKey(signal: AbortSignal): Promise<string> {
     try {
-        const response = await fetch('/api/map-config');
+        const response = await fetch('/api/map-config', { signal });
         if (!response.ok) return '';
         const json: unknown = await response.json();
         const parsed = MapConfigResponseSchema.safeParse(json);
@@ -78,6 +88,11 @@ export function render(container: HTMLElement): () => void {
     const preconnectLink = document.createElement('link');
     preconnectLink.rel = 'preconnect';
     document.head.append(preconnectLink);
+
+    // AbortController for the map-config fetch. Combined with a timeout
+    // signal, this ensures the fetch completes (or aborts) before the page
+    // renders, and disposes cleanly if navigation away happens first.
+    const mapConfigAbortController = new AbortController();
 
     let cleanupInner: (() => void) | undefined;
 
@@ -119,7 +134,14 @@ export function render(container: HTMLElement): () => void {
         const [L] = await Promise.all([import('leaflet'), import('leaflet/dist/leaflet.css')]);
         if (isDisposed()) return; // navigated away before Leaflet finished loading
 
-        const cartoApiKey = await fetchCartoApiKey();
+        // Combine the timeout signal with the manual abort controller so the
+        // fetch aborts on timeout (after MAP_CONFIG_FETCH_TIMEOUT_MS) *or*
+        // when dispose() aborts the controller (navigation away), whichever
+        // comes first. Both scenarios fall through to the `catch` and return ''.
+        const timeoutSignal = AbortSignal.timeout(MAP_CONFIG_FETCH_TIMEOUT_MS);
+        const combinedSignal = AbortSignal.any([timeoutSignal, mapConfigAbortController.signal]);
+
+        const cartoApiKey = await fetchCartoApiKey(combinedSignal);
         if (isDisposed()) return; // navigated away while fetching the map config
 
         const map = L.map(mapDiv);
@@ -207,6 +229,7 @@ export function render(container: HTMLElement): () => void {
 
     return function dispose(): void {
         disposed = true;
+        mapConfigAbortController.abort();
         cleanupInner?.();
         preconnectLink.remove();
         wrapper.remove();
