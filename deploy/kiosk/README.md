@@ -296,3 +296,33 @@ file in this directory (e.g. after changing `TTYPath`) and it will only
 touch what actually changed, then re-print the "start it yourself"
 reminder. `sudo systemctl restart area-kiosk` recovers from a stuck
 Chromium without a full reboot.
+
+## Lessons for future kiosk/embedded-display work
+
+Two things learned here generalize well beyond this Pi and this app:
+
+- **One seat, one GPU, one display grants DRM master to exactly one
+  _active_ session at a time.** A second Wayland compositor started on
+  another VT (`systemctl start` on a unit like this one) comes up
+  cleanly, logs nothing wrong, and simply never paints anything -- the
+  physical screen keeps showing whatever was already foreground. There is
+  no error to grep for; the only symptom is "it started but the screen
+  didn't change." Forcing foreground (`chvt`, or an equivalent
+  `ExecStartPost`) is the fix, and it has a real cost if another session
+  was relying on being foreground: here, `rpi-connect`'s screen-share
+  (`wayvnc`) stops working while backgrounded (its remote _shell_ is
+  unaffected, since that doesn't need the graphical session at all). This
+  tradeoff should be surfaced to whoever owns the machine, not assumed
+  away -- Terje was asked and chose it knowingly.
+- **Not every `evdev` device is what it looks like.** This Pi's HDMI-CEC
+  remote-control kernel devices (`vc4-hdmi-0`/`vc4-hdmi-1`) get
+  udev-tagged `ID_INPUT_POINTINGSTICK=1` purely because they report
+  relative X/Y capability bits -- so libinput treats them as a mouse and
+  a compositor will track/show a cursor for a display with only a
+  touchscreen and no mouse ever attached. They also carry `EV_KEY`, which
+  is a real input-injection surface via the CEC bus, not just a cosmetic
+  cursor issue. `LIBINPUT_IGNORE_DEVICE=1` via a udev rule matched on
+  `ATTRS{name}` (the device's `name` sysfs attribute lives on the parent,
+  not the event node -- `ATTRS` walks up, `ATTR` doesn't) is a legitimate
+  general small-device hardening step for any kiosk, not a hack specific
+  to this hardware.
