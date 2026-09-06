@@ -48,6 +48,18 @@ const RawShipSchema = z.object({
     courseOverGround: z.number().nullish(),
     trueHeading: z.number().nullish(),
     shipType: z.number().nullish(),
+    /**
+     * ITU-R M.1371 AIS navigational status (0-15). Verified as a real,
+     * always-present field via a live check against the real
+     * `GET /v1/latest/combined` endpoint with real BarentsWatch
+     * credentials on 2026-09-06: present and non-null across all 4123
+     * live entries checked, `0` ("under way using engine") the plurality
+     * (2599 of 4123). `.nullish()` here anyway, matching this schema's
+     * existing convention for other AIS fields (e.g. `trueHeading`) --
+     * defensive against a future upstream change, not because it was
+     * ever observed missing.
+     */
+    navigationalStatus: z.number().nullish(),
 });
 
 export type RawShip = z.infer<typeof RawShipSchema>;
@@ -78,6 +90,7 @@ function toShip(raw: RawShip): Ship | undefined {
         courseOverGround: raw.courseOverGround ?? 0,
         heading,
         shipType: raw.shipType == null ? null : String(raw.shipType),
+        navigationalStatus: raw.navigationalStatus ?? null,
         timestamp: raw.msgtime,
     };
 

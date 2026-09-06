@@ -9,7 +9,8 @@
         "courseOverGround": 45.0,
         "trueHeading": 47,
         "rateOfTurn": 0,
-        "shipType": 60
+        "shipType": 60,
+        "navigationalStatus": 0
     },
     {
         "mmsi": 257654321,
@@ -21,7 +22,8 @@
         "courseOverGround": 210.5,
         "trueHeading": 511,
         "rateOfTurn": null,
-        "shipType": 30
+        "shipType": 30,
+        "navigationalStatus": 7
     },
     {
         "mmsi": 258999999,
@@ -33,7 +35,8 @@
         "courseOverGround": 0,
         "trueHeading": null,
         "rateOfTurn": null,
-        "shipType": null
+        "shipType": null,
+        "navigationalStatus": 15
     },
     {
         "mmsi": 259111222,
@@ -45,7 +48,8 @@
         "courseOverGround": null,
         "trueHeading": 300,
         "rateOfTurn": 0,
-        "shipType": 80
+        "shipType": 80,
+        "navigationalStatus": 5
     },
     {
         "mmsi": 259333444,
@@ -57,7 +61,8 @@
         "courseOverGround": 88.0,
         "trueHeading": 90,
         "rateOfTurn": 0,
-        "shipType": 70
+        "shipType": 70,
+        "navigationalStatus": 1
     },
     {
         "mmsi": 257001810,
@@ -69,6 +74,7 @@
         "courseOverGround": 293.8,
         "trueHeading": 122,
         "rateOfTurn": 0,
-        "shipType": 38
+        "shipType": 38,
+        "navigationalStatus": 1
     }
 ]

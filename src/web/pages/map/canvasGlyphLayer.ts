@@ -42,6 +42,15 @@ export interface CanvasGlyphLayerOptions<T> {
     buildPopup: (data: T) => HTMLElement;
     /** True for a glyph that should render distinctly/dimmed (e.g. an aircraft reporting from the ground). Defaults to never-distinct. */
     isDistinct?: (data: T) => boolean;
+    /**
+     * Per-glyph colour override, applied instead of the flat `color` when
+     * present (ships' navigational-status colouring; aircraft passes
+     * nothing and keeps the flat `color` unaffected). Consulted both at
+     * creation (`createEntry`) and on every subsequent `update()` call
+     * (`styleFor`), since a glyph's underlying status -- not just its
+     * position/heading -- can change between polls.
+     */
+    colorFor?: (data: T) => string;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -84,10 +93,11 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     const hitMultiplier = hitSizeMultiplier(options.widthPx, options.heightPx, options.hitRadiusPx);
     let visibleCount = 0;
 
-    function styleFor(descriptor: GlyphDescriptor<T>, opacity: number): { fillOpacity: number; opacity: number } {
+    function styleFor(descriptor: GlyphDescriptor<T>, opacity: number): { fillOpacity: number; opacity: number; color: string; fillColor: string } {
         const distinct = options.isDistinct?.(descriptor.data) ?? false;
         const finalOpacity = distinct ? opacity * 0.5 : opacity;
-        return { fillOpacity: finalOpacity, opacity: finalOpacity };
+        const color = options.colorFor?.(descriptor.data) ?? options.color;
+        return { fillOpacity: finalOpacity, opacity: finalOpacity, color, fillColor: color };
     }
 
     function applyLatLngs(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
@@ -96,10 +106,11 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     }
 
     function createEntry(descriptor: GlyphDescriptor<T>): GlyphEntry {
+        const color = options.colorFor?.(descriptor.data) ?? options.color;
         const visible = L.polygon([], {
             renderer,
-            color: options.color,
-            fillColor: options.color,
+            color,
+            fillColor: color,
             fillOpacity: 1,
             opacity: 1,
             weight: 1,

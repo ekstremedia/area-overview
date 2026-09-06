@@ -11,6 +11,7 @@ const validShip = {
     courseOverGround: 270,
     heading: 268,
     shipType: 'passenger',
+    navigationalStatus: 0,
     timestamp: '2026-09-05T01:00:00Z',
 };
 
@@ -33,6 +34,17 @@ describe('ShipSchema', () => {
     it('accepts null heading and shipType', () => {
         const result = ShipSchema.safeParse({ ...validShip, heading: null, shipType: null });
         expect(result.success).toBe(true);
+    });
+
+    it('accepts a null navigationalStatus (defensive -- never actually observed null live)', () => {
+        const result = ShipSchema.safeParse({ ...validShip, navigationalStatus: null });
+        expect(result.success).toBe(true);
+    });
+
+    it('rejects a ship missing navigationalStatus entirely', () => {
+        const withoutStatus = omitKey(validShip, 'navigationalStatus');
+        const result = ShipSchema.safeParse(withoutStatus);
+        expect(result.success).toBe(false);
     });
 });
 
