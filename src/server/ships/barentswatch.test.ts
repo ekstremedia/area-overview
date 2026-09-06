@@ -68,6 +68,7 @@ describe('mapRawShipsToShips (fixture-based, no network)', () => {
                 courseOverGround: 293.8,
                 trueHeading: 122,
                 shipType: 38,
+                navigationalStatus: 1,
             },
         ];
         const mapped = mapRawShipsToShips(rawShips, { minLat: 60, maxLat: 61, minLng: 4, maxLng: 5 });
@@ -75,6 +76,33 @@ describe('mapRawShipsToShips (fixture-based, no network)', () => {
         expect(mapped[0]?.name).toBe('');
         // Verify that an empty name passes the shared Ship schema validation
         expect(mapped[0]?.mmsi).toBe('257001810');
+    });
+
+    it('carries navigationalStatus through unchanged', () => {
+        const nordlys = ships.find((s) => s.name === 'MS NORDLYS');
+        expect(nordlys?.navigationalStatus).toBe(0);
+        const fiskebat = ships.find((s) => s.name === 'FISKEBAT SENIOR');
+        expect(fiskebat?.navigationalStatus).toBe(7);
+    });
+
+    it('maps a missing/null navigationalStatus to null, never undefined', () => {
+        const rawShips = [
+            {
+                mmsi: 257001810,
+                name: 'NO STATUS',
+                msgtime: '2026-09-05T18:53:53Z',
+                latitude: 60.567695,
+                longitude: 4.95598,
+                speedOverGround: 0,
+                courseOverGround: 0,
+                trueHeading: null,
+                shipType: null,
+                navigationalStatus: null,
+            },
+        ];
+        const mapped = mapRawShipsToShips(rawShips, { minLat: 60, maxLat: 61, minLng: 4, maxLng: 5 });
+        expect(mapped).toHaveLength(1);
+        expect(mapped[0]?.navigationalStatus).toBeNull();
     });
 });
 

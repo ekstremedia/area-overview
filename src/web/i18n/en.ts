@@ -74,6 +74,8 @@ export const en: Record<keyof typeof nb, string> = {
     'map.shipCourse': '{course} course',
     'map.shipType': 'Type {type}',
     'map.shipUnknownType': 'Unknown type',
+    'map.shipClusterCount': '{count} ships',
+    'map.shipClusterBack': '← Back to list',
 
     'map.aircraftUnknown': 'Unknown',
     'map.aircraftAltitude': '{feet} / {meters}',

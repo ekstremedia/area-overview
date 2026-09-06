@@ -271,3 +271,94 @@
     font-size: 16px;
     margin-bottom: 4px;
 }
+
+/* — ship cluster badge (a numbered `L.divIcon` marker, the same "circle
+   marker" mechanism `.camera-pin` already uses -- see `ships.ts`'s doc
+   comment) — the icon's own footprint is the full 44px tap-target
+   minimum; the visibly-coloured circle inside it is smaller and centered. */
+.ship-cluster-badge {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ship-cluster-badge-count {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    box-shadow: 0 0 0 2px var(--color-bg);
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 13px;
+}
+
+/* — ship cluster popup: the list view (one tappable row per member ship)
+   and the detail view (a "back" affordance above the reused `.ship-popup`
+   content) -- shares `.live-glyph-popup-wrapper`'s dark-card treatment. */
+.ship-cluster-popup {
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 220px;
+}
+
+.ship-cluster-popup-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+    margin-bottom: 4px;
+}
+
+.ship-cluster-popup-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.ship-cluster-popup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--tap-min);
+    padding: 0 var(--space-1);
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--color-divider);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ship-cluster-popup-row-name {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+}
+
+.ship-cluster-popup-row-meta {
+    color: var(--color-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ship-cluster-popup-back {
+    align-self: flex-start;
+    min-height: var(--tap-min);
+    padding: 0 var(--space-1);
+    margin-bottom: 4px;
+    font: inherit;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
