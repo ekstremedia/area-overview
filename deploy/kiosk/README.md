@@ -144,6 +144,16 @@ any firewall rule, on the Pi or the NUC.
     was an explicit, informed design decision made after understanding the display
     architecture constraints on this hardware.
 
+    **Every kiosk restart re-runs `chvt 8`.** `ExecStartPost` fires as soon as cage
+    is forked (not once it's ready), and `Restart=always` means a Chromium crash
+    re-triggers the whole unit, including this VT switch. So if Terje is working
+    on VT7 when the kiosk restarts for any reason, the panel will switch itself
+    back to the kiosk out from under him. This is correct behaviour for an
+    appliance, not a bug — but it's why a restart can look like the kiosk
+    "grabbing" the screen. In practice restarts should be rare: a healthz that
+    never answers keeps the retry loop spinning inside cage rather than exiting,
+    so there's no restart storm from a down NUC.
+
     Confirm that VT8 is free before enabling: `ls /dev/tty8` should succeed, and
     `systemctl status getty@tty8.service` should not be active.
 
