@@ -154,8 +154,12 @@ if [ -f "$UDEV_RULE_DEST" ] && cmp -s "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$
 else
     install -m 0644 "$SCRIPT_DIR/99-kiosk-ignore-cec.rules" "$UDEV_RULE_DEST"
     CHANGES+=("installed $UDEV_RULE_DEST")
-    # Reload udev rules and re-trigger for existing input devices so the rule
-    # takes effect without a reboot
+    # Reload udev rules and re-trigger so the udev database reflects the new
+    # rule immediately. libinput reads LIBINPUT_IGNORE_DEVICE at device-add
+    # time, so this does not retroactively affect a compositor that is
+    # already running (e.g. pi's own desktop session on VT7 keeps its
+    # phantom pointer until it restarts) -- but it does mean the kiosk gets
+    # the correct behaviour on its first start, with no reboot needed.
     udevadm control --reload-rules
     udevadm trigger --subsystem-match=input
 fi
