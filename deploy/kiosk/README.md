@@ -118,13 +118,35 @@ any firewall rule, on the Pi or the NUC.
 
 **It deliberately does not enable the service.** Before enabling and starting it:
 
-1. **Confirm the VT assignment.** `area-kiosk.service` is bound to `/dev/tty8`
-   (above `NAutoVTs=6` and above lightdm's VT7, so logind will never auto-spawn
-   a getty on it or steal the kiosk via the `Conflicts=` mechanism). This choice
-   protects the kiosk from accidental keyboard input (e.g., Ctrl+Alt+F2) that would
-   trigger logind's `getty@tty8.service` and cause an unrecoverable kiosk death.
-   Confirm that VT8 is free before enabling: `ls /dev/tty8` should succeed, and
-   `systemctl status getty@tty8.service` should not be active.
+1. **Confirm the VT assignment and understand the display takeover.** `area-kiosk.service`
+   is bound to `/dev/tty8` (above `NAutoVTs=6` and above lightdm's VT7, so logind
+   will never auto-spawn a getty on it or steal the kiosk via the `Conflicts=`
+   mechanism). This choice protects the kiosk from accidental keyboard input (e.g.,
+   Ctrl+Alt+F2) that would trigger logind's `getty@tty8.service` and cause an
+   unrecoverable kiosk death.
+
+    **When the service starts, it actively takes over the 7" panel by switching the
+    foreground VT to 8.** This is necessary because logind only grants DRM master
+    (required for the Wayland compositor) to the active/foreground session on the
+    seat. The service uses `ExecStartPost=+/usr/bin/chvt 8` to force the panel's
+    display to the kiosk. Without this, cage would start successfully but the panel
+    would stay on pi's labwc desktop (tty7) because lightdm's `minimum-vt=7` makes
+    it foreground by default.
+
+    **Known tradeoff:** While the kiosk is active on VT8, pi's own desktop session
+    on VT7 becomes inactive. wlroots doesn't composite inactive sessions, so Terje's
+    `rpi-connect` remote screen-sharing (wayvnc) will freeze or show a stale image
+    while the kiosk is foreground. **The remote shell access through rpi-connect
+    remains fully functional** — screen-sharing is the only feature affected.
+
+    You can switch back to pi's desktop manually (restoring rpi-connect screen-share)
+    with **Ctrl+Alt+F7**, and return to the kiosk with **Ctrl+Alt+F8**. This tradeoff
+    was an explicit, informed design decision made after understanding the display
+    architecture constraints on this hardware.
+
+    Confirm that VT8 is free before enabling: `ls /dev/tty8` should succeed, and
+    `systemctl status getty@tty8.service` should not be active.
+
 2. Enable it:
 
     ```bash

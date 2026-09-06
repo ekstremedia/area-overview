@@ -35,6 +35,13 @@ StandardError=journal
 UtmpIdentifier=tty8
 UtmpMode=user
 ExecStart=/usr/bin/cage -- /usr/local/bin/start-kiosk.sh
+# Force the kiosk to become the active/foreground session on boot.
+# logind only grants DRM master + input-device ACLs to the active session on
+# the seat; without this, cage starts successfully but the panel stays on the
+# inactive pi desktop (tty7) because lightdm's minimum-vt=7 makes it foreground
+# by default. The `+` prefix runs chvt as root regardless of User=kiosk, which
+# is necessary since chvt needs CAP_SYS_TTY_CONFIG.
+ExecStartPost=+/usr/bin/chvt 8
 Restart=always
 RestartSec=5
 
