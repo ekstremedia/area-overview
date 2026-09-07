@@ -24,6 +24,16 @@ Expose this kind of value through a small runtime BFF route instead (e.g.
 touches the build; it's read from `process.env` the same way any other
 server config is, at the point something actually asks for it.
 
+The contract such a route should follow, using `GET /api/map-config` as the
+concrete example (`src/server/routes/map-config.ts`): unauthenticated (this
+is public-by-design data, not a write surface), always `200`, and the value
+is **optional** at the server-config level -- `cartoApiKey: z.string().default('')`
+in `src/server/config.ts`, never required to boot -- so "unset" is
+represented as an empty string in the response body (`{ "cartoApiKey": "" }`),
+never a missing key, a different status code, or `null`. The frontend
+(`MapPage.ts`) treats that empty string the same way it treats a failed
+fetch: a graceful fallback, not an error.
+
 ## Consequences
 
 - Works identically in dev and prod, with no build-time/run-time env
