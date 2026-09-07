@@ -54,7 +54,8 @@ function shipColor(ship: Ship): string {
 
 /** A ship's name for its always-visible label -- falls back to `map.shipUnknown`, same convention as `buildShipPopup`/`buildClusterListPopup`, rather than showing a blank tag next to the triangle. Only called for underway ships (`ships.ts`'s `mountShipsLayer`'s `labelFor`) -- moored/anchored/fishing ships get no label at all, to avoid cluttering the map. */
 function shipLabel(ship: Ship): string {
-    return ship.name.trim() === '' ? t('map.shipUnknown') : ship.name;
+    const name = ship.name.trim();
+    return name === '' ? t('map.shipUnknown') : name;
 }
 
 async function fetchShips(map: Leaflet.Map): Promise<Result<ShipsResponse>> {

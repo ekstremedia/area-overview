@@ -15,14 +15,14 @@ const { mountAircraftLayer } = await import('./aircraft.js');
 
 function fakePolygon() {
     const polygon = {
-        tooltip: undefined as string | undefined,
+        tooltip: undefined as HTMLElement | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: () => polygon,
         bindPopup: () => polygon,
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
-        bindTooltip: (content: string) => {
+        bindTooltip: (content: HTMLElement) => {
             polygon.tooltip = content;
             return polygon;
         },
@@ -30,7 +30,7 @@ function fakePolygon() {
             polygon.tooltip = undefined;
             return polygon;
         },
-        setTooltipContent: (content: string) => {
+        setTooltipContent: (content: HTMLElement) => {
             polygon.tooltip = content;
             return polygon;
         },
@@ -189,7 +189,7 @@ describe('mountAircraftLayer -- name labels', () => {
 
         // (visible, hitArea) pair -- the tooltip lives on the hit area.
         const [, hitArea] = createdPolygons;
-        expect(hitArea?.tooltip).toBe('TEST01');
+        expect(hitArea?.tooltip?.textContent).toBe('TEST01');
 
         dispose();
     });
@@ -211,7 +211,7 @@ describe('mountAircraftLayer -- name labels', () => {
         await vi.advanceTimersByTimeAsync(0);
 
         const [, hitArea] = createdPolygons;
-        expect(hitArea?.tooltip).toBe('noc4l1');
+        expect(hitArea?.tooltip?.textContent).toBe('noc4l1');
 
         dispose();
     });

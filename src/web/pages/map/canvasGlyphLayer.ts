@@ -127,6 +127,21 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         interactive: false,
     };
 
+    /**
+     * Leaflet's `bindTooltip`/`setTooltipContent` treat a `string` argument
+     * as HTML (`innerHTML`), not text -- a ship name or aircraft callsign
+     * is API-derived (an AIS/ADS-B broadcast this app never validates),
+     * so passing one through as a raw string would let it inject markup
+     * into the map page. An `HTMLElement` argument is inserted as a real
+     * node instead, with no HTML parsing, so `textContent` here is what
+     * actually keeps the label as text.
+     */
+    function labelElement(text: string): HTMLElement {
+        const el = document.createElement('span');
+        el.textContent = text;
+        return el;
+    }
+
     /** Binds/replaces/unbinds `entry.hitArea`'s permanent tooltip to match `options.labelFor(descriptor.data)`'s current result -- a no-op when the label hasn't changed since the last call. */
     function applyLabel(entry: GlyphEntry, descriptor: GlyphDescriptor<T>): void {
         const raw = options.labelFor?.(descriptor.data) ?? null;
@@ -135,9 +150,9 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         if (label === null) {
             entry.hitArea.unbindTooltip();
         } else if (entry.label === null) {
-            entry.hitArea.bindTooltip(label, labelTooltipOptions);
+            entry.hitArea.bindTooltip(labelElement(label), labelTooltipOptions);
         } else {
-            entry.hitArea.setTooltipContent(label);
+            entry.hitArea.setTooltipContent(labelElement(label));
         }
         entry.label = label;
     }

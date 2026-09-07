@@ -14,16 +14,16 @@ import type { GlyphDescriptor } from './glyphs.js';
 
 interface FakePolygon {
     style: Record<string, unknown>;
-    tooltip: string | undefined;
+    tooltip: HTMLElement | undefined;
     setLatLngs: () => FakePolygon;
     setStyle: (style: Record<string, unknown>) => FakePolygon;
     bindPopup: () => FakePolygon;
     isPopupOpen: () => boolean;
     setPopupContent: () => FakePolygon;
     addTo: () => FakePolygon;
-    bindTooltip: (content: string) => FakePolygon;
+    bindTooltip: (content: HTMLElement) => FakePolygon;
     unbindTooltip: () => FakePolygon;
-    setTooltipContent: (content: string) => FakePolygon;
+    setTooltipContent: (content: HTMLElement) => FakePolygon;
 }
 
 function fakePolygon(initial: Record<string, unknown>): FakePolygon {
@@ -181,7 +181,20 @@ describe('createCanvasGlyphLayer labelFor', () => {
         layer.update([glyph({ data: { status: 0 } })], 30, new Date('2026-09-05T12:00:00Z'));
 
         const [, hitArea] = created;
-        expect(hitArea?.tooltip).toBe('ALPHA');
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+    });
+
+    it('binds the label as an HTMLElement with textContent, never a raw string, so an API-derived label (e.g. an AIS ship name) can never be interpreted as HTML', () => {
+        const created: FakePolygon[] = [];
+        const labelFor = () => '<img src=x onerror=alert(1)>';
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+
+        const [, hitArea] = created;
+        expect(hitArea?.tooltip).toBeInstanceOf(HTMLElement);
+        expect(hitArea?.tooltip?.textContent).toBe('<img src=x onerror=alert(1)>');
+        expect(hitArea?.tooltip?.innerHTML).not.toContain('<img');
     });
 
     it('binds no tooltip at creation when labelFor returns null', () => {
@@ -204,7 +217,7 @@ describe('createCanvasGlyphLayer labelFor', () => {
         // Starts labelled...
         layer.update([glyph({ data: { status: 0 } })], 30, now);
         const [, hitArea] = created;
-        expect(hitArea?.tooltip).toBe('ALPHA');
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
 
         // ...loses its label when the status changes with no other field changing...
         layer.update([glyph({ data: { status: 1 } })], 30, now);
@@ -213,7 +226,7 @@ describe('createCanvasGlyphLayer labelFor', () => {
 
         // ...and regains it, with fresh content, once it goes back to status 0.
         layer.update([glyph({ data: { status: 0 } })], 30, now);
-        expect(hitArea?.tooltip).toBe('ALPHA');
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
     });
 
     it('treats an empty-string label the same as null -- no tooltip bound', () => {

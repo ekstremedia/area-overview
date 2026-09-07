@@ -66,7 +66,8 @@ function isOnGround(aircraft: Aircraft): boolean {
 
 /** An aircraft's callsign for its always-visible label, falling back to its ICAO hex when the callsign is blank -- the exact same fallback `buildAircraftPopup` already uses. Unlike ships, every rendered aircraft gets a label, no status filter. */
 function aircraftLabel(aircraft: Aircraft): string {
-    return aircraft.callsign.trim() === '' ? aircraft.icao : aircraft.callsign;
+    const callsign = aircraft.callsign.trim();
+    return callsign === '' ? aircraft.icao : callsign;
 }
 
 function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLElement {

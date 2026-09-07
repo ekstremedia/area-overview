@@ -19,7 +19,7 @@ const { mountShipsLayer } = await import('./ships.js');
 function fakePolygon(initial: Record<string, unknown> = {}) {
     const polygon = {
         style: { ...initial },
-        tooltip: undefined as string | undefined,
+        tooltip: undefined as HTMLElement | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: (style: Record<string, unknown>) => {
@@ -29,7 +29,7 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
         bindPopup: () => polygon,
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
-        bindTooltip: (content: string) => {
+        bindTooltip: (content: HTMLElement) => {
             polygon.tooltip = content;
             return polygon;
         },
@@ -37,7 +37,7 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
             polygon.tooltip = undefined;
             return polygon;
         },
-        setTooltipContent: (content: string) => {
+        setTooltipContent: (content: HTMLElement) => {
             polygon.tooltip = content;
             return polygon;
         },
@@ -297,7 +297,7 @@ describe('mountShipsLayer -- name labels', () => {
         // Each ship is a (visible, hitArea) pair, in the order it was added -- the tooltip lives on the hit area.
         const hitAreas = createdPolygons.filter((_, index) => index % 2 === 1);
         expect(hitAreas).toHaveLength(2);
-        expect(hitAreas[0]?.tooltip).toBe('MS NORDLYS');
+        expect(hitAreas[0]?.tooltip?.textContent).toBe('MS NORDLYS');
         expect(hitAreas[1]?.tooltip).toBeUndefined();
 
         dispose();
