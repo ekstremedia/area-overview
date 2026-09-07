@@ -90,6 +90,32 @@ describe('appendTrailPoint -- ageing against wall-clock time', () => {
     });
 });
 
+describe('appendTrailPoint -- a fix that arrives already stale', () => {
+    it('refuses an incoming point older than the window, rather than seating it at the newest end', () => {
+        // The layers above age vessels on looser thresholds than this
+        // history keeps, so a vessel still worth drawing can report a
+        // position older than the trail window. Appending it would put an
+        // out-of-window point where ageing never looks again.
+        const points = [point(68.1, 100_000), point(68.2, 110_000)];
+
+        const next = appendTrailPoint(points, point(68.9, 1_000), opts(120_000));
+
+        expect(next).toBe(points); // nothing changed, so no redraw either
+        expect(next.map((p) => p.at)).toEqual([100_000, 110_000]);
+    });
+
+    it('still ages the existing history when the incoming point is refused', () => {
+        const points = [point(68.1, 1_000), point(68.2, 110_000)];
+
+        // Cutoff is 120_000 - 60_000: the first point goes, and the stale
+        // incoming one is not taken in its place.
+        const next = appendTrailPoint(points, point(68.9, 2_000), opts(120_000));
+
+        expect(next).not.toBe(points);
+        expect(next.map((p) => p.at)).toEqual([110_000]);
+    });
+});
+
 describe('trailSegments', () => {
     const fade = { newestOpacity: 0.6, oldestOpacity: 0.1 };
 

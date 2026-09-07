@@ -66,11 +66,19 @@ export function appendTrailPoint(points: readonly TrailPoint[], next: TrailPoint
     const newest = points[points.length - 1];
     const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
     const kept = ageTrailPoints(points, { maxAgeMs: options.maxAgeMs, now: options.now });
+    // A fix can arrive already older than the window: the layers above age
+    // vessels on their own, looser thresholds (ships tolerate 30 minutes,
+    // this trail keeps 15), so a vessel still worth drawing can report a
+    // position this history has no business keeping. Appending it would
+    // put a point outside the window at the *newest* end, where ageing
+    // never looks again.
+    const nextIsFresh = next.at >= options.now - options.maxAgeMs;
+    const skipAppend = isRepeat || !nextIsFresh;
     // Unchanged only when nothing was appended AND nothing aged out; a
     // simultaneous append and prune leaves the length equal but the
-    // contents different, which is why `isRepeat` is part of the test.
-    if (isRepeat && kept.length === points.length) return points as TrailPoint[];
-    const withNext = isRepeat ? kept : [...kept, next];
+    // contents different, which is why the append test comes into it.
+    if (skipAppend && kept.length === points.length) return points as TrailPoint[];
+    const withNext = skipAppend ? kept : [...kept, next];
     return withNext.length > options.maxPoints ? withNext.slice(withNext.length - options.maxPoints) : withNext;
 }
 

@@ -159,6 +159,19 @@ describe('createTrailStore', () => {
         expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 })).toHaveLength(1);
     });
 
+    it('refuses a fix that is already older than the window, while still remembering the vessel', () => {
+        const store = createTrailStore(SHAPE, OPTIONS);
+
+        store.record([vessel({ lat: 68.7, at: '2026-09-07T12:00:00.000Z' })], T0);
+        // Upstream re-serves a position from well before the window. It is
+        // a real vessel and must stay servable, but it contributes no
+        // point -- least of all as the newest one, past where ageing looks.
+        store.record([vessel({ lat: 68.8, at: '2026-09-07T11:00:00.000Z' })], at(30));
+
+        expect(store.trailFor('a', at(30))).toEqual([]);
+        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 })).toHaveLength(1);
+    });
+
     it('tracks each vessel separately', () => {
         const store = createTrailStore(SHAPE, OPTIONS);
 

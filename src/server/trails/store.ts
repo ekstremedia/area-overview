@@ -81,7 +81,12 @@ export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailSto
         // that never advances would otherwise hold its own cutoff still
         // and keep a long-dead trail alive forever.
         const kept = fresh(points, nowMs);
-        const withNext = isRepeat ? kept : [...kept, next];
+        // And a fix can arrive already older than the window -- upstream
+        // re-serves positions hours old. Appending one would place a point
+        // outside the window at the newest end, where ageing never looks
+        // again. The vessel itself is still recorded as `latest`.
+        const nextIsFresh = Date.parse(next.at) >= nowMs - options.maxAgeMs;
+        const withNext = isRepeat || !nextIsFresh ? kept : [...kept, next];
         return withNext.length > options.maxPoints ? withNext.slice(withNext.length - options.maxPoints) : withNext;
     }
 
