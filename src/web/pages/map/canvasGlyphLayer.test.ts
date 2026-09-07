@@ -16,6 +16,7 @@ interface FakePolygon {
     style: Record<string, unknown>;
     latLngs: unknown[];
     tooltip: HTMLElement | undefined;
+    tooltipOptions: Record<string, unknown> | undefined;
     setLatLngs: (next: unknown[]) => FakePolygon;
     setStyle: (style: Record<string, unknown>) => FakePolygon;
     bindPopup: () => FakePolygon;
@@ -32,6 +33,7 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         style: { ...initial },
         latLngs: [...latLngs],
         tooltip: undefined,
+        tooltipOptions: undefined,
         setLatLngs: (next) => {
             polygon.latLngs = [...next];
             return polygon;
@@ -54,6 +56,7 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         bindTooltip: (content, options = {}) => {
             if (options.permanent === true && polygon.latLngs.length === 0) throw new Error('latlngs not passed');
             polygon.tooltip = content;
+            polygon.tooltipOptions = { ...options };
             return polygon;
         },
         unbindTooltip: () => {
@@ -262,6 +265,23 @@ describe('createCanvasGlyphLayer labelFor', () => {
         expect(hitArea?.latLngs).toHaveLength(3);
         expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
         expect(layer.count()).toBe(1);
+    });
+
+    it('binds the label on the same polygon as the popup, and interactively, so tapping the name opens the glyph popup', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor: () => 'ALPHA' }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+
+        // `hitArea` (index 1), not the non-interactive `visible` polygon:
+        // Leaflet forwards an interactive tooltip's clicks to the layer it
+        // belongs to, and `hitArea` is the one carrying `bindPopup`. A
+        // label bound to `visible` would be inert however interactive it
+        // claimed to be.
+        const [visible, hitArea] = created;
+        expect(visible?.tooltip).toBeUndefined();
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+        expect(hitArea?.tooltipOptions?.interactive).toBe(true);
     });
 
     it('treats an empty-string label the same as null -- no tooltip bound', () => {
