@@ -74,10 +74,6 @@ _Avoid_: position, location (upstream's free-text field), coordinates
 The stored map centre and zoom the map opens at and returns to after idle.
 _Avoid_: default view, map centre, start position
 
-**Point forecast**:
-The weather forecast for a tapped map point, fetched at ~1 km rounding.
-_Avoid_: click forecast, custom location
-
 **Idle reset**:
 Returning the app to the map page at the home view after a period with no
 touch. A shared setting; 0 disables it.

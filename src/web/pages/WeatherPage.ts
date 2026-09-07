@@ -88,7 +88,7 @@ function buildLeftColumn(weather: Weather): HTMLElement {
     const condition = document.createElement('div');
     condition.className = 'weather-condition';
     condition.textContent = capitalize(
-        t('map.pointForecastCondition', {
+        t('weather.condition', {
             condition: humanizeSymbolCode(weather.current.conditions.symbol_code),
             direction: compassWord(weather.current.wind.direction),
         }),

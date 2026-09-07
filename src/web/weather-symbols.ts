@@ -1,10 +1,9 @@
 /**
- * Shared Yr `symbol_code` and wind-direction humanization, used by both
- * the map's point-forecast panel (`pages/map/pointForecast.ts`) and the
- * weather page (`pages/WeatherPage.ts`). Originally written once inside
- * `pointForecast.ts`; extracted here per that file's own doc comment,
- * which explicitly earmarked this table for reuse rather than
- * duplication once Phase 8's weather page needed the same humanization.
+ * Yr `symbol_code` and wind-direction humanization, used by the weather
+ * page (`pages/WeatherPage.ts`). It lived in the map's point-forecast
+ * panel first and was extracted here to be shared; that panel is gone
+ * now, but this stays its own module -- the table is data, not page
+ * layout, and the weather page reads better without it inlined.
  */
 import { t, type ParamlessKey } from './i18n/index.js';
 

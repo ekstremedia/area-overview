@@ -461,6 +461,61 @@ describe('mountShipsLayer -- clustering', () => {
         dispose();
     });
 
+    it('keeps a cluster row tap inside the popup, so the map never closes it under the selection', async () => {
+        // Leaflet closes the open popup on the map's own click. The rows sit
+        // inside that popup, so a row tap that reached the map container
+        // both closed the popup and fired the map click handler -- the ship
+        // was selected, but the list vanished and the selection only became
+        // visible when the cluster was reopened.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([a, b]))));
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [badge] = createdMarkers;
+        badge?.openPopup();
+
+        // Stand in for the map container: the popup lives inside it, so a
+        // click that bubbles this far is the one that would close the popup.
+        const container = document.createElement('div');
+        document.body.append(container);
+        const reachedMap = vi.fn();
+        container.addEventListener('click', reachedMap);
+
+        const listContent = badge?.lastContent;
+        if (!listContent) throw new Error('expected the cluster list popup');
+        container.append(listContent);
+
+        const row = listContent.querySelector('.ship-cluster-popup-row');
+        (row as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(reachedMap).not.toHaveBeenCalled();
+
+        // The selection still happened -- the tap is contained, not swallowed.
+        const detailContent = badge.lastContent;
+        if (!detailContent) throw new Error('expected the cluster detail popup');
+        expect(detailContent.textContent).toContain('ALPHA');
+        expect(detailContent.textContent).not.toContain('BRAVO');
+
+        container.append(detailContent);
+        const back = detailContent.querySelector('.ship-cluster-popup-back');
+        (back as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(reachedMap).not.toHaveBeenCalled();
+
+        container.remove();
+        dispose();
+    });
+
     it('gives a cluster badge an underway indicator when at least one member has navigationalStatus 0', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));

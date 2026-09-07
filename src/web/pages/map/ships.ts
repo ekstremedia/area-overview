@@ -184,7 +184,15 @@ function buildClusterListPopup(members: readonly Ship[], onSelect: (mmsi: string
         meta.textContent = t('map.shipSpeed', { speed: formatNumber(ship.speedOverGround, t('unit.knots')) });
         row.append(meta);
 
-        row.addEventListener('click', () => {
+        row.addEventListener('click', (event) => {
+            // The click must not reach the map container above this popup.
+            // Leaflet closes the open popup on the map's own click
+            // (`closePopupOnClick`), so without this the popup vanishes at
+            // the very moment the row selects its ship -- the selection
+            // only became visible on reopening the cluster. Its shield on
+            // `.leaflet-popup-content-wrapper` does not cover a click whose
+            // target is a nested element like this button.
+            event.stopPropagation();
             onSelect(ship.mmsi);
         });
         list.append(row);
@@ -203,7 +211,8 @@ function buildClusterDetailPopup(ship: Ship, onBack: () => void): HTMLElement {
     back.type = 'button';
     back.className = 'ship-cluster-popup-back';
     back.textContent = t('map.shipClusterBack');
-    back.addEventListener('click', () => {
+    back.addEventListener('click', (event) => {
+        event.stopPropagation(); // same as the list rows: don't let the map close the popup under us
         onBack();
     });
     root.append(back);

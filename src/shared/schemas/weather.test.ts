@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import weatherFixture from '../fixtures/weather.json' with { type: 'json' };
 import weatherNetatmoOfflineFixture from '../fixtures/weather-netatmo-offline.json' with { type: 'json' };
-import weatherPointFixture from '../fixtures/weather-point.json' with { type: 'json' };
 import summaryFixture from '../fixtures/weather-summary.json' with { type: 'json' };
 import summaryEmptyFixture from '../fixtures/weather-summary-empty.json' with { type: 'json' };
 import { WeatherSchema, WeatherSummaryResponseSchema, WeatherSummarySchema } from './weather.js';
@@ -10,10 +9,6 @@ import { omitKey } from './test-utils.js';
 describe('WeatherSchema', () => {
     it('parses the recorded /api/weather fixture', () => {
         expect(() => WeatherSchema.parse(weatherFixture)).not.toThrow();
-    });
-
-    it('parses the recorded /api/weather?lat&lng point-forecast fixture', () => {
-        expect(() => WeatherSchema.parse(weatherPointFixture)).not.toThrow();
     });
 
     it('rejects a fixture missing the required location field', () => {

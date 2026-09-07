@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WeatherSchema, WeatherSummaryResponseSchema } from '../../shared/schemas/weather.js';
 import weatherFixture from '../../shared/fixtures/weather.json' with { type: 'json' };
-import weatherPointFixture from '../../shared/fixtures/weather-point.json' with { type: 'json' };
 import weatherSummaryFixture from '../../shared/fixtures/weather-summary.json' with { type: 'json' };
 import weatherSummaryEmptyFixture from '../../shared/fixtures/weather-summary-empty.json' with { type: 'json' };
 import { buildTestApp, jsonResponse, sleep } from './test-helpers.js';
@@ -10,7 +9,6 @@ import { buildTestApp, jsonResponse, sleep } from './test-helpers.js';
 // model (e.g. the daily forecast's `periods`/`steps`), so the route's JSON
 // response is the *parsed*, not the raw, fixture -- compare against that.
 const expectedWeather = WeatherSchema.parse(weatherFixture);
-const expectedWeatherPoint = WeatherSchema.parse(weatherPointFixture);
 const expectedSummary = WeatherSummaryResponseSchema.parse(weatherSummaryFixture);
 const expectedEmptySummary = WeatherSummaryResponseSchema.parse(weatherSummaryEmptyFixture);
 
@@ -28,28 +26,6 @@ describe('GET /api/weather', () => {
         expect(response.statusCode).toBe(200);
         expect(response.json()).toEqual(expectedWeather);
         expect(response.headers.etag).toBeDefined();
-    });
-
-    it('rounds lat/lng to two decimals and returns the point forecast', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(weatherPointFixture));
-        vi.stubGlobal('fetch', fetchMock);
-        const app = buildTestApp();
-
-        const response = await app.inject({ method: 'GET', url: '/api/weather?lat=68.711&lng=15.399' });
-
-        expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual(expectedWeatherPoint);
-        const [calledUrl] = fetchMock.mock.calls[0] as [string];
-        expect(calledUrl).toBe('https://upstream.example/api/weather?lat=68.71&lng=15.4');
-    });
-
-    it('responds 400 for an out-of-range latitude', async () => {
-        vi.stubGlobal('fetch', vi.fn());
-        const app = buildTestApp();
-
-        const response = await app.inject({ method: 'GET', url: '/api/weather?lat=999&lng=15.4' });
-
-        expect(response.statusCode).toBe(400);
     });
 
     it('responds 502 on a cold cache when upstream is unreachable', async () => {

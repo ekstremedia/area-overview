@@ -8,18 +8,7 @@
  * imports (device-settings, night-schedule, markers, ...) loads for real,
  * same as it would in the real failure this test models -- only the
  * dynamic Leaflet import itself is broken.
- *
- * The `isInsideLeafletPopup` describe block below is unrelated to that
- * failure scenario -- it covers the tap-empty-map point forecast's guard
- * against a click leaking in from inside an already-open popup (see that
- * function's doc comment in `MapPage.ts`). It's a plain unit test of the
- * exported pure function rather than a simulated DOM click sequence: a
- * real pointer/mouse sequence landing on popup content is what reproduced
- * the leak against the live site, but a *bare* synthetic `.click()` (the
- * only kind happy-dom's event dispatch can drive convincingly) does not --
- * Leaflet's own `disableClickPropagation` shield still stops that one, so
- * a DOM-level regression test here would pass whether or not the fix
- * exists, and wouldn't actually be exercising anything.
+
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,7 +17,7 @@ vi.mock('leaflet', () => {
 });
 vi.mock('leaflet/dist/leaflet.css', () => ({}));
 
-const { render, isInsideLeafletPopup } = await import('./MapPage.js');
+const { render } = await import('./MapPage.js');
 
 describe('MapPage / dynamic Leaflet import failure', () => {
     afterEach(() => {
@@ -65,56 +54,5 @@ describe('MapPage / dynamic Leaflet import failure', () => {
         await Promise.resolve();
 
         expect(container.querySelector('.map-unavailable')).toBeNull();
-    });
-});
-
-describe('isInsideLeafletPopup', () => {
-    it('returns false for a plain map click target (not inside any popup)', () => {
-        const mapPane = document.createElement('div');
-        mapPane.className = 'leaflet-map-pane';
-        document.body.append(mapPane);
-
-        expect(isInsideLeafletPopup(mapPane)).toBe(false);
-
-        mapPane.remove();
-    });
-
-    it('returns true for a click landing directly on the popup root', () => {
-        const popup = document.createElement('div');
-        popup.className = 'leaflet-popup';
-        document.body.append(popup);
-
-        expect(isInsideLeafletPopup(popup)).toBe(true);
-
-        popup.remove();
-    });
-
-    it('returns true for a click on a cluster-list row nested inside an open popup -- the exact leak reported live: clicking a row closed the popup and moved the point-forecast panel instead of showing that ship/aircraft', () => {
-        const popup = document.createElement('div');
-        popup.className = 'leaflet-popup';
-        const wrapper = document.createElement('div');
-        wrapper.className = 'leaflet-popup-content-wrapper';
-        const content = document.createElement('div');
-        content.className = 'leaflet-popup-content';
-        const row = document.createElement('button');
-        row.className = 'ship-cluster-popup-row';
-        const rowLabel = document.createElement('span');
-        rowLabel.className = 'ship-cluster-popup-row-name';
-        row.append(rowLabel);
-        content.append(row);
-        wrapper.append(content);
-        popup.append(wrapper);
-        document.body.append(popup);
-
-        // A real click can land on a descendant several levels deep (e.g. the
-        // row's own name span), not just the row element itself.
-        expect(isInsideLeafletPopup(rowLabel)).toBe(true);
-        expect(isInsideLeafletPopup(row)).toBe(true);
-
-        popup.remove();
-    });
-
-    it('returns false for null (no originalEvent.target, or a non-Element EventTarget)', () => {
-        expect(isInsideLeafletPopup(null)).toBe(false);
     });
 });

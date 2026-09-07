@@ -72,16 +72,10 @@ export const nb = {
     'map.resetView': 'Tilbake til standardvisning',
     'map.cameraImageAlt': 'Bilde fra {name}',
     'map.openCamera': 'Åpne kamera →',
-    'map.pointForecastLabel': 'Punktvarsel',
-    'map.pointForecastLoading': 'Henter …',
-    'map.pointForecastError': 'Kunne ikke hente værvarsel.',
-    'map.pointForecastRetry': 'Prøv igjen',
-    'map.pointForecastCondition': '{condition}, {direction}',
-    'map.pointForecastStats': '{wind} · {precip} · {lat} / {lng}',
+    'weather.condition': '{condition}, {direction}',
     // Rain data can be absent (e.g. the Netatmo rain gauge offline) -- shown
     // without a precip segment rather than a placeholder/zero, matching this
     // app's general "hide, don't fake" convention for missing upstream data.
-    'map.pointForecastStatsNoPrecip': '{wind} · {lat} / {lng}',
     'map.unavailable': 'Kartet kunne ikke lastes.',
     'map.reload': 'Last på nytt',
 
