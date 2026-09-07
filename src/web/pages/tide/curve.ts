@@ -62,6 +62,25 @@ function areaPath(points: readonly { x: number; y: number }[]): string {
 }
 
 /**
+ * Every centimetre value the chart has to fit on its vertical axis:
+ * predictions, observations where the gauge has reported one, and the
+ * day's extremes.
+ *
+ * Shared by `tideCurve` and `tideCurveTicks` because they must agree. An
+ * observed level outside the predicted range (a storm surge is exactly
+ * that) widens the drawn scale, and ticks computed from a narrower set of
+ * values would then be positioned against a scale the curve is not using
+ * -- labels sliding off the water they claim to measure.
+ */
+function curveValues(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): number[] {
+    return [
+        ...series.map((entry) => entry.value),
+        ...series.flatMap((entry) => (typeof entry.observation === 'number' ? [entry.observation] : [])),
+        ...extremes.map((extreme) => extreme.value),
+    ];
+}
+
+/**
  * Round centimetre values to label the curve's vertical scale with, and
  * where each sits as a percentage down the plotted area.
  *
@@ -75,7 +94,7 @@ function areaPath(points: readonly { x: number; y: number }[]): string {
  */
 export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): { value: number; topPercent: number }[] {
     if (series.length === 0) return [];
-    const values = [...series.map((entry) => entry.value), ...extremes.map((extreme) => extreme.value)];
+    const values = curveValues(series, extremes);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = max - min;
@@ -104,11 +123,7 @@ export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extreme
     const domainEnd = Math.max(...series.map(timeOf));
     const timeScale = makeTimeScale(domainStart, domainEnd);
 
-    const allValues = [
-        ...series.map((entry) => entry.value),
-        ...series.flatMap((entry) => (typeof entry.observation === 'number' ? [entry.observation] : [])),
-        ...extremes.map((extreme) => extreme.value),
-    ];
+    const allValues = curveValues(series, extremes);
     const valueScale = makeValueScale(Math.min(...allValues), Math.max(...allValues));
 
     // — prediction: the full series, always present. —

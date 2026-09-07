@@ -49,6 +49,15 @@ function buildUnplacedDetail(): HTMLElement {
     return el;
 }
 
+/**
+ * The on-screen keyboard's caption for one coordinate field: which camera,
+ * which coordinate. Shared by the initial build and by `update()`, since a
+ * camera renamed upstream must not leave the tray naming the old one.
+ */
+function keyboardContextFor(cameraLabel: string, axis: 'lat' | 'lng'): string {
+    return `${cameraLabel} · ${t(axis === 'lat' ? 'settings.map.lat' : 'settings.map.lng')}`;
+}
+
 function buildPlacedDetail(
     cameraId: string,
     draft: Placement,
@@ -95,7 +104,7 @@ function buildPlacedDetail(
     latLabel.textContent = t('settings.map.lat');
     // Names this field on the on-screen keyboard's caption, so the tray
     // says which camera and which coordinate it is editing.
-    latField.input.dataset.keyboardContext = `${cameraLabel} · ${t('settings.map.lat')}`;
+    latField.input.dataset.keyboardContext = keyboardContextFor(cameraLabel, 'lat');
     latBlock.append(latLabel, latField.el);
 
     const lngBlock = document.createElement('div');
@@ -103,7 +112,7 @@ function buildPlacedDetail(
     const lngLabel = document.createElement('div');
     lngLabel.className = 'settings-field-label';
     lngLabel.textContent = t('settings.map.lng');
-    lngField.input.dataset.keyboardContext = `${cameraLabel} · ${t('settings.map.lng')}`;
+    lngField.input.dataset.keyboardContext = keyboardContextFor(cameraLabel, 'lng');
     lngBlock.append(lngLabel, lngField.el);
 
     const removeButton = document.createElement('button');
@@ -291,6 +300,13 @@ export function buildRow(
         loggedIn = nextLoggedIn;
         latestName = nextCamera.name;
         nameEl.textContent = nextCamera.name;
+        if (fields) {
+            // The caption was baked in at build time from the name as it
+            // then was; a rename arriving from the cameras resource has to
+            // reach the already-placed fields too.
+            fields.latField.input.dataset.keyboardContext = keyboardContextFor(latestName, 'lat');
+            fields.lngField.input.dataset.keyboardContext = keyboardContextFor(latestName, 'lng');
+        }
         meta.textContent = `${nextCamera.camera_id} · «${nextCamera.location}»`;
         enabledToggle.setState(nextEnabled, !loggedIn);
 

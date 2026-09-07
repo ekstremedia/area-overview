@@ -287,6 +287,26 @@ describe('Cameras section', () => {
         row.el.remove();
     });
 
+    it('renames the on-screen keyboard caption when the camera is renamed upstream', () => {
+        const { store } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
+        const row = buildRow(camera(), { lat: 68.7, lng: 15.4 }, { store, loggedIn: true, enabled: true });
+
+        const captions = (): string[] =>
+            [...row.el.querySelectorAll<HTMLInputElement>('.number-field-input')].map((input) => input.dataset.keyboardContext ?? '');
+        for (const caption of captions()) expect(caption).toContain('Sigerfjord');
+
+        row.update(camera({ name: 'Sigerfjord kai' }), { lat: 68.7, lng: 15.4 }, true, true);
+
+        // The caption is written once when the fields are built, so a name
+        // arriving later from the cameras resource has to be pushed into
+        // the existing inputs -- otherwise the keyboard tray keeps naming
+        // the camera that no longer exists under that name.
+        for (const caption of captions()) expect(caption).toContain('Sigerfjord kai');
+
+        row.dispose();
+        row.el.remove();
+    });
+
     it('renders lat/lng disabled and the remove button disabled when logged out', () => {
         setCameras([camera()]);
         const { store } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
