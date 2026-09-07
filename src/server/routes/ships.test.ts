@@ -89,6 +89,39 @@ describe('GET /api/ships -- configured', () => {
         expect(stale.headers['x-cache']).toBe('stale');
     });
 
+    it('serves the vessels it remembers, with their trails, on a cold cache while BarentsWatch is unreachable', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse({ access_token: 'a-token', expires_in: 3600 }))
+            .mockResolvedValueOnce(jsonResponse(combinedFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret', shipsCacheTtlMs: 10 });
+
+        // One good response fills the BFF's memory...
+        const warm = await app.inject({ method: 'GET', url: `/api/ships?${VALID_BBOX}` });
+        expect(warm.statusCode).toBe(200);
+        const remembered = ShipsResponseSchema.parse(warm.json());
+        if (!remembered.configured) throw new Error('expected a configured response');
+        expect(remembered.ships.length).toBeGreaterThan(0);
+
+        // ...then the upstream goes down AND this viewport's cache expires,
+        // which is a cold load during an outage: previously a 502 and a
+        // blank map. A neighbouring viewport is used to make the cache miss
+        // unambiguous rather than relying on TTL timing alone.
+        await sleep(20);
+        fetchMock.mockRejectedValue(new Error('network down'));
+
+        const cold = await app.inject({ method: 'GET', url: '/api/ships?bbox=15.05,68.55,15.95,68.95' });
+
+        expect(cold.statusCode).toBe(200);
+        const body = ShipsResponseSchema.parse(cold.json());
+        if (!body.configured) throw new Error('expected a configured response');
+        expect(body.ships.length).toBeGreaterThan(0);
+        // Each vessel still carries its own fix timestamp, so the map can
+        // fade and account for them as the stale positions they are.
+        expect(body.ships.every((ship) => typeof ship.timestamp === 'string')).toBe(true);
+    });
+
     it('responds 502 on a cold cache when BarentsWatch is unreachable', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
         const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret' });

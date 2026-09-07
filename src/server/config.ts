@@ -62,6 +62,30 @@ const ServerConfigSchema = z.object({
      * to the frontend as-is rather than used to sign a server-side request.
      */
     cartoApiKey: z.string().default(''),
+    /**
+     * How often the BFF polls its fixed area of interest to keep vessel
+     * trails accumulating while nobody is watching the map (see
+     * `src/server/trails/poller.ts`). Slower than a browser's own poll
+     * on purpose: this runs forever, and a trail wants enough points to
+     * read as a line, not a fresh fix every few seconds.
+     */
+    trailsPollSeconds: z.coerce.number().int().min(10).max(600).default(30),
+    /**
+     * The area polled for trails, as `minLng,minLat,maxLng,maxLat` --
+     * the same ordering `?bbox=` uses. Defaults to Vesterålen around
+     * Sortland, generous enough to cover any viewport the kiosk is
+     * likely to be panned to. Set `TRAILS_AREA_BBOX` to widen or move it.
+     *
+     * Sized to sit exactly at `clampBbox`'s 2-degree limit rather than
+     * over it: a default that gets silently shrunk on the way in is a
+     * default that lies about what is polled.
+     */
+    trailsAreaBbox: z.string().default('14.5,68.35,16.5,69.05'),
+    /** Set `TRAILS_ENABLED=false` to run without the background poller at all -- trails then only accumulate from whatever a browser is actively polling. */
+    trailsEnabled: z
+        .enum(['true', 'false'])
+        .default('true')
+        .transform((value) => value === 'true'),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -89,6 +113,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         shipsCacheTtlMs: env.SHIPS_CACHE_TTL_MS,
         aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
         cartoApiKey: env.CARTO_API_KEY,
+        trailsPollSeconds: env.TRAILS_POLL_SECONDS,
+        trailsAreaBbox: env.TRAILS_AREA_BBOX,
+        trailsEnabled: env.TRAILS_ENABLED,
     });
 
     if (!parsed.success) {

@@ -375,7 +375,11 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
             // Fed every visible ship below, clustered or not -- see
             // `trailLayer.ts`'s doc comment for why it can't be fed the
             // canvas layer's (cluster-filtered) set instead.
-            const trailLayer = createTrailLayer<Ship>(L, map, { color: SHIP_GLYPH_COLOR, colorFor: shipColor });
+            const trailLayer = createTrailLayer<Ship>(L, map, {
+                color: SHIP_GLYPH_COLOR,
+                colorFor: shipColor,
+                trailFor: (ship) => ship.trail,
+            });
 
             const pollSeconds = Math.max(settings.get().ships.pollSeconds, SHIPS_LAYER.minPollSeconds);
             const res = resource(() => fetchShips(map), { intervalMs: pollSeconds * 1000 });

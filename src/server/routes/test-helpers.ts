@@ -37,6 +37,11 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         shipsCacheTtlMs: 20,
         aircraftCacheTtlMs: 20,
         cartoApiKey: '',
+        trailsPollSeconds: 30,
+        trailsAreaBbox: '14.4,68.35,16.6,69.05',
+        // Off in tests: a background poller would make real upstream calls
+        // from a suite that otherwise touches no network.
+        trailsEnabled: false,
         ...overrides,
     };
 }

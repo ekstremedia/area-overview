@@ -16,6 +16,7 @@ import { registerShipsRoutes } from './routes/ships.js';
 import { registerTideRoutes } from './routes/tide.js';
 import { registerWeatherRoutes } from './routes/weather.js';
 import { registerStaticPlugin } from './static.js';
+import { createTrailSupport } from './trails/support.js';
 
 export interface BuildAppOptions {
     /** Defaults to `true`; tests pass `false` to keep output quiet. */
@@ -41,8 +42,12 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     registerAuroraRoutes(app, config);
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
-    registerShipsRoutes(app, config);
-    registerAircraftRoutes(app, config);
+    // Shared by the routes and the background poller: the routes read
+    // trails out and feed their own fetches in, the poller keeps it warm
+    // while nobody is on the map page. See `trails/support.ts`.
+    const trails = createTrailSupport(config);
+    registerShipsRoutes(app, config, { trails: trails.ships });
+    registerAircraftRoutes(app, config, { trails: trails.aircraft });
     registerSettingsRoutes(
         app,
         config,
@@ -50,6 +55,20 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     );
 
     registerStaticPlugin(app);
+
+    // Started once the server is up (never during `buildApp`, so a test
+    // that only injects requests makes no upstream calls) and stopped on
+    // close, so a poll timer can't outlive the instance that owns it.
+    let stopTrailPolling: (() => void) | undefined;
+    app.addHook('onReady', function startPolling(this: FastifyInstance, done) {
+        stopTrailPolling = trails.start(this.log);
+        done();
+    });
+    app.addHook('onClose', (_instance, done) => {
+        stopTrailPolling?.();
+        stopTrailPolling = undefined;
+        done();
+    });
 
     return app;
 }

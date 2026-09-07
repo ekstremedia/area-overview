@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { IsoTimestampSchema } from './common.js';
+import { TrailSchema } from './trail.js';
 
 /**
  * The app's own normalised ship shape -- NOT BarentsWatch's raw AIS shape.
@@ -19,6 +20,8 @@ export const ShipSchema = z.object({
     /** Raw ITU-R M.1371 AIS navigational status (0-15) -- see `barentswatch.ts`'s doc comment for how this was verified against real, live data. `0` = "under way using engine", coloured distinctly by `ships.ts`'s `colorFor`. */
     navigationalStatus: z.number().nullable(),
     timestamp: IsoTimestampSchema,
+    /** Recent earlier positions, oldest first, remembered by the BFF -- see `trail.ts`. Defaults to empty so a response from a path that has no history to offer still parses. */
+    trail: TrailSchema.default([]),
 });
 
 export type Ship = z.infer<typeof ShipSchema>;

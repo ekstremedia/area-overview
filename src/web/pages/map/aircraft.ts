@@ -125,7 +125,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 labelFor: (aircraft) => aircraftLabel(aircraft),
             });
 
-            const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR });
+            const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR, trailFor: (item) => item.trail });
 
             const pollSeconds = Math.max(settings.get().aircraft.pollSeconds, AIRCRAFT_LAYER.minPollSeconds);
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });

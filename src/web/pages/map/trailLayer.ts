@@ -25,6 +25,7 @@
  */
 import type * as Leaflet from 'leaflet';
 import type { GlyphDescriptor } from './glyphs.js';
+import type { TrailPoint as ServerTrailPoint } from '../../../shared/schemas/trail.js';
 import { appendTrailPoint, trailSegments, type TrailPoint } from './trails.js';
 
 /**
@@ -76,6 +77,15 @@ export interface TrailLayer<T> {
 }
 
 export interface TrailLayerOptions<T> {
+    /**
+     * The vessel's server-remembered positions, oldest first (the BFF's
+     * `trail` field -- see `shared/schemas/trail.ts`). Seeded into a
+     * glyph's history the first time it is seen, which is what puts a
+     * trail on screen immediately on arriving at the map rather than
+     * after several minutes of watching it. Subsequent polls append to
+     * whatever is in hand, so the two sources merge naturally.
+     */
+    trailFor?: (data: T) => readonly ServerTrailPoint[];
     /** A literal colour string -- see `liveLayerColors.ts` for why this can't be a CSS custom property. */
     color: string;
     /**
@@ -125,6 +135,27 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
         }
     }
 
+    /**
+     * The server's remembered positions for a glyph the layer is seeing
+     * for the first time, in this module's own millisecond form. Anything
+     * with an unparseable or out-of-window timestamp is dropped here
+     * rather than allowed into the history, and the result is capped the
+     * same way a locally-grown history is -- the BFF keeps a longer trail
+     * (40 points) than this layer draws.
+     */
+    function seedPoints(data: T, nowMs: number): TrailPoint[] {
+        const remembered = options.trailFor?.(data) ?? [];
+        const cutoffMs = nowMs - MAX_AGE_MS;
+        const points: TrailPoint[] = [];
+        for (const point of remembered) {
+            const at = Date.parse(point.at);
+            if (Number.isNaN(at) || at < cutoffMs) continue;
+            points.push({ lat: point.lat, lng: point.lng, at });
+        }
+        points.sort((left, right) => left.at - right.at);
+        return points.length > MAX_POINTS ? points.slice(points.length - MAX_POINTS) : points;
+    }
+
     function update(descriptors: readonly GlyphDescriptor<T>[], now: Date): void {
         const nowMs = now.getTime();
 
@@ -137,7 +168,10 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
             if (Number.isNaN(reportedAt)) continue;
 
             const entry: TrailEntry<T> = entries.get(descriptor.id) ?? {
-                points: [],
+                // A glyph seen for the first time starts from whatever the
+                // BFF remembers about it, so a trail is on screen at once
+                // rather than after minutes of watching.
+                points: seedPoints(descriptor.data, nowMs),
                 data: descriptor.data,
                 lines: [],
                 lastSeen: nowMs,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { IsoTimestampSchema } from './common.js';
+import { TrailSchema } from './trail.js';
 
 /**
  * The app's own normalised aircraft shape -- unconnected to any specific
@@ -16,6 +17,8 @@ export const AircraftSchema = z.object({
     groundSpeedKt: z.number(),
     track: z.number(),
     timestamp: IsoTimestampSchema,
+    /** Recent earlier positions, oldest first, remembered by the BFF -- see `trail.ts`. Named `trail`, not `track`, because `track` above is already this aircraft's course over ground. */
+    trail: TrailSchema.default([]),
 });
 
 export type Aircraft = z.infer<typeof AircraftSchema>;

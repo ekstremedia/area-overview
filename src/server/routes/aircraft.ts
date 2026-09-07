@@ -7,14 +7,29 @@
  * regardless of `ADSB_PROVIDER`.
  */
 import type { FastifyInstance } from 'fastify';
-import type { AircraftResponse } from '../../shared/schemas/aircraft.js';
+import type { Aircraft, AircraftResponse } from '../../shared/schemas/aircraft.js';
 import { bboxCacheKey, clampBbox, parseBbox, roundBbox } from '../layers/bbox.js';
 import { fetchAircraft } from '../aircraft/provider.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
 import { serveCached } from '../route-helpers.js';
+import type { TrailStore } from '../trails/store.js';
 
-export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfig): void {
+export interface AircraftRouteDependencies {
+    /** See `ShipsRouteDependencies` in `routes/ships.ts` -- same contract, same reasons. */
+    trails: TrailStore<Aircraft>;
+}
+
+/** Attaches each aircraft's remembered positions and stamps the response. */
+function withTrails(aircraft: readonly Aircraft[], trails: TrailStore<Aircraft>, now: Date): Extract<AircraftResponse, { configured: true }> {
+    return {
+        configured: true,
+        aircraft: aircraft.map((item) => ({ ...item, trail: trails.trailFor(item.icao) })),
+        fetchedAt: now.toISOString(),
+    };
+}
+
+export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfig, dependencies: AircraftRouteDependencies): void {
     // Only ever holds the `configured: true` variant -- typed as the full
     // union so it can be constructed/returned without a cast; see the
     // matching comment in `routes/ships.ts`.
@@ -47,9 +62,23 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
                 openSkyCredentials,
                 upstreamTimeoutMs: config.upstreamTimeoutMs,
             });
-            if (!result.ok) return result;
-            const body: AircraftResponse = { configured: true, aircraft: result.value, fetchedAt: new Date().toISOString() };
-            return { ok: true, value: body };
+            const now = new Date();
+
+            if (result.ok) {
+                dependencies.trails.record(result.value, now);
+                return { ok: true, value: withTrails(result.value, dependencies.trails, now) };
+            }
+
+            // Same reasoning as the ships route: prefer the stale cached
+            // response where there is one, and reach for the store only on
+            // a cold load during an outage, which would otherwise be a
+            // blank layer.
+            if (cache.get(bboxCacheKey(bbox))) return result;
+
+            const known = dependencies.trails.latestIn(bbox);
+            if (known.length === 0) return result;
+            request.log.warn({ reason: result.error.message, aircraft: known.length }, 'aircraft upstream failed; serving remembered aircraft');
+            return { ok: true, value: withTrails(known, dependencies.trails, now) };
         });
     });
 }

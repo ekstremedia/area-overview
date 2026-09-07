@@ -27,6 +27,11 @@ function fakeConfig(): ServerConfig {
         shipsCacheTtlMs: 10_000,
         aircraftCacheTtlMs: 10_000,
         cartoApiKey: '',
+        trailsPollSeconds: 30,
+        trailsAreaBbox: '14.4,68.35,16.6,69.05',
+        // Off in tests: a background poller would make real upstream calls
+        // from a suite that otherwise touches no network.
+        trailsEnabled: false,
     };
 }
 
