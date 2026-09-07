@@ -31,10 +31,18 @@ export interface TrailStoreOptions {
 }
 
 export interface TrailStore<T> {
-    /** Folds a poll's worth of records in: appends any new position, drops what has aged out, and forgets vessels long gone. */
+    /** Folds a poll's worth of records in: appends any new position, drops what has aged out (for every vessel, not only those in this poll), and forgets vessels long gone. */
     record(items: readonly T[], now: Date): void;
-    /** The remembered positions for one vessel, oldest first, excluding the one it is reporting now. */
-    trailFor(id: string): TrailPoint[];
+    /**
+     * The remembered positions for one vessel, oldest first, excluding the
+     * one it is reporting now.
+     *
+     * Takes `now` and filters on it rather than trusting what is stored:
+     * during a total upstream outage no poll lands, so nothing ages, and
+     * the outage fallback would otherwise hand out positions from before
+     * the window it promises.
+     */
+    trailFor(id: string, now: Date): TrailPoint[];
     /** Every vessel last seen inside `bbox`, as its most recent full record -- the fallback when an upstream is down. */
     latestIn(bbox: Bbox): T[];
     /** Vessels currently remembered. For logging and tests; not a public API surface. */
@@ -56,6 +64,12 @@ export interface TrailStoreShape<T> {
 export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailStoreOptions): TrailStore<T> {
     const entries = new Map<string, Entry<T>>();
 
+    /** Points still inside the window, measured against wall-clock `nowMs`. */
+    function fresh(points: readonly TrailPoint[], nowMs: number): TrailPoint[] {
+        const cutoffMs = nowMs - options.maxAgeMs;
+        return points.filter((point) => Date.parse(point.at) >= cutoffMs);
+    }
+
     function appendPoint(points: readonly TrailPoint[], next: TrailPoint, nowMs: number): TrailPoint[] {
         const newest = points[points.length - 1];
         // A vessel at a berth reports the same fix every poll, and an
@@ -63,11 +77,10 @@ export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailSto
         // Neither is movement, and stacking them would push the real
         // history out of the cap.
         const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
-        const cutoffMs = nowMs - options.maxAgeMs;
         // Measured against wall-clock time, not against `next.at`: a fix
         // that never advances would otherwise hold its own cutoff still
         // and keep a long-dead trail alive forever.
-        const kept = points.filter((point) => Date.parse(point.at) >= cutoffMs);
+        const kept = fresh(points, nowMs);
         const withNext = isRepeat ? kept : [...kept, next];
         return withNext.length > options.maxPoints ? withNext.slice(withNext.length - options.maxPoints) : withNext;
     }
@@ -97,19 +110,26 @@ export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailSto
         }
 
         for (const [id, entry] of entries) {
-            if (nowMs - entry.lastSeenMs < options.forgetAfterMs) continue;
-            entries.delete(id);
+            if (nowMs - entry.lastSeenMs >= options.forgetAfterMs) {
+                entries.delete(id);
+                continue;
+            }
+            // Ageing must reach vessels that were absent from this poll
+            // too. Their full record is kept until `forgetAfterMs` (the
+            // outage fallback needs it), but their *history* is bounded by
+            // the same window as everyone else's.
+            entry.points = fresh(entry.points, nowMs);
         }
     }
 
     return {
         record,
-        trailFor(id: string): TrailPoint[] {
+        trailFor(id: string, now: Date): TrailPoint[] {
             const entry = entries.get(id);
             if (!entry) return [];
             // Everything but the current position: the caller is already
             // rendering that as the vessel itself.
-            return entry.points.slice(0, -1);
+            return fresh(entry.points, now.getTime()).slice(0, -1);
         },
         latestIn(bbox: Bbox): T[] {
             const inside: T[] = [];

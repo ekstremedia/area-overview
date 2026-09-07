@@ -88,6 +88,57 @@ describe('startTrailPoller', () => {
         stop();
     });
 
+    it('never runs two polls of one source at once, so a slow answer cannot land after a newer one', async () => {
+        vi.useFakeTimers();
+        const logger = quietLogger();
+        let resolveFirst: ((result: Result<void>) => void) | undefined;
+        const poll = vi
+            .fn<() => Promise<Result<void>>>()
+            .mockImplementationOnce(
+                () =>
+                    new Promise<Result<void>>((resolve) => {
+                        resolveFirst = resolve;
+                    }),
+            )
+            .mockResolvedValue(ok(undefined));
+        const stop = startTrailPoller([{ name: 'ships', poll }], { intervalMs: 10_000, logger: asLogger(logger) });
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(poll).toHaveBeenCalledTimes(1);
+
+        // Two ticks pass while the first poll is still hanging.
+        await vi.advanceTimersByTimeAsync(25_000);
+        expect(poll).toHaveBeenCalledTimes(1); // skipped, not queued
+        expect(logger.warn).toHaveBeenCalled();
+
+        // Once it finally answers, the schedule resumes normally.
+        resolveFirst?.(ok(undefined));
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(poll).toHaveBeenCalledTimes(2);
+
+        stop();
+    });
+
+    it('tracks in-flight polls per source, so a hanging upstream never blocks the other', async () => {
+        vi.useFakeTimers();
+        const hanging = vi.fn<() => Promise<Result<void>>>().mockImplementation(() => new Promise<Result<void>>(() => undefined));
+        const healthy = vi.fn<() => Promise<Result<void>>>().mockResolvedValue(ok(undefined));
+        const stop = startTrailPoller(
+            [
+                { name: 'ships', poll: hanging },
+                { name: 'aircraft', poll: healthy },
+            ],
+            { intervalMs: 10_000, logger: asLogger(quietLogger()) },
+        );
+
+        await vi.advanceTimersByTimeAsync(20_000);
+
+        expect(hanging).toHaveBeenCalledTimes(1); // still stuck on its first
+        expect(healthy).toHaveBeenCalledTimes(3); // and unaffected by it
+
+        stop();
+    });
+
     it('stops polling once stopped', async () => {
         vi.useFakeTimers();
         const poll = vi.fn<() => Promise<Result<void>>>().mockResolvedValue(ok(undefined));

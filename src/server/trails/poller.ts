@@ -46,8 +46,22 @@ export function startTrailPoller(sources: readonly TrailPollerSource[], options:
     const now = options.now ?? ((): Date => new Date());
     let stopped = false;
     let timer: ReturnType<typeof setInterval> | undefined;
+    // Per source, so a slow upstream never has two of its own polls in
+    // flight at once: out-of-order completions would record an older
+    // snapshot over a newer one, which in a trail store means history
+    // going backwards. Tracked per source rather than globally so a slow
+    // ships poll never holds up aircraft.
+    const inFlight = new Set<string>();
 
     async function pollOne(source: TrailPollerSource): Promise<void> {
+        if (inFlight.has(source.name)) {
+            // Its previous poll is still running: skip this tick rather
+            // than queue one, since the fresher answer is the one already
+            // on its way.
+            options.logger.warn({ source: source.name }, 'trail poll still in flight; skipping this tick');
+            return;
+        }
+        inFlight.add(source.name);
         try {
             const result = await source.poll(now());
             if (stopped) return; // shutting down; whatever arrived is no longer wanted
@@ -61,6 +75,8 @@ export function startTrailPoller(sources: readonly TrailPollerSource[], options:
             // a bug in that source, but it must still not kill the schedule
             // or the process (an unhandled rejection in a timer would).
             options.logger.error({ source: source.name, err: error }, 'trail poll threw; keeping previous history');
+        } finally {
+            inFlight.delete(source.name);
         }
     }
 

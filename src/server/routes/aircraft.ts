@@ -24,7 +24,7 @@ export interface AircraftRouteDependencies {
 function withTrails(aircraft: readonly Aircraft[], trails: TrailStore<Aircraft>, now: Date): Extract<AircraftResponse, { configured: true }> {
     return {
         configured: true,
-        aircraft: aircraft.map((item) => ({ ...item, trail: trails.trailFor(item.icao) })),
+        aircraft: aircraft.map((item) => ({ ...item, trail: trails.trailFor(item.icao, now) })),
         fetchedAt: now.toISOString(),
     };
 }

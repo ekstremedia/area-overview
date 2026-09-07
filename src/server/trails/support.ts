@@ -66,6 +66,15 @@ export function createTrailSupport(config: ServerConfig): TrailSupport {
         storeOptions,
     );
 
+    // `fetchOpenSky` treats any credentials object as "authenticate", so
+    // an empty pair would send it after a token it cannot get instead of
+    // making the anonymous request. Same construction as the aircraft
+    // route's.
+    const openSkyCredentials =
+        config.openskyClientId !== '' && config.openskyClientSecret !== ''
+            ? { clientId: config.openskyClientId, clientSecret: config.openskyClientSecret }
+            : undefined;
+
     function start(logger: FastifyBaseLogger): () => void {
         if (!config.trailsEnabled) return (): void => undefined;
 
@@ -94,7 +103,7 @@ export function createTrailSupport(config: ServerConfig): TrailSupport {
                 const result = await fetchAircraft(area, {
                     provider: config.adsbProvider,
                     upstreamTimeoutMs: config.upstreamTimeoutMs,
-                    openSkyCredentials: { clientId: config.openskyClientId, clientSecret: config.openskyClientSecret },
+                    openSkyCredentials,
                 });
                 if (!result.ok) return result;
                 aircraft.record(result.value, now);

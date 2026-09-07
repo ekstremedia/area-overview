@@ -27,7 +27,7 @@ export interface ShipsRouteDependencies {
 function withTrails(ships: readonly Ship[], trails: TrailStore<Ship>, now: Date): Extract<ShipsResponse, { configured: true }> {
     return {
         configured: true,
-        ships: ships.map((ship) => ({ ...ship, trail: trails.trailFor(ship.mmsi) })),
+        ships: ships.map((ship) => ({ ...ship, trail: trails.trailFor(ship.mmsi, now) })),
         fetchedAt: now.toISOString(),
     };
 }

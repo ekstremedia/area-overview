@@ -26,7 +26,7 @@
 import type * as Leaflet from 'leaflet';
 import type { GlyphDescriptor } from './glyphs.js';
 import type { TrailPoint as ServerTrailPoint } from '../../../shared/schemas/trail.js';
-import { appendTrailPoint, trailSegments, type TrailPoint } from './trails.js';
+import { ageTrailPoints, appendTrailPoint, trailSegments, type TrailPoint } from './trails.js';
 
 /**
  * ~5 minutes of ship track at the 15s default poll, ~3 of aircraft at 10s.
@@ -195,9 +195,22 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
         }
 
         for (const [id, entry] of entries) {
-            if (nowMs - entry.lastSeen < FORGET_AFTER_MS) continue;
-            clearLines(entry);
-            entries.delete(id);
+            if (nowMs - entry.lastSeen >= FORGET_AFTER_MS) {
+                clearLines(entry);
+                entries.delete(id);
+                continue;
+            }
+
+            // Ageing has to reach entries that were *not* in this update
+            // too -- a glyph clustered away, or one an upstream stopped
+            // reporting, would otherwise keep drawing segments long past
+            // `MAX_AGE_MS` while it waited out the much longer forget
+            // window. Entries that were in this update were already aged
+            // by `appendTrailPoint` and come back identical here.
+            const aged = ageTrailPoints(entry.points, { maxAgeMs: MAX_AGE_MS, now: nowMs });
+            if (aged === entry.points) continue;
+            entry.points = aged;
+            drawTrail(entry);
         }
     }
 

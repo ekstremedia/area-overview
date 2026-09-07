@@ -30,6 +30,21 @@ export interface AppendTrailOptions {
 }
 
 /**
+ * Drops points older than `maxAgeMs`, returning the *same array
+ * reference* when none were.
+ *
+ * Separate from `appendTrailPoint` because ageing has to happen even when
+ * there is nothing to append: a glyph missing from a poll (clustered
+ * away, or an upstream that went quiet) would otherwise keep its history
+ * frozen and keep drawing segments long past the window.
+ */
+export function ageTrailPoints(points: readonly TrailPoint[], options: { maxAgeMs: number; now: number }): TrailPoint[] {
+    const cutoff = options.now - options.maxAgeMs;
+    const kept = points.filter((point) => point.at >= cutoff);
+    return kept.length === points.length ? (points as TrailPoint[]) : kept;
+}
+
+/**
  * Returns `points` with `next` appended, aged-out points dropped and the
  * result capped to `maxPoints` (newest kept). Pure: never mutates its
  * input.
@@ -50,8 +65,7 @@ export interface AppendTrailOptions {
 export function appendTrailPoint(points: readonly TrailPoint[], next: TrailPoint, options: AppendTrailOptions): TrailPoint[] {
     const newest = points[points.length - 1];
     const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
-    const cutoff = options.now - options.maxAgeMs;
-    const kept = points.filter((point) => point.at >= cutoff);
+    const kept = ageTrailPoints(points, { maxAgeMs: options.maxAgeMs, now: options.now });
     // Unchanged only when nothing was appended AND nothing aged out; a
     // simultaneous append and prune leaves the length equal but the
     // contents different, which is why `isRepeat` is part of the test.
