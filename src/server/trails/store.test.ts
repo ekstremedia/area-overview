@@ -111,7 +111,7 @@ describe('createTrailStore', () => {
             T0,
         );
 
-        const inside = store.latestIn({ minLat: 68.0, minLng: 15.0, maxLat: 69.0, maxLng: 16.0 });
+        const inside = store.latestIn({ minLat: 68.0, minLng: 15.0, maxLat: 69.0, maxLng: 16.0 }, T0);
 
         expect(inside.map((v) => v.id)).toEqual(['inside']);
         // The whole record, not just coordinates: the route serves these
@@ -126,7 +126,7 @@ describe('createTrailStore', () => {
         store.record([vessel({ at: 'still not a date', lat: 68.9 })], at(30));
 
         expect(store.trailFor('a', at(30))).toEqual([]);
-        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 })).toHaveLength(1);
+        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 }, at(30))).toHaveLength(1);
     });
 
     it('never hands out points older than the window, even with no poll to age them', () => {
@@ -156,7 +156,7 @@ describe('createTrailStore', () => {
         expect(store.trailFor('a', at(200))).toEqual([]);
         // ...but the vessel itself is still servable until the much longer
         // forget window, which is what the outage fallback depends on.
-        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 })).toHaveLength(1);
+        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 }, at(200))).toHaveLength(1);
     });
 
     it('refuses a fix that is already older than the window, while still remembering the vessel', () => {
@@ -169,7 +169,36 @@ describe('createTrailStore', () => {
         store.record([vessel({ lat: 68.8, at: '2026-09-07T11:00:00.000Z' })], at(30));
 
         expect(store.trailFor('a', at(30))).toEqual([]);
-        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 })).toHaveLength(1);
+        expect(store.latestIn({ minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 }, at(30))).toHaveLength(1);
+    });
+
+    it('takes a fresh fix at the same spot once the earlier one has expired, so the next move can be drawn', () => {
+        const store = createTrailStore(SHAPE, OPTIONS);
+
+        store.record([vessel({ lat: 68.7, at: '2026-09-07T12:00:00.000Z' })], T0);
+        // Long enough that the first point has aged out; the vessel has
+        // not moved, so upstream reports the same spot with a fresh stamp.
+        store.record([vessel({ lat: 68.7, at: '2026-09-07T12:03:00.000Z' })], at(180));
+        // Then it moves.
+        store.record([vessel({ lat: 68.8, at: '2026-09-07T12:03:30.000Z' })], at(210));
+
+        // One prior point survives to draw that movement from -- judging
+        // the repeat against the expired point would have left none.
+        expect(store.trailFor('a', at(210))).toHaveLength(1);
+    });
+
+    it('stops serving a vessel past the forget window even when no poll has landed to clean up', () => {
+        const store = createTrailStore(SHAPE, OPTIONS);
+
+        store.record([vessel()], T0);
+        const bbox = { minLat: 68, minLng: 15, maxLat: 69, maxLng: 16 };
+        expect(store.latestIn(bbox, at(30))).toHaveLength(1);
+
+        // A total outage: every poll fails, so `record` never runs and
+        // nothing is ever forgotten in the background. The read itself has
+        // to hold the promise, or the routes' fallback would serve a
+        // vessel hours after the store said it had dropped it.
+        expect(store.latestIn(bbox, at(400))).toEqual([]);
     });
 
     it('tracks each vessel separately', () => {

@@ -116,6 +116,23 @@ describe('appendTrailPoint -- a fix that arrives already stale', () => {
     });
 });
 
+describe('appendTrailPoint -- after a vessel has sat still', () => {
+    it('takes a fresh fix at the same spot once the earlier one has expired, so the next move can be drawn', () => {
+        // A vessel stationary long enough for its only point to age out.
+        // Judging "is this a repeat?" against the expired point would
+        // reject the fresh fix and leave nothing behind, so the next
+        // movement would have no prior point to draw a segment from.
+        const stale = [point(68.1, 1_000)];
+
+        const refreshed = appendTrailPoint(stale, point(68.1, 100_000), opts(100_000));
+        expect(refreshed.map((p) => p.at)).toEqual([100_000]);
+
+        const moved = appendTrailPoint(refreshed, point(68.2, 110_000), opts(110_000));
+        expect(moved.map((p) => p.at)).toEqual([100_000, 110_000]);
+        expect(trailSegments(moved, { newestOpacity: 0.6, oldestOpacity: 0.1 })).toHaveLength(1);
+    });
+});
+
 describe('trailSegments', () => {
     const fade = { newestOpacity: 0.6, oldestOpacity: 0.1 };
 

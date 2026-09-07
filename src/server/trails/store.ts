@@ -43,8 +43,16 @@ export interface TrailStore<T> {
      * the window it promises.
      */
     trailFor(id: string, now: Date): TrailPoint[];
-    /** Every vessel last seen inside `bbox`, as its most recent full record -- the fallback when an upstream is down. */
-    latestIn(bbox: Bbox): T[];
+    /**
+     * Every vessel last seen inside `bbox`, as its most recent full record
+     * -- the fallback when an upstream is down.
+     *
+     * Takes `now` for the same reason `trailFor` does: `record` is what
+     * forgets vessels, and during a total outage no poll lands, so nothing
+     * would ever be forgotten. Without this the fallback could keep
+     * serving a vessel hours after the store promised to have dropped it.
+     */
+    latestIn(bbox: Bbox, now: Date): T[];
     /** Vessels currently remembered. For logging and tests; not a public API surface. */
     size(): number;
 }
@@ -71,16 +79,19 @@ export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailSto
     }
 
     function appendPoint(points: readonly TrailPoint[], next: TrailPoint, nowMs: number): TrailPoint[] {
-        const newest = points[points.length - 1];
-        // A vessel at a berth reports the same fix every poll, and an
-        // upstream that has heard nothing new re-serves the previous one.
-        // Neither is movement, and stacking them would push the real
-        // history out of the cap.
-        const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
         // Measured against wall-clock time, not against `next.at`: a fix
         // that never advances would otherwise hold its own cutoff still
         // and keep a long-dead trail alive forever.
         const kept = fresh(points, nowMs);
+        // A vessel at a berth reports the same fix every poll, and an
+        // upstream that has heard nothing new re-serves the previous one.
+        // Neither is movement, and stacking them would push the real
+        // history out of the cap. Judged against what survived ageing: a
+        // vessel stationary long enough for its only point to expire would
+        // otherwise have the fresh fix rejected as a repeat of the expired
+        // one, leaving nothing for its next movement to draw from.
+        const newest = kept[kept.length - 1];
+        const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
         // And a fix can arrive already older than the window -- upstream
         // re-serves positions hours old. Appending one would place a point
         // outside the window at the newest end, where ageing never looks
@@ -136,9 +147,11 @@ export function createTrailStore<T>(shape: TrailStoreShape<T>, options: TrailSto
             // rendering that as the vessel itself.
             return fresh(entry.points, now.getTime()).slice(0, -1);
         },
-        latestIn(bbox: Bbox): T[] {
+        latestIn(bbox: Bbox, now: Date): T[] {
+            const nowMs = now.getTime();
             const inside: T[] = [];
             for (const entry of entries.values()) {
+                if (nowMs - entry.lastSeenMs >= options.forgetAfterMs) continue;
                 const { lat, lng } = shape.positionOf(entry.latest);
                 if (lat < bbox.minLat || lat > bbox.maxLat || lng < bbox.minLng || lng > bbox.maxLng) continue;
                 inside.push(entry.latest);

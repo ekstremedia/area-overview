@@ -85,7 +85,7 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig, 
             // its own fix timestamp, and the map fades and accounts for
             // stale vessels itself. An empty store means there is genuinely
             // nothing to say, so the error stands.
-            const known = dependencies.trails.latestIn(bbox);
+            const known = dependencies.trails.latestIn(bbox, now);
             if (known.length === 0) return result;
             request.log.warn({ reason: result.error.message, ships: known.length }, 'ships upstream failed; serving remembered vessels');
             return { ok: true, value: withTrails(known, dependencies.trails, now) };

@@ -75,7 +75,7 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
             // blank layer.
             if (cache.get(bboxCacheKey(bbox))) return result;
 
-            const known = dependencies.trails.latestIn(bbox);
+            const known = dependencies.trails.latestIn(bbox, now);
             if (known.length === 0) return result;
             request.log.warn({ reason: result.error.message, aircraft: known.length }, 'aircraft upstream failed; serving remembered aircraft');
             return { ok: true, value: withTrails(known, dependencies.trails, now) };

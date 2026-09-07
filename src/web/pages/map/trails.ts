@@ -63,9 +63,13 @@ export function ageTrailPoints(points: readonly TrailPoint[], options: { maxAgeM
  * report no change while the drawn trail had in fact grown stale.
  */
 export function appendTrailPoint(points: readonly TrailPoint[], next: TrailPoint, options: AppendTrailOptions): TrailPoint[] {
-    const newest = points[points.length - 1];
-    const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
     const kept = ageTrailPoints(points, { maxAgeMs: options.maxAgeMs, now: options.now });
+    // Judged against what survived ageing, not against `points`: a vessel
+    // that sat still long enough for its only point to expire would
+    // otherwise have the fresh fix rejected as a "repeat" of the expired
+    // one, leaving nothing for its next movement to draw a segment from.
+    const newest = kept[kept.length - 1];
+    const isRepeat = newest !== undefined && ((newest.lat === next.lat && newest.lng === next.lng) || newest.at === next.at);
     // A fix can arrive already older than the window: the layers above age
     // vessels on their own, looser thresholds (ships tolerate 30 minutes,
     // this trail keeps 15), so a vessel still worth drawing can report a
