@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import adsbLolFixture from './fixtures/adsb-lol-live.json' with { type: 'json' };
-import { bboxToCenterRadius, fetchAircraft, mapOpenSkyStatesToAircraft, mapRawV2AircraftToAircraft } from './provider.js';
+import { bboxToCenterRadius, fetchAircraft, mapOpenSkyStatesToAircraft, mapRawV2AircraftToAircraft, mergeAircraft } from './provider.js';
+import type { Aircraft } from '../../shared/schemas/aircraft.js';
 import type { Bbox } from '../layers/bbox.js';
 
 const NOW = new Date('2026-09-05T12:00:00.000Z');
@@ -339,5 +340,39 @@ describe('fetchAircraft -- bounded timeouts on every upstream request', () => {
         expect(result.ok).toBe(false);
         // The hang was on the token request, never reaching the states request.
         expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('mergeAircraft', () => {
+    function aircraft(icao: string, timestamp: string, lat = 68.7): Aircraft {
+        return { icao, callsign: icao, lat, lng: 15.4, altitudeFt: 10000, groundSpeedKt: 200, track: 90, timestamp, trail: [] };
+    }
+
+    it('takes the union, since neither network is a superset of the other', () => {
+        // Measured over Sortland: the ADS-B aggregators had one airliner
+        // 45km away, OpenSky had a Widerøe flight overhead. Both belong.
+        const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], [aircraft('bbb', '2026-09-07T16:00:00Z')]);
+
+        expect(merged.map((a) => a.icao).sort()).toEqual(['aaa', 'bbb']);
+    });
+
+    it('keeps the fresher fix when both networks have the same aircraft', () => {
+        const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z', 68.1)], [aircraft('aaa', '2026-09-07T16:00:30Z', 68.9)]);
+
+        expect(merged).toHaveLength(1);
+        expect(merged[0]?.lat).toBe(68.9);
+    });
+
+    it('keeps the primary when it is the fresher of the two', () => {
+        const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:30Z', 68.9)], [aircraft('aaa', '2026-09-07T16:00:00Z', 68.1)]);
+
+        expect(merged).toHaveLength(1);
+        expect(merged[0]?.lat).toBe(68.9);
+    });
+
+    it('handles either side being empty', () => {
+        expect(mergeAircraft([], [])).toEqual([]);
+        expect(mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], [])).toHaveLength(1);
+        expect(mergeAircraft([], [aircraft('bbb', '2026-09-07T16:00:00Z')])).toHaveLength(1);
     });
 });

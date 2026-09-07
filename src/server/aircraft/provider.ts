@@ -23,6 +23,7 @@
 import { z } from 'zod';
 import { AircraftSchema, type Aircraft } from '../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../shared/result.js';
+import { TtlCache } from '../cache.js';
 import type { Bbox } from '../layers/bbox.js';
 
 export type AdsbProvider = 'adsblol' | 'airplaneslive' | 'adsbfi' | 'opensky';
@@ -389,11 +390,77 @@ export interface FetchAircraftOptions {
     fetchImpl?: typeof fetch;
 }
 
+/**
+ * How long an OpenSky answer is reused before asking again.
+ *
+ * OpenSky is quota-metered (~4000 requests a day on a registered account)
+ * while the ADS-B aggregators are not, and this app's aircraft layer polls
+ * every 10s from the browser *and* every 30s from the trail poller. Left
+ * ungoverned that is ~11k OpenSky calls a day, several times the
+ * allowance. Throttling here rather than at each call site is deliberate:
+ * the quota belongs to the account, not to whichever part of the server
+ * happens to be asking, so one shared gate is the only thing that can
+ * actually hold the total down.
+ */
+const OPENSKY_MIN_INTERVAL_MS = 45_000;
+
+/** Keyed by rounded bbox, so the viewport route and the fixed-area poller don't evict each other. */
+const openSkyCache = new TtlCache<Aircraft[]>(OPENSKY_MIN_INTERVAL_MS, { maxEntries: 8 });
+
+function openSkyCacheKey(bbox: Bbox): string {
+    return [bbox.minLat, bbox.minLng, bbox.maxLat, bbox.maxLng].map((value) => value.toFixed(2)).join(',');
+}
+
+/**
+ * Merges a secondary source into the primary's results, keyed by ICAO
+ * address. Where both networks have an aircraft the fresher fix wins;
+ * where only one does, it is added.
+ *
+ * This exists because the networks genuinely differ: measured over
+ * Sortland, adsb.fi and adsb.lol both had only a single airliner 45km
+ * away while OpenSky had a Widerøe flight at 9,500ft directly overhead.
+ * Neither is a superset of the other, so the union is the only honest
+ * answer to "what is up there".
+ */
+export function mergeAircraft(primary: readonly Aircraft[], secondary: readonly Aircraft[]): Aircraft[] {
+    const byIcao = new Map<string, Aircraft>();
+    for (const aircraft of [...primary, ...secondary]) {
+        const existing = byIcao.get(aircraft.icao);
+        if (!existing || Date.parse(aircraft.timestamp) > Date.parse(existing.timestamp)) {
+            byIcao.set(aircraft.icao, aircraft);
+        }
+    }
+    return [...byIcao.values()];
+}
+
 /** Dispatches to the configured ADS-B provider and returns aircraft mapped onto the shared `Aircraft` shape, already filtered to `bbox`. */
 export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<Aircraft[]>> {
     const fetchImpl = options.fetchImpl ?? fetch;
     if (options.provider === 'opensky') {
         return fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
     }
-    return fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
+
+    const primary = await fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
+
+    // OpenSky only augments when credentials are configured: anonymous
+    // access is capped near 400 requests a day, far too little to be worth
+    // spending on a second opinion.
+    if (!options.openSkyCredentials) return primary;
+
+    let secondary: Aircraft[];
+    try {
+        secondary = await openSkyCache.getOrLoad(openSkyCacheKey(bbox), async () => {
+            const result = await fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
+            if (!result.ok) throw new Error(result.error.message);
+            return result.value;
+        });
+    } catch {
+        // The augmentation is best-effort by design: OpenSky being down,
+        // rate-limited or slow must never take out a primary response that
+        // already succeeded.
+        return primary;
+    }
+
+    if (!primary.ok) return secondary.length > 0 ? ok(secondary) : primary;
+    return ok(mergeAircraft(primary.value, secondary));
 }
