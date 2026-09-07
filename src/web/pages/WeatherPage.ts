@@ -8,12 +8,18 @@
  * fetch elsewhere can never affect this page, and vice versa.
  */
 import { err, ok, type Result } from '../../shared/result.js';
-import { WeatherSchema, WeatherSummaryResponseSchema, type Weather, type WeatherSummaryResponse } from '../../shared/schemas/weather.js';
+import {
+    WeatherSchema,
+    WeatherSummaryResponseSchema,
+    type DailyForecastEntry,
+    type Weather,
+    type WeatherSummaryResponse,
+} from '../../shared/schemas/weather.js';
 import { errorBand } from '../components/ErrorBand.js';
 import { statCard } from '../components/StatCard.js';
 import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
-import { formatNumber, formatRelative, formatTime, t } from '../i18n/index.js';
+import { formatNumber, formatRelative, formatShortDate, formatTime, formatWeekday, t, type ParamlessKey } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
 import { pageAttribution, pageFreshness } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
@@ -22,7 +28,21 @@ import './weather.css';
 
 const WEATHER_POLL_INTERVAL_MS = 30_000;
 const SUMMARY_POLL_INTERVAL_MS = 30_000;
-const FORECAST_HOURS_SHOWN = 8;
+// 12 columns still reads comfortably at the 1024x600 kiosk size (verified
+// with a real screenshot -- see WeatherPage.test.ts/PR description); more
+// than that started crowding the new per-column icon.
+const FORECAST_HOURS_SHOWN = 12;
+// Yr's own UI shows about five days at a glance; the fixture has ten,
+// but five is what fits legibly alongside the hourly strip on a 600px-tall
+// kiosk screen without either section needing to scroll.
+const FORECAST_DAYS_SHOWN = 5;
+
+const PERIOD_LABEL_KEYS: Record<'night' | 'morning' | 'afternoon' | 'evening', ParamlessKey> = {
+    night: 'weather.periodNight',
+    morning: 'weather.periodMorning',
+    afternoon: 'weather.periodAfternoon',
+    evening: 'weather.periodEvening',
+};
 
 async function fetchWeather(): Promise<Result<Weather>> {
     try {
@@ -81,12 +101,17 @@ function buildLeftColumn(weather: Weather): HTMLElement {
         }),
     );
 
+    // 'sm', not this page's original 'md': a single row of four compact
+    // cards (see weather.css's `.weather-stats`) instead of a 2x2 grid,
+    // freeing the vertical room the new hourly/daily forecast sections
+    // below need on the 1024x600 kiosk (measured against a real render --
+    // see the PR description for the numbers).
     const stats = document.createElement('div');
     stats.className = 'weather-stats';
     stats.append(
-        statCard({ label: t('weather.wind'), value: formatNumber(weather.current.wind.speed), unit: t('unit.metersPerSecond'), size: 'md' }),
-        statCard({ label: t('weather.humidity'), value: formatNumber(weather.current.humidity.value), unit: t('unit.percent'), size: 'md' }),
-        statCard({ label: t('weather.pressure'), value: formatNumber(weather.current.pressure.value), unit: t('unit.hectopascal'), size: 'md' }),
+        statCard({ label: t('weather.wind'), value: formatNumber(weather.current.wind.speed), unit: t('unit.metersPerSecond'), size: 'sm' }),
+        statCard({ label: t('weather.humidity'), value: formatNumber(weather.current.humidity.value), unit: t('unit.percent'), size: 'sm' }),
+        statCard({ label: t('weather.pressure'), value: formatNumber(weather.current.pressure.value), unit: t('unit.hectopascal'), size: 'sm' }),
     );
     // Rain data comes from the Netatmo rain gauge module specifically --
     // absent (not zero) when the station is offline. Following the same
@@ -98,7 +123,7 @@ function buildLeftColumn(weather: Weather): HTMLElement {
                 label: t('weather.precipitation'),
                 value: formatNumber(weather.current.rain.last_hour),
                 unit: t('unit.millimeters'),
-                size: 'md',
+                size: 'sm',
             }),
         );
     }
@@ -135,11 +160,6 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     const strip = document.createElement('div');
     strip.className = 'weather-forecast';
 
-    const label = document.createElement('div');
-    label.className = 'weather-forecast-label';
-    label.textContent = t('weather.forecastLabel');
-    strip.append(label);
-
     const firstUpcoming = weather.forecast.hourly.findIndex((entry) => new Date(entry.time).getTime() >= now.getTime() - 30 * 60_000);
     // Anchor on the first not-yet-elapsed hour, but never render a short
     // strip: as the series runs out, slide the window back so the strip
@@ -147,10 +167,10 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     const start = firstUpcoming === -1 ? 0 : Math.min(firstUpcoming, Math.max(0, weather.forecast.hourly.length - FORECAST_HOURS_SHOWN));
     const shown = weather.forecast.hourly.slice(start, start + FORECAST_HOURS_SHOWN);
 
-    const temps = shown.map((entry) => entry.temperature);
-    const minTemp = Math.min(...temps);
-    const maxTemp = Math.max(...temps);
-    const span = maxTemp - minTemp || 1;
+    const label = document.createElement('div');
+    label.className = 'weather-forecast-label';
+    label.textContent = t('weather.forecastLabel', { hours: shown.length });
+    strip.append(label);
 
     const currentHour = now.getHours();
     let currentIndex = shown.findIndex((entry) => new Date(entry.time).getHours() === currentHour);
@@ -161,30 +181,130 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     shown.forEach((entry, index) => {
         const column = document.createElement('div');
         column.className = 'weather-forecast-column';
+        column.classList.toggle('weather-forecast-column--current', index === currentIndex);
 
-        const barTrack = document.createElement('div');
-        barTrack.className = 'weather-forecast-bar-track';
-        const bar = document.createElement('div');
-        bar.className = 'weather-forecast-bar';
-        bar.classList.toggle('weather-forecast-bar--current', index === currentIndex);
-        const heightPercent = 30 + ((entry.temperature - minTemp) / span) * 70;
-        bar.style.height = `${String(heightPercent)}%`;
-        barTrack.append(bar);
+        // Icon beside a small hour-over-temperature stack, not below it --
+        // a row uses the kiosk's spare *width* instead of its scarce
+        // *height* (see weather.css's file-header comment) to fit both this
+        // strip and the daily section below without overlapping either.
+        if (entry.symbol_url) {
+            const icon = document.createElement('img');
+            icon.className = 'weather-forecast-icon';
+            icon.loading = 'lazy';
+            icon.src = entry.symbol_url;
+            icon.alt = humanizeSymbolCode(entry.symbol_code);
+            column.append(icon);
+        }
 
-        const tempLabel = document.createElement('div');
-        tempLabel.className = 'weather-forecast-temp';
-        tempLabel.textContent = `${formatNumber(Math.round(entry.temperature))}°`;
-
+        const meta = document.createElement('div');
+        meta.className = 'weather-forecast-meta';
         const hourLabel = document.createElement('div');
         hourLabel.className = 'weather-forecast-hour';
         hourLabel.textContent = formatTime(new Date(entry.time)).slice(0, 2);
+        const tempLabel = document.createElement('div');
+        tempLabel.className = 'weather-forecast-temp';
+        tempLabel.textContent = `${formatNumber(Math.round(entry.temperature))}°`;
+        meta.append(hourLabel, tempLabel);
+        column.append(meta);
 
-        column.append(barTrack, tempLabel, hourLabel);
         columns.append(column);
     });
     strip.append(columns);
 
     return strip;
+}
+
+function buildDailyDayColumn(entry: DailyForecastEntry): HTMLElement {
+    const column = document.createElement('div');
+    column.className = 'weather-daily-day';
+
+    // Icon beside a stacked weekday/temps/periods block, not above it --
+    // same width-over-height trade as the hourly strip's columns (see
+    // weather.css's file-header comment).
+    if (entry.symbol_url) {
+        const icon = document.createElement('img');
+        icon.className = 'weather-daily-icon';
+        icon.loading = 'lazy';
+        icon.src = entry.symbol_url;
+        icon.alt = entry.symbol_code ? humanizeSymbolCode(entry.symbol_code) : '';
+        column.append(icon);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'weather-daily-meta';
+
+    const weekday = document.createElement('div');
+    weekday.className = 'weather-daily-weekday';
+    const date = new Date(entry.date);
+    // Weekday and short date share one line -- vertical room is the scarce
+    // resource on the 1024x600 kiosk once an hourly strip *and* a daily
+    // section both need to fit under the current-conditions block.
+    weekday.textContent = `${capitalize(formatWeekday(date))} ${formatShortDate(date)}`;
+    meta.append(weekday);
+
+    // Hide the pair only when BOTH are absent -- one present figure is
+    // still meaningful, not "broken text", the way a lone dash would read.
+    if (typeof entry.temperature_max === 'number' || typeof entry.temperature_min === 'number') {
+        const temps = document.createElement('div');
+        temps.className = 'weather-daily-temps';
+        if (typeof entry.temperature_max === 'number') {
+            const high = document.createElement('span');
+            high.className = 'weather-daily-high';
+            high.textContent = `${formatNumber(Math.round(entry.temperature_max))}°`;
+            temps.append(high);
+        }
+        if (typeof entry.temperature_min === 'number') {
+            const low = document.createElement('span');
+            low.className = 'weather-daily-low';
+            low.textContent = `${formatNumber(Math.round(entry.temperature_min))}°`;
+            temps.append(low);
+        }
+        meta.append(temps);
+    }
+
+    if (entry.periods) {
+        const { periods } = entry;
+        const periodsRow = document.createElement('div');
+        periodsRow.className = 'weather-daily-periods';
+        (['night', 'morning', 'afternoon', 'evening'] as const).forEach((key) => {
+            const period = periods[key];
+            if (!period.symbol_url) return;
+            const icon = document.createElement('img');
+            icon.className = 'weather-daily-period-icon';
+            icon.loading = 'lazy';
+            icon.src = period.symbol_url;
+            icon.alt = t('weather.periodCondition', {
+                period: t(PERIOD_LABEL_KEYS[key]),
+                condition: period.symbol_code ? humanizeSymbolCode(period.symbol_code) : '',
+            });
+            periodsRow.append(icon);
+        });
+        meta.append(periodsRow);
+    }
+
+    column.append(meta);
+    return column;
+}
+
+function buildDailyForecast(weather: Weather): HTMLElement {
+    const shown = weather.forecast.daily.slice(0, FORECAST_DAYS_SHOWN);
+
+    const section = document.createElement('div');
+    section.className = 'weather-daily';
+
+    const label = document.createElement('div');
+    label.className = 'weather-daily-label';
+    label.textContent = t('weather.dailyLabel', { days: shown.length });
+    section.append(label);
+
+    const list = document.createElement('div');
+    list.className = 'weather-daily-list';
+    shown.forEach((entry) => {
+        list.append(buildDailyDayColumn(entry));
+    });
+    section.append(list);
+
+    return section;
 }
 
 export function render(container: HTMLElement): () => void {
@@ -200,8 +320,9 @@ export function render(container: HTMLElement): () => void {
     columns.append(left, right);
 
     const forecastSlot = document.createElement('div');
+    const dailySlot = document.createElement('div');
 
-    wrapper.append(errorSlot, columns, forecastSlot);
+    wrapper.append(errorSlot, columns, forecastSlot, dailySlot);
     container.append(wrapper);
 
     const weatherResource = resource(fetchWeather, { intervalMs: WEATHER_POLL_INTERVAL_MS });
@@ -222,9 +343,11 @@ export function render(container: HTMLElement): () => void {
 
         left.innerHTML = '';
         forecastSlot.innerHTML = '';
+        dailySlot.innerHTML = '';
         if (data) {
             left.append(buildLeftColumn(data));
             forecastSlot.append(buildForecastStrip(data, new Date()));
+            dailySlot.append(buildDailyForecast(data));
         }
     });
 

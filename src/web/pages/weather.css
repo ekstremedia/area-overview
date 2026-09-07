@@ -1,15 +1,23 @@
 /**
  * The weather page (artboard 02): a fixed-ish left column (400px at the
  * designed 1024px width, shrinking fluidly at the 800x480 worst case) and
- * a flexible right column, with the Yr strip anchored to the bottom of
- * the page.
+ * a flexible right column, with the Yr hourly strip and a daily forecast
+ * section stacked below, anchored to the bottom of the page.
+ *
+ * The 1024x600 kiosk height is the scarce resource here, not width: the
+ * current-conditions column's own content (the big temperature numeral is
+ * a deliberate design size, `--stat-size-xl` -- see `tokens.css`) already
+ * uses most of the page's vertical budget, so every margin/gap below is
+ * deliberately tighter than this app's usual page rhythm (measured against
+ * a real 1024x600 render, not guessed) to leave room for both forecast
+ * sections without any of the three stacked blocks overlapping.
  */
 .weather-page {
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    gap: var(--space-4);
+    gap: var(--space-1);
 }
 
 .weather-columns {
@@ -22,6 +30,7 @@
 
 .weather-outdoor-label {
     font-size: 11px;
+    line-height: 1.2;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--color-accent);
@@ -33,21 +42,22 @@
     font-size: clamp(72px, 14vw, var(--stat-size-xl));
     line-height: 0.82;
     letter-spacing: -0.05em;
-    margin: 14px 0 0 -4px;
+    margin: 6px 0 0 -4px;
 }
 
 .weather-condition {
     font-style: italic;
     font-size: clamp(18px, 2.6vw, 27px);
+    line-height: 1.2;
     color: var(--color-text);
-    margin-top: 10px;
+    margin-top: 4px;
 }
 
 .weather-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 26px 20px;
-    margin-top: clamp(var(--space-4), 4vh, 38px);
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-1) var(--space-2);
+    margin-top: var(--space-1);
 }
 
 .weather-right {
@@ -81,47 +91,112 @@
     font-size: clamp(17px, 2.4vw, 25px);
     line-height: 1.45;
     color: var(--color-text);
-    margin-top: 14px;
+    margin-top: 10px;
 }
 
-.weather-forecast-label {
+.weather-forecast-label,
+.weather-daily-label {
     font-size: 11px;
+    line-height: 1.2;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--color-muted);
-    margin-bottom: 18px;
+    margin-bottom: 4px;
 }
 
 .weather-forecast-columns {
     display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 12px;
-    align-items: end;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 6px;
 }
 
-.weather-forecast-bar-track {
-    height: 44px;
+.weather-forecast-column {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
+    gap: 4px;
 }
 
-.weather-forecast-bar {
-    width: 100%;
-    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+.weather-forecast-hour {
+    font-size: 11px;
+    line-height: 1.2;
+    color: var(--color-muted);
 }
 
-.weather-forecast-bar--current {
-    background: var(--color-accent);
+.weather-forecast-icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    flex: none;
 }
 
 .weather-forecast-temp {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
-    font-size: clamp(18px, 2.6vw, 26px);
-    margin-top: 10px;
+    font-size: 15px;
+    line-height: 1.2;
 }
 
-.weather-forecast-hour {
-    font-size: 13px;
+.weather-forecast-column--current .weather-forecast-hour,
+.weather-forecast-column--current .weather-forecast-temp {
+    color: var(--color-accent);
+}
+
+.weather-daily {
+    border-top: var(--masthead-rule-thin) solid var(--color-divider);
+    padding-top: 3px;
+}
+
+.weather-daily-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.weather-daily-day {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.weather-daily-icon {
+    display: block;
+    width: 26px;
+    height: 26px;
+    flex: none;
+}
+
+.weather-daily-meta {
+    min-width: 0;
+}
+
+.weather-daily-weekday {
+    font-size: 12px;
+    line-height: 1.2;
     color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.weather-daily-temps {
+    display: flex;
+    gap: 6px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.weather-daily-low {
+    color: var(--color-muted);
+}
+
+.weather-daily-periods {
+    display: flex;
+    gap: 2px;
+    margin-top: 1px;
+}
+
+.weather-daily-period-icon {
+    display: block;
+    width: 14px;
+    height: 14px;
 }
