@@ -59,7 +59,7 @@ Peripherals Inc / MPI7002`) but reports "DDC communication failed", and
   type for a wall. Only bump to `1.25` if it reads too small on the real
   panel, and update `start-kiosk.sh` (and this line) if you do.
 
-## External hosts allowed through the Chromium policy
+## External URLs allowed through the Chromium policy
 
 - `basemaps.cartocdn.com` (dark theme, CARTO `dark_all`, `{s}` subdomain
   placeholder -- Leaflet's default subdomains are `a`/`b`/`c`, all covered
@@ -68,15 +68,15 @@ Peripherals Inc / MPI7002`) but reports "DDC communication failed", and
   Checked directly in `src/web/pages/map/tiles.ts` (the only file allowed
   to reference a tile URL) rather than assumed.
 - `tile.openstreetmap.org` (light theme map tiles).
-- `nesthus.no` (not `area.nesthus.no`, a different host) -- the weather
-  page's hourly/daily forecast icons are hotlinked directly from
-  `https://nesthus.no/vendor/laravel-yr/symbols/*.svg` (`WeatherPage.ts`,
-  the real Yr/MET Norway symbol URLs the BFF's `/api/weather` response
-  already carries per entry), the same pattern the aurora page already
-  used for its NOAA OVATION image before the kiosk existed. Without this
-  host in the allowlist the icons silently fail to load only in the kiosk
-  context -- everything else still renders, so this is easy to miss
-  without checking the policy against the actual page code.
+- `https://.nesthus.no/vendor/laravel-yr/symbols/` -- the leading dot makes
+  `nesthus.no` an exact host match (excluding subdomains), while the scheme
+  and path limit access to HTTPS weather icons under that directory. The
+  weather page's hourly/daily forecast icons are hotlinked from this path
+  (`WeatherPage.ts`, via the real Yr/MET Norway symbol URLs carried in the
+  BFF's `/api/weather` response). Without this rule the icons silently fail
+  to load only in the kiosk context -- everything else still renders, so
+  this is easy to miss without checking the policy against the actual page
+  code.
 
 `src/web/index.html` self-hosts its one font (`Source Serif 4`, woff2, no
 external font CDN), so no font host needed for that. Everything else
@@ -93,10 +93,11 @@ defines Chromium's behavior:
   This ensures the kiosk always opens `https://area.nesthus.no/` rather than
   whatever was last viewed.
 - `URLAllowlist` — only allows navigation to `area.nesthus.no` (the app
-  itself, served through Apache), `nesthus.no` (weather forecast icons,
-  a different host than `area.nesthus.no`), `basemaps.cartocdn.com` (map
-  tiles), and `tile.openstreetmap.org` (alternate map tiles). All other
-  URLs are blocked by the `URLBlocklist: ["*"]` catchall.
+  itself, served through Apache), the exact-host, HTTPS-only
+  `https://.nesthus.no/vendor/laravel-yr/symbols/` path prefix (weather
+  forecast icons), `basemaps.cartocdn.com` (map tiles), and
+  `tile.openstreetmap.org` (alternate map tiles). All other URLs are blocked
+  by the `URLBlocklist: ["*"]` catchall.
 - `IncognitoModeAvailability: 1` — Disabled (integer enum; a string value
   would be silently ignored). `DeveloperToolsAvailability: 2` — Disabled.
   `PasswordManagerEnabled: false`, `BrowserAddPersonEnabled: false`,
