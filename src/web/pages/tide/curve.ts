@@ -101,20 +101,6 @@ export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extreme
     predictionLine.style.vectorEffect = 'non-scaling-stroke';
     svg.append(predictionLine);
 
-    // — extremes: a small marker at each predicted high/low, wherever it
-    // falls within the drawn time window. —
-    for (const extreme of extremes) {
-        const time = new Date(extreme.time).getTime();
-        if (time < domainStart || time > domainEnd) continue;
-        const marker = svgEl('circle');
-        marker.setAttribute('cx', String(timeScale(time)));
-        marker.setAttribute('cy', String(valueScale(extreme.value)));
-        marker.setAttribute('r', '3');
-        marker.setAttribute('class', 'tide-curve-extreme');
-        marker.style.fill = 'var(--color-text)';
-        svg.append(marker);
-    }
-
     // — now: a vertical marker, clamped onto the chart even if `now` falls
     // just outside the drawn window (e.g. a slow poll after midnight). —
     const nowX = timeScale(now.getTime());
