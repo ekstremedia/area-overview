@@ -23,7 +23,6 @@
 import { z } from 'zod';
 import { AircraftSchema, type Aircraft } from '../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../shared/result.js';
-import { TtlCache } from '../cache.js';
 import type { Bbox } from '../layers/bbox.js';
 
 export type AdsbProvider = 'adsblol' | 'airplaneslive' | 'adsbfi' | 'opensky';
@@ -391,24 +390,128 @@ export interface FetchAircraftOptions {
 }
 
 /**
- * How long an OpenSky answer is reused before asking again.
+ * How long an OpenSky answer is reused before asking again, and how much
+ * bigger than the caller's viewport each request is made.
  *
  * OpenSky is quota-metered (~4000 requests a day on a registered account)
- * while the ADS-B aggregators are not, and this app's aircraft layer polls
- * every 10s from the browser *and* every 30s from the trail poller. Left
- * ungoverned that is ~11k OpenSky calls a day, several times the
- * allowance. Throttling here rather than at each call site is deliberate:
- * the quota belongs to the account, not to whichever part of the server
- * happens to be asking, so one shared gate is the only thing that can
- * actually hold the total down.
+ * while the ADS-B aggregators are not, and this app asks from two places
+ * at once: the browser polls its viewport every 10s and the trail poller
+ * sweeps a fixed area every 30s, with every pan producing another
+ * rectangle. Left ungoverned that is tens of thousands of calls a day.
+ *
+ * So the gate is a single account-wide slot rather than a per-viewport
+ * cache: the quota belongs to the account, not to whichever rectangle
+ * happens to be asking, and only one shared limiter can actually hold the
+ * total down. One request every 45s is ~1900 a day, comfortably inside
+ * the allowance no matter how many boxes are in play.
+ *
+ * Each request covers the asked-for area plus `OPENSKY_MARGIN_DEGREES` on
+ * every side, so an ordinary pan still lands inside what was already
+ * fetched and is answered without spending another call.
  */
 const OPENSKY_MIN_INTERVAL_MS = 45_000;
+const OPENSKY_MARGIN_DEGREES = 0.6;
 
-/** Keyed by rounded bbox, so the viewport route and the fixed-area poller don't evict each other. */
-const openSkyCache = new TtlCache<Aircraft[]>(OPENSKY_MIN_INTERVAL_MS, { maxEntries: 8 });
+/**
+ * The one OpenSky answer in hand, and the area it actually covers.
+ *
+ * Kept as a single slot, not a map keyed by viewport: a cached answer is
+ * only usable for a request it geographically *contains*, so keying by
+ * rectangle would both alias boxes together (two different viewports
+ * rounding to one key) and multiply the request rate. Containment is
+ * checked explicitly on every read instead.
+ */
+interface OpenSkySnapshot {
+    /** The area actually queried -- a cached answer is only valid for requests inside this. */
+    bbox: Bbox;
+    aircraft: Aircraft[];
+    fetchedAtMs: number;
+}
 
-function openSkyCacheKey(bbox: Bbox): string {
-    return [bbox.minLat, bbox.minLng, bbox.maxLat, bbox.maxLng].map((value) => value.toFixed(2)).join(',');
+let openSkySnapshot: OpenSkySnapshot | null = null;
+let openSkyLastRequestMs = 0;
+/** Single-flight: two callers arriving together share one request rather than spending two of the quota. */
+let openSkyInFlight: Promise<OpenSkySnapshot | null> | null = null;
+
+/** Test-only reset, so one test's snapshot and gate can never leak into the next. */
+export function __resetOpenSkyStateForTests(): void {
+    openSkySnapshot = null;
+    openSkyLastRequestMs = 0;
+    openSkyInFlight = null;
+}
+
+function containsBbox(outer: Bbox, inner: Bbox): boolean {
+    return outer.minLat <= inner.minLat && outer.minLng <= inner.minLng && outer.maxLat >= inner.maxLat && outer.maxLng >= inner.maxLng;
+}
+
+/** Clamped to real coordinates, since a margin near the poles or the antimeridian would otherwise produce a box OpenSky rejects. */
+function withMargin(bbox: Bbox): Bbox {
+    return {
+        minLat: Math.max(-90, bbox.minLat - OPENSKY_MARGIN_DEGREES),
+        maxLat: Math.min(90, bbox.maxLat + OPENSKY_MARGIN_DEGREES),
+        minLng: Math.max(-180, bbox.minLng - OPENSKY_MARGIN_DEGREES),
+        maxLng: Math.min(180, bbox.maxLng + OPENSKY_MARGIN_DEGREES),
+    };
+}
+
+/** A snapshot covers a wider area than the caller asked about, so what it hands back is always narrowed to the requested rectangle. */
+function aircraftWithin(aircraft: readonly Aircraft[], bbox: Bbox): Aircraft[] {
+    return aircraft.filter((one) => one.lat >= bbox.minLat && one.lat <= bbox.maxLat && one.lng >= bbox.minLng && one.lng <= bbox.maxLng);
+}
+
+/**
+ * The OpenSky aircraft inside `bbox`, refreshing at most once per
+ * `OPENSKY_MIN_INTERVAL_MS` across the whole process.
+ *
+ * Returns whatever it can: a fresh answer, a stale one that still covers
+ * the area, or `null`. It never throws and never reports failure upward --
+ * this is a second opinion, and the caller's primary result must survive
+ * OpenSky being down, throttled or simply not yet asked.
+ */
+async function openSkyAircraftWithin(
+    bbox: Bbox,
+    credentials: OpenSkyCredentials,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch,
+    nowMs: number,
+): Promise<Aircraft[] | null> {
+    const usable = openSkySnapshot && containsBbox(openSkySnapshot.bbox, bbox) ? openSkySnapshot : null;
+    const fresh = usable !== null && nowMs - usable.fetchedAtMs < OPENSKY_MIN_INTERVAL_MS;
+    if (fresh) return aircraftWithin(usable.aircraft, bbox);
+
+    // The gate is checked against the last *request*, not the last
+    // success: a failing OpenSky must not be retried every 10s.
+    const gateOpen = nowMs - openSkyLastRequestMs >= OPENSKY_MIN_INTERVAL_MS;
+    if (!gateOpen) {
+        // Stale but covering the area beats nothing while the gate is shut.
+        return usable ? aircraftWithin(usable.aircraft, bbox) : null;
+    }
+
+    openSkyLastRequestMs = nowMs;
+    const query = withMargin(bbox);
+    openSkyInFlight ??= (async (): Promise<OpenSkySnapshot | null> => {
+        const result = await fetchOpenSky(query, credentials, upstreamTimeoutMs, fetchImpl);
+        if (!result.ok) return null;
+        return { bbox: query, aircraft: result.value, fetchedAtMs: nowMs };
+    })();
+
+    let snapshot: OpenSkySnapshot | null;
+    try {
+        snapshot = await openSkyInFlight;
+    } catch {
+        snapshot = null;
+    } finally {
+        openSkyInFlight = null;
+    }
+
+    if (snapshot) {
+        openSkySnapshot = snapshot;
+        return aircraftWithin(snapshot.aircraft, bbox);
+    }
+    // The refresh failed: fall back to the stale answer if it still covers
+    // the area, which is exactly the case the caller needs when its own
+    // primary provider has failed too.
+    return usable ? aircraftWithin(usable.aircraft, bbox) : null;
 }
 
 /**
@@ -445,22 +548,15 @@ export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): 
     // OpenSky only augments when credentials are configured: anonymous
     // access is capped near 400 requests a day, far too little to be worth
     // spending on a second opinion.
-    if (!options.openSkyCredentials) return primary;
+    const credentials = options.openSkyCredentials;
+    if (!credentials) return primary;
 
-    let secondary: Aircraft[];
-    try {
-        secondary = await openSkyCache.getOrLoad(openSkyCacheKey(bbox), async () => {
-            const result = await fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
-            if (!result.ok) throw new Error(result.error.message);
-            return result.value;
-        });
-    } catch {
-        // The augmentation is best-effort by design: OpenSky being down,
-        // rate-limited or slow must never take out a primary response that
-        // already succeeded.
-        return primary;
+    const secondary = await openSkyAircraftWithin(bbox, credentials, options.upstreamTimeoutMs, fetchImpl, Date.now());
+
+    if (!primary.ok) {
+        // The primary is down. Anything OpenSky has -- including a stale
+        // snapshot -- beats failing the request outright.
+        return secondary && secondary.length > 0 ? ok(secondary) : primary;
     }
-
-    if (!primary.ok) return secondary.length > 0 ? ok(secondary) : primary;
-    return ok(mergeAircraft(primary.value, secondary));
+    return ok(secondary ? mergeAircraft(primary.value, secondary) : primary.value);
 }

@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import adsbLolFixture from './fixtures/adsb-lol-live.json' with { type: 'json' };
-import { bboxToCenterRadius, fetchAircraft, mapOpenSkyStatesToAircraft, mapRawV2AircraftToAircraft, mergeAircraft } from './provider.js';
+import {
+    __resetOpenSkyStateForTests,
+    bboxToCenterRadius,
+    fetchAircraft,
+    mapOpenSkyStatesToAircraft,
+    mapRawV2AircraftToAircraft,
+    mergeAircraft,
+} from './provider.js';
 import type { Aircraft } from '../../shared/schemas/aircraft.js';
 import type { Bbox } from '../layers/bbox.js';
 
@@ -374,5 +381,139 @@ describe('mergeAircraft', () => {
         expect(mergeAircraft([], [])).toEqual([]);
         expect(mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], [])).toHaveLength(1);
         expect(mergeAircraft([], [aircraft('bbb', '2026-09-07T16:00:00Z')])).toHaveLength(1);
+    });
+});
+
+describe('OpenSky augmentation', () => {
+    const CREDS = { clientId: 'id', clientSecret: 'secret' };
+    const boxA: Bbox = { minLat: 68.5, minLng: 15.0, maxLat: 69.0, maxLng: 16.0 };
+    // Overlapping but distinct -- under the old rounded cache key these two
+    // collided and shared an answer.
+    const boxB: Bbox = { minLat: 68.504, minLng: 15.004, maxLat: 69.004, maxLng: 16.004 };
+
+    /** OpenSky's `states` tuple, trimmed to the fields the mapper reads. */
+    function state(icao: string, lat: number, lon: number): unknown[] {
+        return [icao, `${icao}   `, 'Norway', 1788790000, 1788790000, lon, lat, 3000, false, 200, 90, 0, null, 3100, null, false, 0];
+    }
+
+    function tokenResponse(): Response {
+        return jsonResponse({ access_token: 'a-token', expires_in: 3600 });
+    }
+
+    /** OpenSky's states envelope -- `time` is required by the schema, so a mock without it fails validation before the mapper ever runs. */
+    function statesResponse(...states: unknown[][]): Response {
+        return jsonResponse({ time: 1788790000, states });
+    }
+
+    beforeEach(() => {
+        __resetOpenSkyStateForTests();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        __resetOpenSkyStateForTests();
+    });
+
+    it('spends one OpenSky request across two different boxes inside the interval', async () => {
+        // The quota belongs to the account, not the rectangle: the browser's
+        // viewport and the trail poller's fixed area must not each get their
+        // own allowance.
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) return Promise.resolve(statesResponse(state('aaa111', 68.7, 15.5)));
+            return Promise.resolve(jsonResponse({ ac: [] }));
+        });
+
+        await fetchAircraft(boxA, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+        await fetchAircraft(boxB, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        const openSkyCalls = fetchMock.mock.calls.filter(([url]) => url.includes('opensky') && !url.includes('token'));
+        expect(openSkyCalls).toHaveLength(1);
+    });
+
+    it('never returns an aircraft outside the requested box, even though it queries a wider one', async () => {
+        // The query is padded so ordinary pans stay inside it; what comes
+        // back still has to be narrowed to what the caller asked about.
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) {
+                return Promise.resolve(
+                    statesResponse(
+                        state('inside', 68.7, 15.5),
+                        state('outside', 69.4, 15.5), // inside the padded query, outside the caller's box
+                    ),
+                );
+            }
+            return Promise.resolve(jsonResponse({ ac: [] }));
+        });
+
+        const result = await fetchAircraft(boxA, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.map((a) => a.icao)).toEqual(['inside']);
+    });
+
+    it('serves the stale OpenSky snapshot when the primary provider fails', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-07T16:00:00Z'));
+
+        let primaryOk = true;
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) return Promise.resolve(statesResponse(state('aaa111', 68.7, 15.5)));
+            return primaryOk ? Promise.resolve(jsonResponse({ ac: [] })) : Promise.reject(new Error('network down'));
+        });
+        const options = {
+            provider: 'adsbfi' as const,
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        };
+
+        await fetchAircraft(boxA, options); // fills the snapshot
+
+        // Well past the interval, so the gate would allow a refresh -- but
+        // now everything upstream is down.
+        vi.setSystemTime(new Date('2026-09-07T16:10:00Z'));
+        primaryOk = false;
+        const failing = vi.fn(() => Promise.reject(new Error('network down')));
+        const result = await fetchAircraft(boxA, { ...options, fetchImpl: failing });
+
+        // The snapshot is stale, but it is real aircraft and beats an error.
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.map((a) => a.icao)).toEqual(['aaa111']);
+    });
+
+    it('leaves the primary result untouched when OpenSky has nothing to add', async () => {
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) return Promise.reject(new Error('opensky down'));
+            return Promise.resolve(jsonResponse(adsbLolFixture));
+        });
+
+        const result = await fetchAircraft(testBbox, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value).toHaveLength(2);
     });
 });
