@@ -144,8 +144,6 @@ export const nb = {
     'tide.nextLowLabel': 'Neste lavvann',
     'tide.nextExtremeLine': '{relative} · {level}',
     'tide.curveLabel': '24 timer · cm over sjøkartnull',
-    'tide.legendPrediction': 'prediksjon',
-    'tide.legendObserved': 'observert',
     'tide.nowAxis': 'nå {time}',
     'tide.seaTempLabel': 'sjøtemperatur',
     'tide.attributionText': '© Kartverket',

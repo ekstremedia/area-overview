@@ -90,29 +90,6 @@
     gap: var(--space-3);
 }
 
-.tide-legend {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    font-size: 12px;
-    color: var(--color-muted);
-}
-
-.tide-legend-swatch {
-    display: inline-block;
-    width: 20px;
-    height: 2px;
-    margin-right: 8px;
-}
-
-.tide-legend-swatch--prediction {
-    background: var(--color-accent);
-}
-
-.tide-legend-swatch--observed {
-    background: var(--color-text);
-}
-
 .tide-curve-wrap {
     flex: 1;
     min-height: 60px;
