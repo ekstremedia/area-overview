@@ -1,5 +1,5 @@
 {
-    "URLAllowlist": ["area.nesthus.no", "basemaps.cartocdn.com", "tile.openstreetmap.org"],
+    "URLAllowlist": ["area.nesthus.no", "nesthus.no", "basemaps.cartocdn.com", "tile.openstreetmap.org"],
     "URLBlocklist": ["*"],
     "IncognitoModeAvailability": 1,
     "DeveloperToolsAvailability": 2,
