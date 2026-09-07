@@ -263,8 +263,15 @@ function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureR
         }
         if (typeof entry.temperature_min === 'number') {
             const low = document.createElement('span');
-            low.className = 'weather-daily-low';
-            low.textContent = `${formatNumber(Math.round(entry.temperature_min))}°`;
+            const roundedLow = Math.round(entry.temperature_min);
+            // Reuse the hourly strip's below-zero class/colour (see
+            // buildForecastStrip) instead of a second freezing scheme --
+            // 0° itself reads as "0°", not frost, so only a genuinely
+            // negative low gets the cyan accent (see the compound override
+            // in weather.css: `.weather-daily-low` alone would otherwise
+            // win the cascade on source order and stay grey).
+            low.className = roundedLow < 0 ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
+            low.textContent = `${formatNumber(roundedLow)}°`;
             temps.append(low);
         }
         meta.append(temps);
@@ -324,14 +331,43 @@ function buildDailyRangeBar(entry: DailyForecastEntry, range: DailyTemperatureRa
     const span = range.max - range.min;
     const startPercent = span === 0 ? 0 : ((low - range.min) / span) * 100;
     const widthPercent = span === 0 ? 100 : Math.max(((high - low) / span) * 100, 4); // a floor so a flat day is still visible
+    const clampedWidthPercent = Math.min(widthPercent, 100 - startPercent);
 
     const track = document.createElement('div');
     track.className = 'weather-daily-range';
-    const fill = document.createElement('div');
-    fill.className = 'weather-daily-range-fill';
-    fill.style.left = `${String(startPercent)}%`;
-    fill.style.width = `${String(Math.min(widthPercent, 100 - startPercent))}%`;
-    track.append(fill);
+
+    // A day whose own low/high straddle 0°C draws as two adjacent segments
+    // -- cyan below, magenta above -- split by the proportion of THIS day's
+    // span (not the whole week's) that's sub-zero; that is what reproduces
+    // the design's own numbers (see WeatherPage.test.ts). `high >= 0`, not
+    // `> 0`: 0° is never the freezing side (same convention as the daily
+    // low text above and the hourly strip's buildForecastStrip), so a day
+    // that only touches 0° at its warmest still counts as crossing rather
+    // than "entirely below zero".
+    if (low < 0 && high >= 0) {
+        const belowZeroRatio = (0 - low) / (high - low);
+        const belowWidthPercent = clampedWidthPercent * belowZeroRatio;
+        const aboveWidthPercent = clampedWidthPercent - belowWidthPercent;
+
+        const belowFill = document.createElement('div');
+        belowFill.className = 'weather-daily-range-fill weather-daily-range-fill--below-zero';
+        belowFill.style.left = `${String(startPercent)}%`;
+        belowFill.style.width = `${String(belowWidthPercent)}%`;
+
+        const aboveFill = document.createElement('div');
+        aboveFill.className = 'weather-daily-range-fill weather-daily-range-fill--above-zero';
+        aboveFill.style.left = `${String(startPercent + belowWidthPercent)}%`;
+        aboveFill.style.width = `${String(aboveWidthPercent)}%`;
+
+        track.append(belowFill, aboveFill);
+    } else {
+        const fill = document.createElement('div');
+        fill.className = `weather-daily-range-fill ${low < 0 ? 'weather-daily-range-fill--below-zero' : 'weather-daily-range-fill--above-zero'}`;
+        fill.style.left = `${String(startPercent)}%`;
+        fill.style.width = `${String(clampedWidthPercent)}%`;
+        track.append(fill);
+    }
+
     return track;
 }
 

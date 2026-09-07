@@ -16,7 +16,7 @@ import { effect } from '../core/signal.js';
 import { formatNumber, formatRelative, formatTime, t, type ParamlessKey } from '../i18n/index.js';
 import { pageAttribution, pageFreshness } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
-import { tideCurve, tideCurveTicks } from './tide/curve.js';
+import { tideCurve, tideCurveMarkers, tideCurveTicks } from './tide/curve.js';
 import './tide/tide.css';
 
 const TIDE_POLL_INTERVAL_MS = 30_000;
@@ -159,6 +159,32 @@ function buildCurveSection(tide: Tide, now: Date): HTMLElement {
         label.style.top = `${String(tick.topPercent)}%`;
         label.textContent = formatNumber(tick.value);
         curveWrap.append(label);
+    }
+
+    // The high/low dots and the "now" crossing, as HTML over the chart for
+    // the same reason as the ticks above: the SVG stretches horizontally,
+    // which would turn a circle into an ellipse.
+    for (const marker of tideCurveMarkers(tide.timeseries, tide.extremes, now)) {
+        const dot = document.createElement('div');
+        dot.className = `tide-curve-marker tide-curve-marker--${marker.kind}`;
+        dot.style.left = `${String(marker.leftPercent)}%`;
+        dot.style.top = `${String(marker.topPercent)}%`;
+
+        if (marker.label) {
+            const label = document.createElement('span');
+            // Centred on its dot, except near the ends of the chart, where a
+            // centred label runs off the edge and loses half its text.
+            const edge = marker.leftPercent > 88 ? ' tide-curve-marker-label--end' : marker.leftPercent < 12 ? ' tide-curve-marker-label--start' : '';
+            label.className = `tide-curve-marker-label${edge}`;
+            label.textContent = t('tide.extremeLabel', {
+                // Whole centimetres: the prediction is not trustworthy to a
+                // millimetre, and "211,7 cm" reads as precision nobody has.
+                value: formatNumber(Math.round(marker.label.value), t('unit.centimeters')),
+                time: formatTime(marker.label.time),
+            });
+            dot.append(label);
+        }
+        curveWrap.append(dot);
     }
 
     section.append(header, curveWrap, buildAxis(tide, now));

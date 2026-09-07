@@ -27,7 +27,7 @@ export interface SouthwardRun {
     atLeast: boolean;
 }
 
-interface MagPoint {
+export interface MagPoint {
     time: number;
     bz: number;
 }
@@ -43,8 +43,8 @@ interface MagPoint {
  */
 const MAX_GAP_MS = 5 * 60_000;
 
-/** Pulls the well-formed `{time, bz}` points out of the unvalidated `mag` blob, oldest first. */
-function readPoints(mag: unknown): MagPoint[] {
+/** Pulls the well-formed `{time, bz}` points out of the unvalidated `mag` blob, oldest first. Exported so the Bz sparkline reads exactly the same points this measures a run over. */
+export function readMagPoints(mag: unknown): MagPoint[] {
     if (typeof mag !== 'object' || mag === null) return [];
     const raw = (mag as { points?: unknown }).points;
     if (!Array.isArray(raw)) return [];
@@ -71,8 +71,14 @@ function readPoints(mag: unknown): MagPoint[] {
  * Bz of exactly 0 counts as not-southward: it is the neutral case, and
  * calling it southward would overstate the odds.
  */
-export function southwardRun(mag: unknown): SouthwardRun | null {
-    const points = readPoints(mag);
+/**
+ * Index of the first point in the current southward run, or `null` when
+ * Bz is northward now (or there is nothing usable). Split out from
+ * `southwardRun` so the sparkline can colour exactly the stretch the
+ * duration is claiming, rather than re-deriving the boundary with its own
+ * copy of the gap rule.
+ */
+export function southwardRunStartIndex(points: readonly MagPoint[]): number | null {
     const newest = points[points.length - 1];
     if (!newest || newest.bz >= 0) return null;
 
@@ -87,9 +93,17 @@ export function southwardRun(mag: unknown): SouthwardRun | null {
         if (current.time - previous.time > MAX_GAP_MS) break;
         index -= 1;
     }
+    return index;
+}
 
+export function southwardRun(mag: unknown): SouthwardRun | null {
+    const points = readMagPoints(mag);
+    const index = southwardRunStartIndex(points);
+    if (index === null) return null;
+
+    const newest = points[points.length - 1];
     const runStart = points[index];
-    if (runStart === undefined) return null; // unreachable: `newest` proves the array is non-empty
+    if (newest === undefined || runStart === undefined) return null; // unreachable: a non-null index proves the array is non-empty
     const minutes = Math.max(1, Math.round((newest.time - runStart.time) / 60_000));
     // "At least" only when the run really does reach the oldest reading --
     // a run cut short by a gap has a known start, so its figure is exact.

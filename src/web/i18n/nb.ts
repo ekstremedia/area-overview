@@ -164,7 +164,9 @@ export const nb = {
     'aurora.band.quiet': 'Rolig',
     'aurora.band.active': 'Aktiv',
     'aurora.band.storm': 'Storm',
-    'aurora.kpAxis': '−9 t · nå · +15 t',
+    'aurora.kpAxisPast': '−9 t',
+    'aurora.kpAxisNow': 'nå',
+    'aurora.kpAxisFuture': '+15 t',
     'aurora.bz': 'Bz',
     'aurora.southward': 'sørvendt i {duration}',
     'aurora.southwardAtLeast': 'sørvendt i over {duration}',
@@ -173,6 +175,8 @@ export const nb = {
     'aurora.density': 'Tetthet',
     'aurora.noaaAlert': 'NOAA-varsel · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
+
+    'tide.extremeLabel': '{value} · {time}',
 
     'tide.levelNowLabel': 'Nivå nå',
     'tide.trendRising': '↑ stiger, {deviation} over prediksjon',

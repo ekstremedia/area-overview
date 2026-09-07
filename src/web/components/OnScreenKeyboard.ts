@@ -77,9 +77,14 @@ async function defaultLoadEnglishLayout(): Promise<{ default: KeyboardLayoutShap
     return mod as unknown as { default: KeyboardLayoutShape };
 }
 
-/** Matches the artboard's numeric tray: two rows of six, `,` as the decimal separator, a backspace key. */
+/**
+ * The artboard's numeric tray: one row of twelve, `,` as the decimal
+ * separator, a backspace key. A single row keeps the digits in their
+ * familiar left-to-right order and costs one row of height instead of
+ * two, which is what the tray can afford over a 600px-tall screen.
+ */
 const NUMERIC_LAYOUT: KeyboardLayoutShape = {
-    layout: { default: ['1 2 3 4 5 6', '7 8 9 0 , {bksp}'] },
+    layout: { default: ['1 2 3 4 5 6 7 8 9 0 , {bksp}'] },
 };
 
 const HIDE_GRACE_MS = 150;

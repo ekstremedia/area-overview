@@ -76,8 +76,39 @@ describe('Cameras section', () => {
         const dispose = mount(container, { store, loggedIn: true });
 
         const row = container.querySelector('.camera-row');
-        expect(row?.querySelector('.camera-row-unplaced')?.textContent).toBe('Uten plassering');
+        expect(row?.querySelector('.camera-row-unplaced')?.textContent).toContain('Uten plassering');
         expect(row?.querySelectorAll('.number-field-input')).toHaveLength(0);
+
+        dispose();
+    });
+
+    it('offers to place an unplaced camera, seeding the shared home view', async () => {
+        // Without this the row is a dead end: no coordinate fields to edit,
+        // and so no way to discover that placing is possible at all.
+        setCameras([camera({ camera_id: 'spjutvika_01', name: 'Spjutvika' })]);
+        const { store, setPlacement } = fakeStore(SettingsSchema.parse({ homeView: { lat: 68.6984, lng: 15.4129, zoom: 11 } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const place = container.querySelector<HTMLButtonElement>('.camera-row-place');
+        expect(place?.disabled).toBe(false);
+        place?.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(setPlacement).toHaveBeenCalledWith('spjutvika_01', { lat: 68.6984, lng: 15.4129 });
+        // And the row becomes editable, rather than needing a reload.
+        expect(container.querySelectorAll('.number-field-input')).toHaveLength(2);
+
+        dispose();
+    });
+
+    it('does not offer to place a camera while logged out', () => {
+        setCameras([camera({ camera_id: 'spjutvika_01', name: 'Spjutvika' })]);
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: false });
+
+        expect(container.querySelector<HTMLButtonElement>('.camera-row-place')?.disabled).toBe(true);
 
         dispose();
     });

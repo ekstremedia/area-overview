@@ -110,6 +110,88 @@ export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: rea
     return ticks;
 }
 
+/** One thing worth pointing at on the curve, placed as a percentage of the plotted area. */
+export interface TideCurveMarker {
+    kind: 'high' | 'low' | 'now';
+    leftPercent: number;
+    topPercent: number;
+    /** Absent for the "now" marker, which is already named by the axis below the curve. */
+    label?: { value: number; time: Date };
+}
+
+/**
+ * Where to put the ringed dots the design sets on each extreme and on the
+ * curve's "now" crossing (artboard 04).
+ *
+ * Positions come back as percentages, and the caller draws them as HTML
+ * over the chart, for the same reason `tideCurveTicks` exists: the SVG is
+ * `preserveAspectRatio="none"`, so anything drawn inside it is stretched
+ * horizontally to fit the container. A circle would become an ellipse and
+ * a label would smear. Only the curve itself, whose shape is the point,
+ * is allowed to stretch.
+ */
+export function tideCurveMarkers(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[], now: Date): TideCurveMarker[] {
+    if (series.length === 0) return [];
+
+    const timeOf = (entry: { time: string }): number => new Date(entry.time).getTime();
+    const times = series.map(timeOf);
+    const domainStart = Math.min(...times);
+    const domainEnd = Math.max(...times);
+    const timeScale = makeTimeScale(domainStart, domainEnd);
+    const values = curveValues(series, extremes);
+    const valueScale = makeValueScale(Math.min(...values), Math.max(...values));
+
+    const asPercent = (x: number, y: number): { leftPercent: number; topPercent: number } => ({
+        leftPercent: (x / VIEW_WIDTH) * 100,
+        topPercent: (y / VIEW_HEIGHT) * 100,
+    });
+
+    const markers: TideCurveMarker[] = [];
+
+    for (const extreme of extremes) {
+        const time = new Date(extreme.time);
+        const at = time.getTime();
+        // An extreme outside the drawn window would be clamped onto the
+        // edge by the scale, landing a "high tide" label on a piece of
+        // curve that is not its own.
+        if (at < domainStart || at > domainEnd) continue;
+        markers.push({
+            kind: extreme.type === 'high' ? 'high' : 'low',
+            ...asPercent(timeScale(at), valueScale(extreme.value)),
+            label: { value: extreme.value, time },
+        });
+    }
+
+    // The "now" dot sits on the curve, so its height is the interpolated
+    // level at this instant rather than any single sample's.
+    const level = levelAt(series, now.getTime());
+    if (level !== null) {
+        markers.push({ kind: 'now', ...asPercent(timeScale(now.getTime()), valueScale(level)) });
+    }
+
+    return markers;
+}
+
+/** The predicted level at `at`, interpolated between the two samples either side, or `null` when `at` falls outside the series. */
+function levelAt(series: readonly TimeseriesEntry[], at: number): number | null {
+    const sorted = [...series].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    let previous: TimeseriesEntry | undefined;
+    for (const entry of sorted) {
+        const time = new Date(entry.time).getTime();
+        if (time === at) return entry.value;
+        if (time > at) {
+            if (!previous) return null; // `at` is before the first sample
+            const previousTime = new Date(previous.time).getTime();
+            const span = time - previousTime;
+            if (span <= 0) return previous.value;
+            const t = (at - previousTime) / span;
+            return previous.value + (entry.value - previous.value) * t;
+        }
+        previous = entry;
+    }
+    return null; // `at` is after the last sample
+}
+
 export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extremes: readonly ExtremeEntry[]): SVGElement {
     const svg = svgEl('svg');
     svg.setAttribute('viewBox', `0 0 ${String(VIEW_WIDTH)} ${String(VIEW_HEIGHT)}`);
@@ -125,6 +207,21 @@ export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extreme
 
     const allValues = curveValues(series, extremes);
     const valueScale = makeValueScale(Math.min(...allValues), Math.max(...allValues));
+
+    // — the level grid, drawn first so the curve sits on top of it. One
+    // rule per tick label, and a solid one at zero: the sea-chart datum is
+    // a real reference, the others are only helpful. —
+    for (const tick of tideCurveTicks(series, extremes)) {
+        const y = valueScale(tick.value);
+        const rule = svgEl('line');
+        rule.setAttribute('x1', '0');
+        rule.setAttribute('x2', String(VIEW_WIDTH));
+        rule.setAttribute('y1', String(y));
+        rule.setAttribute('y2', String(y));
+        rule.setAttribute('class', tick.value === 0 ? 'tide-curve-grid tide-curve-grid--datum' : 'tide-curve-grid');
+        rule.style.vectorEffect = 'non-scaling-stroke';
+        svg.append(rule);
+    }
 
     // — prediction: the full series, always present. —
     const predictionPoints = series.map((entry) => ({ x: timeScale(timeOf(entry)), y: valueScale(entry.value) }));

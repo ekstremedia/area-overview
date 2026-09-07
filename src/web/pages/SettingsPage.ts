@@ -67,7 +67,13 @@ export function render(container: HTMLElement): () => void {
     const sectionContainer = document.createElement('div');
     sectionContainer.className = 'settings-section-container';
 
-    wrapper.append(nav, loggedOutNotice, loginButton, sectionContainer);
+    // The nav is a column down the left (artboard 07), so everything else
+    // shares one scrolling area beside it rather than stacking under it.
+    const main = document.createElement('div');
+    main.className = 'settings-main';
+    main.append(loggedOutNotice, loginButton, sectionContainer);
+
+    wrapper.append(nav, main);
     container.append(wrapper);
 
     const store = createSettingsStore();

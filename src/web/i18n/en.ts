@@ -152,7 +152,9 @@ export const en: Record<keyof typeof nb, string> = {
     'aurora.band.quiet': 'Quiet',
     'aurora.band.active': 'Active',
     'aurora.band.storm': 'Storm',
-    'aurora.kpAxis': '−9 h · now · +15 h',
+    'aurora.kpAxisPast': '−9 h',
+    'aurora.kpAxisNow': 'now',
+    'aurora.kpAxisFuture': '+15 h',
     'aurora.bz': 'Bz',
     'aurora.southward': 'southward for {duration}',
     'aurora.southwardAtLeast': 'southward for over {duration}',
@@ -161,6 +163,8 @@ export const en: Record<keyof typeof nb, string> = {
     'aurora.density': 'Density',
     'aurora.noaaAlert': 'NOAA alert · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
+
+    'tide.extremeLabel': '{value} · {time}',
 
     'tide.levelNowLabel': 'Level now',
     'tide.trendRising': '↑ rising, {deviation} above prediction',

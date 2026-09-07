@@ -19,6 +19,7 @@ import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { activityBandForHemisphericPower, type ActivityBand } from './aurora/activityBand.js';
 import { firstAlertSummary, hemisphericPowerNorthGw, scaleGLevel, solarWindStats } from './aurora/extract.js';
 import { southwardRun } from './aurora/southward.js';
+import { buildBzSparkline, buildPlasmaSparkline } from './aurora/sparkline.js';
 import { selectKpBars, type KpBar } from './aurora/kpBars.js';
 import './aurora/aurora.css';
 
@@ -93,7 +94,19 @@ function buildLeftColumn(data: AuroraAll): HTMLElement {
 
     const axis = document.createElement('div');
     axis.className = 'aurora-kp-axis';
-    axis.textContent = t('aurora.kpAxis');
+    // Three separate labels, not one joined string: the row is
+    // `space-between`, so only real elements spread to the ends, and "nå"
+    // needs to be brighter than the two bounds it sits between.
+    for (const [key, className] of [
+        ['aurora.kpAxisPast', 'aurora-kp-axis-bound'],
+        ['aurora.kpAxisNow', 'aurora-kp-axis-now'],
+        ['aurora.kpAxisFuture', 'aurora-kp-axis-bound'],
+    ] as const) {
+        const span = document.createElement('span');
+        span.className = className;
+        span.textContent = t(key);
+        axis.append(span);
+    }
 
     const stats = document.createElement('div');
     stats.className = 'aurora-stats';
@@ -106,6 +119,11 @@ function buildLeftColumn(data: AuroraAll): HTMLElement {
     const bzCell = document.createElement('div');
     bzCell.className = 'aurora-bz-cell';
     bzCell.append(statCard({ label: t('aurora.bz'), value: wind ? formatNumber(wind.bz) : '—', unit: t('unit.nanotesla'), size: 'lg' }));
+    // Each figure gets the recent shape of its own series under it -- the
+    // number says where the solar wind is, the line says where it is
+    // going, which is the half a glance at a wall display actually needs.
+    const bzSpark = buildBzSparkline(data.solarWind.mag);
+    if (bzSpark) bzCell.append(bzSpark);
     const run = southwardRun(data.solarWind.mag);
     if (run) {
         const caption = document.createElement('div');
@@ -115,16 +133,28 @@ function buildLeftColumn(data: AuroraAll): HTMLElement {
         bzCell.append(caption);
     }
 
-    stats.append(
-        bzCell,
+    const speedCell = document.createElement('div');
+    speedCell.className = 'aurora-stat-cell';
+    speedCell.append(
         statCard({
             label: t('aurora.solarWindSpeed'),
             value: wind ? formatNumber(Math.round(wind.speed)) : '—',
             unit: t('unit.kilometersPerSecond'),
             size: 'lg',
         }),
+    );
+    const speedSpark = buildPlasmaSparkline(data.solarWind.plasma, 'speed');
+    if (speedSpark) speedCell.append(speedSpark);
+
+    const densityCell = document.createElement('div');
+    densityCell.className = 'aurora-stat-cell';
+    densityCell.append(
         statCard({ label: t('aurora.density'), value: wind ? formatNumber(wind.density) : '—', unit: t('unit.particlesPerCm3'), size: 'lg' }),
     );
+    const densitySpark = buildPlasmaSparkline(data.solarWind.plasma, 'density');
+    if (densitySpark) densityCell.append(densitySpark);
+
+    stats.append(bzCell, speedCell, densityCell);
 
     left.append(label, headline, bars, axis, stats);
     return left;

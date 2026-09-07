@@ -112,7 +112,9 @@ describe('mountOnScreenKeyboard', () => {
         });
         const kb = FakeKeyboard.instances[0];
         await vi.waitFor(() => {
-            expect(kb?.options.layout?.default).toEqual(['1 2 3 4 5 6', '7 8 9 0 , {bksp}']);
+            // One row, as the artboard draws it -- the digits stay in reading
+            // order and the tray costs one row of height, not two.
+            expect(kb?.options.layout?.default).toEqual(['1 2 3 4 5 6 7 8 9 0 , {bksp}']);
         });
 
         handle.dispose();

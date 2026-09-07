@@ -42,10 +42,37 @@ export interface RowHandle {
     dispose: () => void;
 }
 
-function buildUnplacedDetail(): HTMLElement {
+/**
+ * An unplaced camera's row: the "no placement" note, plus the affordance
+ * that gives it one (artboard 07).
+ *
+ * Without this button a camera could only be placed by someone who
+ * already knew that editing the coordinates was possible at all -- but an
+ * unplaced row has no coordinate fields to edit, so there was nothing to
+ * discover. Placing seeds the shared home view's own centre, which puts
+ * the pin on screen where it can then be corrected, rather than asking
+ * for two numbers cold.
+ *
+ * The design draws a "Fjern" button here too; it is left out, since an
+ * unplaced camera has no placement to remove and the control would do
+ * nothing.
+ */
+function buildUnplacedDetail(loggedIn: boolean, onPlace: () => void): HTMLElement {
     const el = document.createElement('div');
     el.className = 'camera-row-unplaced';
-    el.textContent = t('settings.cameras.unplaced');
+
+    const note = document.createElement('span');
+    note.textContent = t('settings.cameras.unplaced');
+    el.append(note);
+
+    const place = document.createElement('button');
+    place.type = 'button';
+    place.className = 'camera-row-place';
+    place.textContent = t('settings.cameras.place');
+    place.disabled = !loggedIn;
+    place.addEventListener('click', onPlace);
+    el.append(place);
+
     return el;
 }
 
@@ -249,7 +276,12 @@ export function buildRow(
         fields = undefined;
         if (placement2 === null) {
             placementDraft = null;
-            detailSlot.append(buildUnplacedDetail());
+            detailSlot.append(
+                buildUnplacedDetail(loggedIn, () => {
+                    const { homeView } = store.settings.get();
+                    void write({ lat: homeView.lat, lng: homeView.lng });
+                }),
+            );
             setIndicatorIdleLabel(false);
             return;
         }

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { signal } from '../core/signal.js';
 import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js';
 
@@ -55,5 +57,42 @@ describe('mountFooterLine', () => {
         expect(container.querySelector<HTMLElement>('.footer-attribution')?.style.display).toBe('none');
 
         dispose();
+    });
+
+    it('paints the night note above the display overlay, not underneath it', () => {
+        // `.display-overlay` sits at `z-index: 1000` with `position: fixed`
+        // directly under `<body>`, and none of `.footer-night-note`'s
+        // ancestors (`#app`, `.footer-line`) are positioned -- so without
+        // its own `position` + `z-index`, the note paints in normal
+        // document flow, i.e. *underneath* the overlay it describes. This
+        // loads the real stylesheet rather than asserting inline styles,
+        // so a regression that drops that rule fails here rather than only
+        // being visible by eye.
+        const shellCss = readFileSync(path.resolve(process.cwd(), 'src/web/shell/shell.css'), 'utf8');
+        const styleTag = document.createElement('style');
+        styleTag.textContent = shellCss;
+        document.head.appendChild(styleTag);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'display-overlay';
+        document.body.appendChild(overlay);
+
+        const now = new Date();
+        const from = `${String(now.getHours()).padStart(2, '0')}:00`;
+        const to = `${String((now.getHours() + 1) % 24).padStart(2, '0')}:00`;
+        setSettings({ night: { enabled: true, from, to, mode: 'off' } });
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const dispose = mountFooterLine(container);
+
+        const nightNote = container.querySelector<HTMLElement>('.footer-night-note');
+        if (!nightNote) throw new Error('night note not mounted');
+
+        expect(Number(getComputedStyle(nightNote).zIndex)).toBeGreaterThan(Number(getComputedStyle(overlay).zIndex));
+
+        dispose();
+        container.remove();
+        overlay.remove();
+        styleTag.remove();
     });
 });

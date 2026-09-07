@@ -257,6 +257,22 @@
     white-space: nowrap;
 }
 
+/* The note that replaces the footer (artboard 09) *describes* the
+   veil ("...ett trykk løfter sløret i 30 s"), so it has to stay legible
+   while the veil is up -- including at `mode: 'off'`, where the overlay
+   goes fully opaque. `.footer-line` and its ancestors are all
+   `position: static`, so a local stacking context here (via `position` +
+   `z-index`) is compared directly against `.display-overlay`'s z-index
+   1000 in the shared root context, letting this sit above it without
+   moving it out of the footer's DOM flow. Colour matches the design:
+   paper-white at 50%, not the ordinary muted footer colour, since it
+   must read *through* the dim rather than blend into it. */
+.footer-night-note {
+    position: relative;
+    z-index: 1001;
+    color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
 /* — placeholder pages (Phase 5 only; replaced page-by-page from Phase 6) — */
 .page-placeholder-title {
     font-size: clamp(28px, 6vw, 52px);
