@@ -62,7 +62,6 @@ export function buildPopupContent(camera: Camera, callbacks: PopupCallbacks, now
     imageWrap.className = 'camera-popup-image';
 
     function renderNoImageFallback(): void {
-        imageWrap.classList.remove('halftone');
         imageWrap.replaceChildren();
         const noImage = document.createElement('div');
         noImage.className = 'camera-popup-no-image';
@@ -71,10 +70,8 @@ export function buildPopupContent(camera: Camera, callbacks: PopupCallbacks, now
     }
 
     if (camera.current_image_url) {
-        // `.halftone` goes on the wrapper, not the `<img>` itself: its dot-overlay
-        // is a `::after` pseudo-element, which cannot render on a replaced element
-        // like `<img>` in any browser. See base.css's `.halftone` doc comment.
-        imageWrap.classList.add('halftone');
+        // No `.halftone` here either -- see `ImageWithAge.ts` for why camera
+        // imagery opts out of the newsprint dot screen.
         const img = document.createElement('img');
         img.src = camera.current_image_url;
         img.alt = t('map.cameraImageAlt', { name: camera.name });

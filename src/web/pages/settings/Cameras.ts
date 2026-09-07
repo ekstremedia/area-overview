@@ -23,6 +23,8 @@
 import type { Camera } from '../../../shared/schemas/camera.js';
 import { PlacementSchema, type Placement } from '../../../shared/schemas/settings.js';
 import { numberField, type NumberFieldHandle } from '../../components/NumberField.js';
+import { toggle, type ToggleHandle } from '../../components/Toggle.js';
+import { withCameraEnabled } from '../cameras/enabledCameras.js';
 import { saveIndicator } from '../../components/SaveIndicator.js';
 import type { AutosaveStatus } from '../../settings/autosave.js';
 import { camerasResource } from '../../camera-resource.js';
@@ -36,7 +38,7 @@ export interface RowHandle {
     el: HTMLElement;
     cameraId: string;
     isPlaced: boolean;
-    update: (camera: Camera, placement: Placement | null, loggedIn: boolean) => void;
+    update: (camera: Camera, placement: Placement | null, loggedIn: boolean, enabled: boolean) => void;
     dispose: () => void;
 }
 
@@ -116,7 +118,7 @@ function buildPlacedDetail(
 export function buildRow(
     camera: Camera,
     placement: Placement | null,
-    ctx: { store: import('../../settings/sharedStore.js').SettingsStore; loggedIn: boolean },
+    ctx: { store: import('../../settings/sharedStore.js').SettingsStore; loggedIn: boolean; enabled: boolean },
 ): RowHandle {
     const { store } = ctx;
     let loggedIn = ctx.loggedIn;
@@ -133,7 +135,20 @@ export function buildRow(
     const indicatorStatus: Signal<AutosaveStatus> = signal({ kind: 'idle' });
     const indicatorSlot = document.createElement('div');
 
-    header.append(nameEl, indicatorSlot);
+    // Switching a camera off hides it from the cameras page, the map and
+    // the camera count -- see `enabledCameras.ts`. The row itself stays,
+    // placement fields and all, so turning it back on restores exactly
+    // what was there rather than asking for the position again.
+    const enabledToggle: ToggleHandle = toggle({
+        accessibleLabel: t('settings.cameras.enabled'),
+        checked: ctx.enabled,
+        disabled: !loggedIn,
+        onChange: (checked) => {
+            void store.patchSettings({ disabledCameras: withCameraEnabled(store.settings.get().disabledCameras, camera.camera_id, checked) });
+        },
+    });
+
+    header.append(nameEl, enabledToggle.el, indicatorSlot);
 
     const meta = document.createElement('div');
     meta.className = 'camera-row-meta';
@@ -250,10 +265,11 @@ export function buildRow(
         indicatorSlot.append(saveIndicator({ status: indicatorStatus.get(), idleLabel: currentIdleLabel }));
     });
 
-    function update(nextCamera: Camera, nextPlacement: Placement | null, nextLoggedIn: boolean): void {
+    function update(nextCamera: Camera, nextPlacement: Placement | null, nextLoggedIn: boolean, nextEnabled: boolean): void {
         loggedIn = nextLoggedIn;
         nameEl.textContent = nextCamera.name;
         meta.textContent = `${nextCamera.camera_id} · «${nextCamera.location}»`;
+        enabledToggle.setState(nextEnabled, !loggedIn);
 
         const nextIsPlaced = nextPlacement !== null;
         if (showingUndo) {
@@ -312,11 +328,12 @@ export const mount: SectionMount = (container, ctx) => {
         for (const camera of cameras) {
             seen.add(camera.camera_id);
             const placement = settings.placements[camera.camera_id] ?? null;
+            const enabled = !settings.disabledCameras.includes(camera.camera_id);
             const existing = rows.get(camera.camera_id);
             if (existing) {
-                existing.update(camera, placement, ctx.loggedIn);
+                existing.update(camera, placement, ctx.loggedIn, enabled);
             } else {
-                const row = buildRow(camera, placement, { store: ctx.store, loggedIn: ctx.loggedIn });
+                const row = buildRow(camera, placement, { store: ctx.store, loggedIn: ctx.loggedIn, enabled });
                 rows.set(camera.camera_id, row);
                 root.append(row.el);
             }

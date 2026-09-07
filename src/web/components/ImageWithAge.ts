@@ -35,7 +35,12 @@ export function imageWithAge(options: ImageWithAgeOptions): HTMLElement {
     const now = options.now ?? new Date();
 
     const root = document.createElement('div');
-    root.className = 'image-with-age halftone';
+    // No `.halftone`: the newsprint dot screen the design system puts on
+    // interface imagery reads as a dirty grid over a live camera photo and
+    // costs real detail at kiosk size, so camera imagery opts out of it
+    // (Terje's call). The aurora oval still takes the treatment, where it
+    // is a diagram rather than a photograph.
+    root.className = 'image-with-age';
     root.style.aspectRatio = '16 / 9';
 
     if (options.src) {

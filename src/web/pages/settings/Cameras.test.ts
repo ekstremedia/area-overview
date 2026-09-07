@@ -273,11 +273,11 @@ describe('Cameras section', () => {
 
     it('returns a live isPlaced property, not a value snapshotted at row creation', () => {
         const { store } = fakeStore(SettingsSchema.parse({}));
-        const row = buildRow(camera(), null, { store, loggedIn: true });
+        const row = buildRow(camera(), null, { store, loggedIn: true, enabled: true });
 
         expect(row.isPlaced).toBe(false);
 
-        row.update(camera(), { lat: 68.72, lng: 15.42 }, true);
+        row.update(camera(), { lat: 68.72, lng: 15.42 }, true, true);
 
         // A stale, snapshotted `isPlaced` (the pre-fix bug) would still read
         // `false` here even though `update()` just recorded a placement.

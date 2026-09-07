@@ -28,11 +28,10 @@ describe('buildPopupContent', () => {
         const img = root.querySelector<HTMLImageElement>('.camera-popup-image img');
         expect(img).not.toBeNull();
         expect(img?.src).toBe('https://example.test/current.jpg');
-        // `.halftone` must be on the wrapper, never the <img> itself: its
-        // dot-overlay is a `::after` pseudo-element, which cannot render on a
-        // replaced element like `<img>` in any browser.
+        // Camera photographs carry no newsprint dot screen at all now, on
+        // the wrapper or the image -- see `ImageWithAge.ts`.
         expect(img?.classList.contains('halftone')).toBe(false);
-        expect(root.querySelector('.camera-popup-image.halftone')).not.toBeNull();
+        expect(root.querySelector('.camera-popup-image.halftone')).toBeNull();
         expect(root.querySelector('.camera-popup-no-image')).toBeNull();
 
         expect(root.querySelector('.camera-popup-location')?.textContent).toBe('Sigerfjordveien');

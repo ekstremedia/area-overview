@@ -112,6 +112,18 @@ const AutoCycleSchema = z.object({
  * regress by checking that `SettingsPatchSchema.parse({ brightness: 60
  * })` has exactly one key.
  */
+/**
+ * Camera ids the viewer has switched off -- hidden from the cameras page,
+ * from the map, and from the camera count.
+ *
+ * A deny-list rather than an allow-list, deliberately: the camera roster
+ * comes from upstream at runtime (`/api/cameras`), so an allow-list would
+ * silently hide any camera added later until someone noticed and enabled
+ * it. An id that no longer exists upstream simply never matches anything
+ * and is harmless, so entries are not pruned.
+ */
+const DisabledCamerasSchema = z.array(z.string());
+
 const patchableFieldSchemas = {
     language: z.enum(['nb', 'en']),
     homeView: HomeViewSchema,
@@ -123,6 +135,7 @@ const patchableFieldSchemas = {
     ships: ShipsSettingsSchema,
     aircraft: AircraftSettingsSchema,
     autoCycle: AutoCycleSchema,
+    disabledCameras: DisabledCamerasSchema,
 };
 
 /**
@@ -142,6 +155,7 @@ export const SettingsSchema = z.object({
     ships: patchableFieldSchemas.ships.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
     aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
     autoCycle: patchableFieldSchemas.autoCycle.default({ enabled: false, intervalSeconds: 180, pages: [] }),
+    disabledCameras: patchableFieldSchemas.disabledCameras.default([]),
     updatedAt: IsoTimestampSchema.default(() => new Date().toISOString()),
 });
 
@@ -165,6 +179,7 @@ export const SettingsPatchSchema = z.object({
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
+    disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
 });
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;

@@ -37,6 +37,25 @@ describe('computeMarkerData', () => {
         expect(result.unplaced).toEqual([unplaced]);
     });
 
+    it('leaves a switched-off camera out of both placed and unplaced', () => {
+        const off = camera({ camera_id: 'a' });
+        const on = camera({ camera_id: 'b', name: 'Still on' });
+
+        const result = computeMarkerData([off, on], { a: { lat: 68.7, lng: 15.4 }, b: { lat: 68.8, lng: 15.5 } }, ['a']);
+
+        expect(result.placed).toEqual([{ cameraId: 'b', camera: on, lat: 68.8, lng: 15.5 }]);
+        // And not in `unplaced` either: that list feeds the "N cameras
+        // without placement" nag, and nagging about a camera the viewer
+        // deliberately switched off is exactly backwards.
+        expect(result.unplaced).toEqual([]);
+    });
+
+    it('keeps a switched-off camera out of the unplaced nag even when it has no placement', () => {
+        const off = camera({ camera_id: 'a' });
+
+        expect(computeMarkerData([off], {}, ['a']).unplaced).toEqual([]);
+    });
+
     it('places nothing and reports every camera as unplaced when placements is empty', () => {
         const cameras = [camera({ camera_id: 'a' }), camera({ camera_id: 'b' })];
 

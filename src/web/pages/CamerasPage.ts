@@ -21,6 +21,8 @@ import { t } from '../i18n/index.js';
 import { pageAttribution, pageFreshness, pageLocalityOverride } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { cameraCountLabel } from './cameras/cameraCount.js';
+import { enabledCameras } from './cameras/enabledCameras.js';
+import { settings } from '../settings-resource.js';
 import './cameras/cameras.css';
 
 /** A camera image older than this (or missing entirely) renders the whole card in muted greys, per artboard 05's Spjutvika example -- a genuinely stale/absent snapshot, not a map-placement concern. */
@@ -88,7 +90,10 @@ export function render(container: HTMLElement): () => void {
         const state = camerasResource.state.get();
         reportFreshness(state);
 
-        const cameras = state.status === 'ready' ? state.data.cameras : state.status === 'error' ? (state.lastData?.cameras ?? []) : [];
+        const all = state.status === 'ready' ? state.data.cameras : state.status === 'error' ? (state.lastData?.cameras ?? []) : [];
+        // Switched-off cameras are absent here rather than dimmed: the
+        // point of the setting is to keep them off this page entirely.
+        const cameras = enabledCameras(all, settings.get().disabledCameras);
 
         pageLocalityOverride.set(cameraCountLabel(cameras.length));
 

@@ -22,6 +22,7 @@
 import type * as Leaflet from 'leaflet';
 import type { Camera } from '../../../shared/schemas/camera.js';
 import type { Settings } from '../../../shared/schemas/settings.js';
+import { isCameraEnabled } from '../cameras/enabledCameras.js';
 import { computed, effect, type ReadonlySignal } from '../../core/signal.js';
 import { camerasResource } from '../../camera-resource.js';
 import { settings } from '../../settings-resource.js';
@@ -38,11 +39,23 @@ export interface MarkerData {
     unplaced: Camera[];
 }
 
-/** A camera with no entry in `placements` is skipped on the map and collected into `unplaced` instead (for the "N cameras without placement" link). */
-export function computeMarkerData(cameras: readonly Camera[], placements: Settings['placements']): MarkerData {
+/**
+ * A camera with no entry in `placements` is skipped on the map and
+ * collected into `unplaced` instead (for the "N cameras without
+ * placement" link). A camera the viewer has switched off
+ * (`disabledCameras`) is skipped from *both*: it is not on the map, and it
+ * must not show up in the "without placement" nag either, since placing it
+ * is exactly what they have declined to care about.
+ */
+export function computeMarkerData(
+    cameras: readonly Camera[],
+    placements: Settings['placements'],
+    disabledCameras: Settings['disabledCameras'] = [],
+): MarkerData {
     const placed: MarkerDescriptor[] = [];
     const unplaced: Camera[] = [];
     for (const camera of cameras) {
+        if (!isCameraEnabled(camera.camera_id, disabledCameras)) continue;
         const placement = placements[camera.camera_id];
         if (placement) {
             placed.push({ cameraId: camera.camera_id, camera, lat: placement.lat, lng: placement.lng });
@@ -98,7 +111,7 @@ export function diffMarkers(previous: ReadonlyMap<string, MarkerDescriptor>, nex
 export const markerData: ReadonlySignal<MarkerData> = computed(() => {
     const state = camerasResource.state.get();
     const cameras = state.status === 'ready' ? state.data.cameras : state.status === 'error' ? (state.lastData?.cameras ?? []) : [];
-    return computeMarkerData(cameras, settings.get().placements);
+    return computeMarkerData(cameras, settings.get().placements, settings.get().disabledCameras);
 });
 
 /** The 20px paper-dot/ink-ring/halo pin from artboard 01 -- see `map.css` for the actual rule (token-based, no raw hex here). There is no "offline" pin variant in this phase: every placed camera renders identically. */

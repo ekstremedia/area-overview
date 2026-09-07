@@ -45,7 +45,9 @@ describe('CameraViewerPage', () => {
         const img = container.querySelector<HTMLImageElement>('.camera-viewer-image');
         expect(img).not.toBeNull();
         expect(img?.src).toBe('https://example.test/current.jpg?v=1725530400'); // verbatim, no second query param appended
-        expect(img?.classList.contains('halftone')).toBe(true);
+        // Camera photographs opt out of the design system's newsprint dot
+        // screen -- it reads as a dirty grid over a live image (Terje's call).
+        expect(img?.classList.contains('halftone')).toBe(false);
 
         expect(container.querySelector('.camera-viewer-updated-line')?.textContent).toContain('Sigerfjordveien, mot sundet');
 

@@ -68,7 +68,7 @@ export function render(container: HTMLElement, cameraId: string): () => void {
 
         if (camera.current_image_url) {
             const img = document.createElement('img');
-            img.className = 'camera-viewer-image halftone';
+            img.className = 'camera-viewer-image';
             img.src = camera.current_image_url;
             img.alt = t('map.cameraImageAlt', { name: camera.name });
             root.append(img);
