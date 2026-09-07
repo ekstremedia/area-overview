@@ -73,8 +73,14 @@ function shipLabel(ship: Ship): string {
 }
 
 async function fetchShips(map: Leaflet.Map): Promise<Result<ShipsResponse>> {
+    // No usable viewport (see `mapToBboxQuery`). Reported as an error so
+    // `resource` keeps the last good response on screen: the ships already
+    // drawn are still the right ones, and asking for a point-sized bbox
+    // would answer "no ships" and clear them.
+    const bbox = mapToBboxQuery(map);
+    if (bbox === null) return err({ message: 'Skipped GET /api/ships: the map has no measurable viewport yet' });
     try {
-        const response = await fetch(`/api/ships?bbox=${mapToBboxQuery(map)}`);
+        const response = await fetch(`/api/ships?bbox=${bbox}`);
         // 503 is the documented "unconfigured" response, not a failure --
         // parse and pass its {configured:false} body through like any
         // other status here (`response.ok` is false for a 503, so a
