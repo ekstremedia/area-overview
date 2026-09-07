@@ -270,7 +270,10 @@ function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureR
             // negative low gets the cyan accent (see the compound override
             // in weather.css: `.weather-daily-low` alone would otherwise
             // win the cascade on source order and stay grey).
-            low.className = roundedLow < 0 ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
+            // `<= 0`, matching the legend beside the hourly strip, which
+            // reads "0° og under" -- the two rows must agree about which
+            // side of zero a rounded 0° falls on.
+            low.className = roundedLow <= 0 ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
             low.textContent = `${formatNumber(roundedLow)}°`;
             temps.append(low);
         }

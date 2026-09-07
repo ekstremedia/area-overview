@@ -235,13 +235,19 @@ describe('WeatherPage', () => {
         vi.useRealTimers();
     });
 
-    it('drops the summary heading and byline, leaving the prose alone', () => {
+    it('drops the summary heading and byline, leaving the prose alone', async () => {
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
 
         // The design reduced the summary to bare prose. Nothing should
-        // announce it as a summary or say when it was generated.
+        // announce it as a summary or say when it was generated -- but the
+        // summary arrives from its own async resource, so wait for the prose
+        // first: asserting on an empty slot would pass whether or not the
+        // heading was ever removed.
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-summary-text')).not.toBeNull();
+        });
         expect(container.querySelector('.weather-summary-label')).toBeNull();
         expect(container.querySelector('.weather-summary-age')).toBeNull();
 
@@ -298,15 +304,16 @@ describe('WeatherPage', () => {
         dispose();
     });
 
-    it("colours a sub-zero daily low with the hourly strip's freezing colour, and leaves an exactly-zero low uncoloured", async () => {
+    it("colours a daily low at or below zero with the hourly strip's freezing colour", async () => {
         const dailyWithSubZero = {
             ...weatherFixture,
             forecast: {
                 ...weatherFixture.forecast,
                 daily: [
                     { ...weatherFixture.forecast.daily[0], temperature_min: -2, temperature_max: 9 },
-                    // Boundary: 0 itself reads as "0°", not frost -- same
-                    // convention as the hourly strip's own zero handling.
+                    // Boundary: the legend beside the hourly strip reads
+                    // "0° og under", so a rounded 0° belongs to the cold
+                    // side here too -- the two rows must not disagree.
                     { ...weatherFixture.forecast.daily[1], temperature_min: 0, temperature_max: 6 },
                     ...weatherFixture.forecast.daily.slice(2),
                 ],
@@ -328,7 +335,7 @@ describe('WeatherPage', () => {
 
         const zeroLow = days[1]?.querySelector('.weather-daily-low');
         expect(zeroLow?.textContent).toBe(`${formatNumber(0)}°`);
-        expect(zeroLow?.classList.contains('weather-temp-below-zero')).toBe(false);
+        expect(zeroLow?.classList.contains('weather-temp-below-zero')).toBe(true);
 
         dispose();
     });
