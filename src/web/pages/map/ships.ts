@@ -52,6 +52,11 @@ function shipColor(ship: Ship): string {
     return ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE ? SHIP_GLYPH_COLOR_UNDERWAY_ENGINE : SHIP_GLYPH_COLOR;
 }
 
+/** A ship's name for its always-visible label -- falls back to `map.shipUnknown`, same convention as `buildShipPopup`/`buildClusterListPopup`, rather than showing a blank tag next to the triangle. Only called for underway ships (`ships.ts`'s `mountShipsLayer`'s `labelFor`) -- moored/anchored/fishing ships get no label at all, to avoid cluttering the map. */
+function shipLabel(ship: Ship): string {
+    return ship.name.trim() === '' ? t('map.shipUnknown') : ship.name;
+}
+
 async function fetchShips(map: Leaflet.Map): Promise<Result<ShipsResponse>> {
     try {
         const response = await fetch(`/api/ships?bbox=${mapToBboxQuery(map)}`);
@@ -309,6 +314,12 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 hitRadiusPx: HIT_RADIUS_PX,
                 buildPopup: (ship) => buildShipPopup(ship),
                 colorFor: shipColor,
+                // Only ships under way using their engine get a label --
+                // Terje's ask was specifically the green/underway subset
+                // just coloured by the previous feature, not every ship,
+                // to avoid cluttering the map with moored/anchored/fishing
+                // vessels' names.
+                labelFor: (ship) => (ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE ? shipLabel(ship) : null),
             });
             const clusterBadges = createClusterBadgeLayer(L, map);
 

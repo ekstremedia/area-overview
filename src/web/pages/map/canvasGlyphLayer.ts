@@ -51,6 +51,22 @@ export interface CanvasGlyphLayerOptions<T> {
      * position/heading -- can change between polls.
      */
     colorFor?: (data: T) => string;
+    /**
+     * Per-glyph permanent-label text -- a ship's name (underway ships
+     * only, `ships.ts`'s `shipLabel`) or an aircraft's callsign
+     * (`aircraft.ts`'s `aircraftLabel`, every aircraft). `null`/empty
+     * means no label. Bound to the same `hitArea` polygon `buildPopup`
+     * already uses (Leaflet permits both a popup and a permanent tooltip
+     * on one layer), as an `L.Tooltip`, not drawn on the canvas itself --
+     * simpler than hand-rolled canvas text, and this project already
+     * leans on Leaflet's own layer machinery for the interactive half of
+     * a glyph. Consulted both at creation (`createEntry`) and on every
+     * subsequent `update()` call, same reasoning as `colorFor`: a ship's
+     * navigational status (and therefore whether it should be labelled
+     * at all) can change between polls with no change to lat/lng/heading/
+     * timestamp, which `diffGlyphs` wouldn't otherwise flag as an update.
+     */
+    labelFor?: (data: T) => string | null;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -64,6 +80,8 @@ export interface CanvasGlyphLayer<T> {
 interface GlyphEntry {
     visible: Leaflet.Polygon;
     hitArea: Leaflet.Polygon;
+    /** The currently-bound tooltip text, or `null` when none is bound -- lets `applyLabel` tell "no label" from "same label" from "changed label" without asking Leaflet. */
+    label: string | null;
 }
 
 /** `hitRadiusPx` is a target half-*diameter* for the tap area; the hit triangle is the same shape as the visible glyph, scaled up to reach it. */
@@ -100,6 +118,30 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         return { fillOpacity: finalOpacity, opacity: finalOpacity, color, fillColor: color };
     }
 
+    /** Small offset so a permanent right-hand tooltip clears the triangle itself rather than overlapping its heading indicator. */
+    const labelTooltipOptions: Leaflet.TooltipOptions = {
+        permanent: true,
+        direction: 'right',
+        offset: L.point(8, 0),
+        className: 'glyph-label',
+        interactive: false,
+    };
+
+    /** Binds/replaces/unbinds `entry.hitArea`'s permanent tooltip to match `options.labelFor(descriptor.data)`'s current result -- a no-op when the label hasn't changed since the last call. */
+    function applyLabel(entry: GlyphEntry, descriptor: GlyphDescriptor<T>): void {
+        const raw = options.labelFor?.(descriptor.data) ?? null;
+        const label = raw !== null && raw !== '' ? raw : null;
+        if (label === entry.label) return;
+        if (label === null) {
+            entry.hitArea.unbindTooltip();
+        } else if (entry.label === null) {
+            entry.hitArea.bindTooltip(label, labelTooltipOptions);
+        } else {
+            entry.hitArea.setTooltipContent(label);
+        }
+        entry.label = label;
+    }
+
     function applyLatLngs(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
         entry.visible.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx));
         entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier));
@@ -129,7 +171,9 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         });
         visible.addTo(layerGroup);
         hitArea.addTo(layerGroup);
-        return { visible, hitArea };
+        const entry: GlyphEntry = { visible, hitArea, label: null };
+        applyLabel(entry, descriptor);
+        return entry;
     }
 
     function removeEntry(id: string): void {
@@ -171,15 +215,20 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             if (!entry) continue;
             applyLatLngs(descriptor, entry);
             if (entry.hitArea.isPopupOpen()) entry.hitArea.setPopupContent(options.buildPopup(descriptor.data));
+            applyLabel(entry, descriptor);
         }
 
         for (const id of diff.toRemove) removeEntry(id);
 
-        // Opacity can change between polls purely from aging, even with
-        // no position/heading update -- applied to every surviving entry.
+        // Opacity (and, independently, the label) can change between polls
+        // purely from a status change, even with no position/heading/
+        // timestamp update -- both applied to every surviving entry, not
+        // just the ones `diffGlyphs` flagged as `toUpdate`.
         for (const { descriptor, opacity } of visible) {
             const entry = entries.get(descriptor.id);
-            if (entry) entry.visible.setStyle(styleFor(descriptor, opacity));
+            if (!entry) continue;
+            entry.visible.setStyle(styleFor(descriptor, opacity));
+            applyLabel(entry, descriptor);
         }
 
         visibleCount = visible.length;

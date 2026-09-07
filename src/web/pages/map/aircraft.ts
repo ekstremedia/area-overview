@@ -64,6 +64,11 @@ function isOnGround(aircraft: Aircraft): boolean {
     return aircraft.altitudeFt === 'ground';
 }
 
+/** An aircraft's callsign for its always-visible label, falling back to its ICAO hex when the callsign is blank -- the exact same fallback `buildAircraftPopup` already uses. Unlike ships, every rendered aircraft gets a label, no status filter. */
+function aircraftLabel(aircraft: Aircraft): string {
+    return aircraft.callsign.trim() === '' ? aircraft.icao : aircraft.callsign;
+}
+
 function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLElement {
     const root = document.createElement('div');
     root.className = 'aircraft-popup';
@@ -112,6 +117,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 hitRadiusPx: HIT_RADIUS_PX,
                 buildPopup: (aircraft) => buildAircraftPopup(aircraft),
                 isDistinct: isOnGround,
+                labelFor: (aircraft) => aircraftLabel(aircraft),
             });
 
             const pollSeconds = Math.max(settings.get().aircraft.pollSeconds, AIRCRAFT_LAYER.minPollSeconds);
