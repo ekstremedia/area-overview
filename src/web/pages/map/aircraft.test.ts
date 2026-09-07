@@ -15,12 +15,25 @@ const { mountAircraftLayer } = await import('./aircraft.js');
 
 function fakePolygon() {
     const polygon = {
+        tooltip: undefined as HTMLElement | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: () => polygon,
         bindPopup: () => polygon,
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
+        bindTooltip: (content: HTMLElement) => {
+            polygon.tooltip = content;
+            return polygon;
+        },
+        unbindTooltip: () => {
+            polygon.tooltip = undefined;
+            return polygon;
+        },
+        setTooltipContent: (content: HTMLElement) => {
+            polygon.tooltip = content;
+            return polygon;
+        },
     };
     return polygon;
 }
@@ -30,11 +43,15 @@ function fakeLayerGroup() {
     return group;
 }
 
-function fakeLeaflet(): typeof Leaflet {
+function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = []): typeof Leaflet {
     return {
         canvas: () => ({}),
         layerGroup: fakeLayerGroup,
-        polygon: fakePolygon,
+        polygon: () => {
+            const polygon = fakePolygon();
+            createdPolygons.push(polygon);
+            return polygon;
+        },
         latLng: (lat: number, lng: number) => ({ lat, lng }),
         point: (x: number, y: number) => ({ x, y }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,6 +164,54 @@ describe('mountAircraftLayer', () => {
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: true } }));
         await vi.advanceTimersByTimeAsync(5_000);
         expect(reportCount).toHaveBeenLastCalledWith(1); // now shown, distinctly styled
+
+        dispose();
+    });
+});
+
+describe('mountAircraftLayer -- name labels', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: false, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+    });
+
+    it('labels every aircraft with its callsign', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(oneAircraft)));
+        const map = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // (visible, hitArea) pair -- the tooltip lives on the hit area.
+        const [, hitArea] = createdPolygons;
+        expect(hitArea?.tooltip?.textContent).toBe('TEST01');
+
+        dispose();
+    });
+
+    it('falls back to the ICAO hex when the callsign is blank', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const blankCallsignResponse = {
+            configured: true,
+            fetchedAt: '2026-09-05T12:00:00Z',
+            aircraft: [{ ...oneAircraft.aircraft[0], icao: 'noc4l1', callsign: '   ' }],
+        };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(blankCallsignResponse)));
+        const map = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [, hitArea] = createdPolygons;
+        expect(hitArea?.tooltip?.textContent).toBe('noc4l1');
 
         dispose();
     });

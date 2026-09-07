@@ -19,6 +19,7 @@ const { mountShipsLayer } = await import('./ships.js');
 function fakePolygon(initial: Record<string, unknown> = {}) {
     const polygon = {
         style: { ...initial },
+        tooltip: undefined as HTMLElement | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: (style: Record<string, unknown>) => {
@@ -28,6 +29,18 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
         bindPopup: () => polygon,
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
+        bindTooltip: (content: HTMLElement) => {
+            polygon.tooltip = content;
+            return polygon;
+        },
+        unbindTooltip: () => {
+            polygon.tooltip = undefined;
+            return polygon;
+        },
+        setTooltipContent: (content: HTMLElement) => {
+            polygon.tooltip = content;
+            return polygon;
+        },
     };
     return polygon;
 }
@@ -256,6 +269,36 @@ describe('mountShipsLayer -- colouring by navigationalStatus', () => {
         expect(visiblePolygons).toHaveLength(2);
         expect(visiblePolygons[0]?.style.color).toBe('#4ade80');
         expect(visiblePolygons[1]?.style.color).toBe('#62c5ee');
+
+        dispose();
+    });
+});
+
+describe('mountShipsLayer -- name labels', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: false, pollSeconds: 10, maxAgeMinutes: 30 } }));
+    });
+
+    it('labels an underway ship (navigationalStatus 0) with its name, and gives a non-underway ship no label', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const underway = ship({ mmsi: '1', name: 'MS NORDLYS', lat: 68.7, lng: 15.4, navigationalStatus: 0 });
+        const moored = ship({ mmsi: '2', name: 'MS MOORED', lat: 60.0, lng: 5.0, navigationalStatus: 5 }); // far away -- must not cluster with the first
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([underway, moored]))));
+        const { map } = fakeMap();
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Each ship is a (visible, hitArea) pair, in the order it was added -- the tooltip lives on the hit area.
+        const hitAreas = createdPolygons.filter((_, index) => index % 2 === 1);
+        expect(hitAreas).toHaveLength(2);
+        expect(hitAreas[0]?.tooltip?.textContent).toBe('MS NORDLYS');
+        expect(hitAreas[1]?.tooltip).toBeUndefined();
 
         dispose();
     });
