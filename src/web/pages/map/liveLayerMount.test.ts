@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Leaflet from 'leaflet';
 import { signal } from '../../core/signal.js';
-import { mapToBboxQuery, mountWhileEnabled } from './liveLayerMount.js';
+import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove } from './liveLayerMount.js';
 
 interface FakeMapOptions {
     /** What Leaflet currently *thinks* the container is, i.e. its cached `getSize()`. */
@@ -64,6 +64,74 @@ describe('mapToBboxQuery', () => {
         const { map } = fakeMap({ cachedSize: { x: 0, y: 0 }, containerSize: { width: 0, height: 0 } });
 
         expect(mapToBboxQuery(map)).toBeNull();
+    });
+});
+
+describe('refetchOnMapMove', () => {
+    /** A map that only records `moveend` handlers and can fire them on demand. */
+    function movableMap() {
+        const handlers: (() => void)[] = [];
+        const map = {
+            on: (event: string, handler: () => void) => {
+                if (event === 'moveend') handlers.push(handler);
+            },
+            off: (event: string, handler: () => void) => {
+                if (event !== 'moveend') return;
+                const index = handlers.indexOf(handler);
+                if (index >= 0) handlers.splice(index, 1);
+            },
+        };
+        return {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            map: map as any as Leaflet.Map,
+            moveEnd: (): void => {
+                for (const handler of handlers) handler();
+            },
+            handlerCount: (): number => handlers.length,
+        };
+    }
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('collapses a burst of moveends into a single refetch', () => {
+        vi.useFakeTimers();
+        const { map, moveEnd } = movableMap();
+        const refresh = vi.fn();
+        const dispose = refetchOnMapMove(map, refresh);
+
+        // A drag that settles in several small corrections.
+        moveEnd();
+        vi.advanceTimersByTime(100);
+        moveEnd();
+        vi.advanceTimersByTime(100);
+        moveEnd();
+        expect(refresh).not.toHaveBeenCalled(); // still settling
+
+        vi.advanceTimersByTime(400);
+        expect(refresh).toHaveBeenCalledTimes(1); // one fetch for the whole gesture
+
+        // A later, separate gesture fetches again.
+        moveEnd();
+        vi.advanceTimersByTime(400);
+        expect(refresh).toHaveBeenCalledTimes(2);
+
+        dispose();
+    });
+
+    it('drops a pending refetch on dispose, and stops listening', () => {
+        vi.useFakeTimers();
+        const { map, moveEnd, handlerCount } = movableMap();
+        const refresh = vi.fn();
+        const dispose = refetchOnMapMove(map, refresh);
+
+        moveEnd();
+        dispose(); // navigated away mid-debounce
+
+        vi.advanceTimersByTime(5_000);
+        expect(refresh).not.toHaveBeenCalled();
+        expect(handlerCount()).toBe(0);
     });
 });
 

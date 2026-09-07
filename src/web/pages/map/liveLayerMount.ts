@@ -49,6 +49,50 @@ export function mountWhileEnabled(isEnabled: () => boolean, mount: () => () => v
 }
 
 /**
+ * Long enough to coalesce a flurry of `moveend`s (a drag that ends in
+ * several small corrections, a double-tap zoom) into one fetch, short
+ * enough that ships appear in newly-revealed water as part of the same
+ * gesture rather than as a later surprise.
+ */
+const MOVE_REFETCH_DEBOUNCE_MS = 400;
+
+/**
+ * Refetches (debounced) whenever the map settles somewhere new.
+ *
+ * Both live layers fetch by the visible bbox, so a pan or zoom invalidates
+ * the answer they are currently showing: water that just scrolled into
+ * view holds no ships until the next poll, up to a full `pollSeconds`
+ * later. `moveend` covers both cases -- Leaflet fires it after a zoom as
+ * well as a pan -- which is why this is the only hook needed.
+ *
+ * (`zoomend` stays wired separately in `ships.ts` for re-clustering: that
+ * one is instant and local, recomputing pixel distances from data already
+ * in hand, and shouldn't wait on a network round trip.)
+ *
+ * Note that `mapToBboxQuery`'s `invalidateSize` can itself fire `moveend`
+ * -- but only when the size genuinely changed, and the very next fetch
+ * then finds the sizes agreeing and invalidates nothing. So a stale size
+ * costs one extra fetch and settles, rather than looping; and that extra
+ * fetch is the right thing anyway, since a resized viewport really does
+ * show a different rectangle.
+ */
+export function refetchOnMapMove(map: Leaflet.Map, refresh: () => void): () => void {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    function onMoveEnd(): void {
+        clearTimeout(timer);
+        timer = setTimeout(refresh, MOVE_REFETCH_DEBOUNCE_MS);
+    }
+
+    map.on('moveend', onMoveEnd);
+
+    return function dispose(): void {
+        clearTimeout(timer);
+        map.off('moveend', onMoveEnd);
+    };
+}
+
+/**
  * Re-measures the map's container if Leaflet's cached size no longer
  * matches it.
  *

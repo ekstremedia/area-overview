@@ -12,6 +12,61 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+describe('resource refresh', () => {
+    it('fetches immediately and pushes the next poll a full interval out', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(ok('x'));
+        const res = resource(fetcher, { intervalMs: 10_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(6_000); // 6s into the interval
+        res.refresh();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).toHaveBeenCalledTimes(2); // fetched now, not in 4s
+
+        // Had the interval kept its original phase, the scheduled poll would
+        // land 4s from here, right on the refresh's heels.
+        await vi.advanceTimersByTimeAsync(9_999);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fetcher).toHaveBeenCalledTimes(3);
+
+        res.dispose();
+    });
+
+    it('does not start polling when refreshed while the tab is hidden', async () => {
+        vi.useFakeTimers();
+        setHidden(true);
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(ok('x'));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).not.toHaveBeenCalled(); // hidden: no initial load, no timer
+
+        res.refresh();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).toHaveBeenCalledTimes(1); // the explicit ask is honoured...
+
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(fetcher).toHaveBeenCalledTimes(1); // ...but it must not resume polling
+
+        res.dispose();
+    });
+
+    it('is inert after dispose', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(ok('x'));
+        const res = resource(fetcher, { intervalMs: 10_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        res.dispose();
+
+        res.refresh();
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('resource', () => {
     it('transitions idle -> loading -> ready on a successful fetch', async () => {
         const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(ok('hello'));

@@ -17,6 +17,16 @@ export type ResourceState<T> =
 
 export interface Resource<T> {
     state: ReadonlySignal<ResourceState<T>>;
+    /**
+     * Fetches now, outside the poll rhythm, for a caller that knows the
+     * answer just went stale -- the map layers use it when the viewport
+     * moves, since their fetch is parameterised by the visible bbox and
+     * waiting out the rest of the interval would leave the newly-revealed
+     * area empty. Restarts the interval (when one is running) so the next
+     * poll is a full interval after this fetch rather than landing right
+     * on its heels.
+     */
+    refresh(): void;
     dispose(): void;
 }
 
@@ -98,11 +108,21 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
         startInterval();
     }
 
+    function refresh(): void {
+        if (isDisposed()) return;
+        void load();
+        // Only when a timer is already running: a `refresh()` while the tab
+        // is hidden (polling deliberately stopped, see above) must not be
+        // what starts polling again -- that stays `handleVisibilityChange`'s
+        // decision alone.
+        if (timer !== undefined) startInterval();
+    }
+
     function dispose(): void {
         disposed = true;
         stopInterval();
         document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
 
-    return { state, dispose };
+    return { state, refresh, dispose };
 }
