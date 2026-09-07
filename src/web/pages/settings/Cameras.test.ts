@@ -293,7 +293,11 @@ describe('Cameras section', () => {
 
         const captions = (): string[] =>
             [...row.el.querySelectorAll<HTMLInputElement>('.number-field-input')].map((input) => input.dataset.keyboardContext ?? '');
-        for (const caption of captions()) expect(caption).toContain('Sigerfjord');
+        const before = captions();
+        // Asserted, not assumed: an empty list would make both loops below
+        // pass without checking a single caption.
+        expect(before).toHaveLength(2);
+        for (const caption of before) expect(caption).toContain('Sigerfjord');
 
         row.update(camera({ name: 'Sigerfjord kai' }), { lat: 68.7, lng: 15.4 }, true, true);
 
@@ -301,7 +305,9 @@ describe('Cameras section', () => {
         // arriving later from the cameras resource has to be pushed into
         // the existing inputs -- otherwise the keyboard tray keeps naming
         // the camera that no longer exists under that name.
-        for (const caption of captions()) expect(caption).toContain('Sigerfjord kai');
+        const after = captions();
+        expect(after).toHaveLength(2);
+        for (const caption of after) expect(caption).toContain('Sigerfjord kai');
 
         row.dispose();
         row.el.remove();
