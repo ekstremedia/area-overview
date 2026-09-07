@@ -326,6 +326,23 @@
     font-size: 13px;
 }
 
+/* — cluster badge underway indicator: a green ring around the count circle
+   when at least one member is underway (`ships.ts`'s `clusterHasUnderway`),
+   the only glanceable cue a badge carries -- the per-ship green/label the
+   canvas layer draws for an individual underway ship never appears once
+   it's absorbed into a badge. The colour itself comes in via
+   `--ship-cluster-underway-color`, set inline from `SHIP_GLYPH_COLOR_UNDERWAY_ENGINE`
+   (`liveLayerColors.ts`) rather than a literal here -- same "colour from
+   JS, shape from CSS" split `canvasGlyphLayer.ts` uses for the triangles,
+   just via a custom property instead of a canvas style since this is real
+   DOM. Same variable/rule shape reused below for the cluster list popup's
+   per-row colouring. */
+.ship-cluster-badge-count-underway {
+    box-shadow:
+        0 0 0 2px var(--color-bg),
+        0 0 0 4px var(--ship-cluster-underway-color);
+}
+
 /* — ship cluster popup: the list view (one tappable row per member ship)
    and the detail view (a "back" affordance above the reused `.ship-popup`
    content) -- shares `.live-glyph-popup-wrapper`'s dark-card treatment. */
@@ -368,6 +385,11 @@
 .ship-cluster-popup-row-name {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
+}
+
+/* — underway member (`navigationalStatus === 0`) row name, coloured the same green as the badge ring above (`--ship-cluster-underway-color`) and an individual underway ship's own triangle/label. */
+.ship-cluster-popup-row-name-underway {
+    color: var(--ship-cluster-underway-color);
 }
 
 .ship-cluster-popup-row-meta {

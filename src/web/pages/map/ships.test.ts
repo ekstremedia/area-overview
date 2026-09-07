@@ -357,6 +357,31 @@ describe('mountShipsLayer -- clustering', () => {
         dispose();
     });
 
+    it("colours an underway member's name green in the cluster list popup, and leaves a non-underway member's name uncoloured", async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const underway = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4, navigationalStatus: 0 });
+        const moored = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41, navigationalStatus: 5 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([underway, moored]))));
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [badge] = createdMarkers;
+        badge?.openPopup();
+        const listContent = badge?.lastContent;
+        const names = listContent?.querySelectorAll('.ship-cluster-popup-row-name');
+        expect(names?.[0]?.textContent).toBe('ALPHA');
+        expect(names?.[0]?.classList.contains('ship-cluster-popup-row-name-underway')).toBe(true);
+        expect(names?.[1]?.textContent).toBe('BRAVO');
+        expect(names?.[1]?.classList.contains('ship-cluster-popup-row-name-underway')).toBe(false);
+
+        dispose();
+    });
+
     it("tapping a cluster badge shows a list, and tapping a row shows that ship's own detail, with a way back", async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
@@ -390,6 +415,77 @@ describe('mountShipsLayer -- clustering', () => {
         const backToListContent = badge?.lastContent;
         expect(backToListContent?.textContent).toContain('ALPHA');
         expect(backToListContent?.textContent).toContain('BRAVO');
+
+        dispose();
+    });
+
+    it('gives a cluster badge an underway indicator when at least one member has navigationalStatus 0', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const underway = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4, navigationalStatus: 0 });
+        const moored = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41, navigationalStatus: 5 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([underway, moored]))));
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [badge] = createdMarkers;
+        const icon = badge?.icon as { html: HTMLElement } | undefined;
+        expect(icon?.html.classList.contains('ship-cluster-badge-count-underway')).toBe(true);
+
+        dispose();
+    });
+
+    it('gives a cluster badge no underway indicator when no member has navigationalStatus 0', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4, navigationalStatus: 5 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41, navigationalStatus: 1 });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([a, b]))));
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [badge] = createdMarkers;
+        const icon = badge?.icon as { html: HTMLElement } | undefined;
+        expect(icon?.html.classList.contains('ship-cluster-badge-count-underway')).toBe(false);
+
+        dispose();
+    });
+
+    it("updates a cluster badge's underway indicator on a later poll once a member's navigationalStatus changes, without membership changing", async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const a = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4, navigationalStatus: 5 });
+        const b = ship({ mmsi: '2', name: 'BRAVO', lat: 68.7, lng: 15.41, navigationalStatus: 1 });
+        const aUnderway = ship({ mmsi: '1', name: 'ALPHA', lat: 68.7, lng: 15.4, navigationalStatus: 0 });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse(configuredResponse([a, b])))
+            .mockResolvedValueOnce(jsonResponse(configuredResponse([aUnderway, b]))); // same membership, `a` now underway
+        vi.stubGlobal('fetch', fetchMock);
+        const { map } = fakeMap();
+        const createdMarkers: FakeMarker[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(createdMarkers).toHaveLength(1);
+        const [badge] = createdMarkers;
+        const iconBefore = badge?.icon as { html: HTMLElement } | undefined;
+        expect(iconBefore?.html.classList.contains('ship-cluster-badge-count-underway')).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(10_000); // next poll: same two ships, `a` now underway
+        expect(createdMarkers).toHaveLength(1); // same badge entry reused (membership/key unchanged)
+        const iconAfter = badge?.icon as { html: HTMLElement } | undefined;
+        expect(iconAfter?.html.classList.contains('ship-cluster-badge-count-underway')).toBe(true);
 
         dispose();
     });
