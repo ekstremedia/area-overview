@@ -16,6 +16,9 @@ interface FakePolygon {
     style: Record<string, unknown>;
     latLngs: unknown[];
     tooltip: HTMLElement | undefined;
+    tooltipOptions: Record<string, unknown> | undefined;
+    /** Whether `bindPopup` was called on this polygon -- lets a test assert which of the pair actually owns the popup, rather than inferring it. */
+    hasPopup: boolean;
     setLatLngs: (next: unknown[]) => FakePolygon;
     setStyle: (style: Record<string, unknown>) => FakePolygon;
     bindPopup: () => FakePolygon;
@@ -32,6 +35,8 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         style: { ...initial },
         latLngs: [...latLngs],
         tooltip: undefined,
+        tooltipOptions: undefined,
+        hasPopup: false,
         setLatLngs: (next) => {
             polygon.latLngs = [...next];
             return polygon;
@@ -40,7 +45,10 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
             polygon.style = { ...polygon.style, ...style };
             return polygon;
         },
-        bindPopup: () => polygon,
+        bindPopup: () => {
+            polygon.hasPopup = true;
+            return polygon;
+        },
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
         addTo: () => polygon,
@@ -54,6 +62,7 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         bindTooltip: (content, options = {}) => {
             if (options.permanent === true && polygon.latLngs.length === 0) throw new Error('latlngs not passed');
             polygon.tooltip = content;
+            polygon.tooltipOptions = { ...options };
             return polygon;
         },
         unbindTooltip: () => {
@@ -262,6 +271,26 @@ describe('createCanvasGlyphLayer labelFor', () => {
         expect(hitArea?.latLngs).toHaveLength(3);
         expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
         expect(layer.count()).toBe(1);
+    });
+
+    it('binds the label on the same polygon as the popup, and interactively, so tapping the name opens the glyph popup', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor: () => 'ALPHA' }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+
+        // Leaflet forwards an interactive tooltip's clicks to the layer it
+        // belongs to, so the label only opens a popup if it is bound to the
+        // polygon that owns one. Asserting both halves -- which polygon has
+        // the popup, and which has the label -- is what makes this a real
+        // check: a label on the popup-less `visible` polygon would be inert
+        // however interactive it claimed to be.
+        const [visible, hitArea] = created;
+        expect(hitArea?.hasPopup).toBe(true);
+        expect(visible?.hasPopup).toBe(false);
+        expect(visible?.tooltip).toBeUndefined();
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+        expect(hitArea?.tooltipOptions?.interactive).toBe(true);
     });
 
     it('treats an empty-string label the same as null -- no tooltip bound', () => {

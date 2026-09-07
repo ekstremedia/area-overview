@@ -118,13 +118,25 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         return { fillOpacity: finalOpacity, opacity: finalOpacity, color, fillColor: color };
     }
 
-    /** Small offset so a permanent right-hand tooltip clears the triangle itself rather than overlapping its heading indicator. */
+    /**
+     * Small offset so a permanent right-hand tooltip clears the triangle
+     * itself rather than overlapping its heading indicator.
+     *
+     * `interactive: true` makes the label a tap target in its own right:
+     * Leaflet forwards its clicks to the layer the tooltip belongs to,
+     * which is `hitArea` -- the same polygon `buildPopup` is bound to --
+     * so tapping a ship's name opens exactly the popup tapping its
+     * triangle does. On a touchscreen the name is a far easier target
+     * than a 14x19px triangle, which is the point. `map.css` grows the
+     * label's tappable box to this app's 44px minimum without changing
+     * how it looks.
+     */
     const labelTooltipOptions: Leaflet.TooltipOptions = {
         permanent: true,
         direction: 'right',
         offset: L.point(8, 0),
         className: 'glyph-label',
-        interactive: false,
+        interactive: true,
     };
 
     /**
