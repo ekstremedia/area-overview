@@ -62,9 +62,18 @@ describe('mountMasthead', () => {
         const layerCounts = container.querySelector<HTMLElement>('.masthead-layer-counts');
         expect(layerCounts?.style.display).toBe('none');
 
-        liveLayerCounts.set({ ships: 14, aircraft: 3 });
+        liveLayerCounts.set({ ships: 14, aircraft: 3, hiddenByAge: 0 });
         expect(layerCounts?.style.display).not.toBe('none');
         expect(layerCounts?.textContent).toBe('14 skip · 3 fly');
+
+        // Nothing held back, nothing said: the ordinary line must not carry
+        // a permanent "0 skjult" tail.
+        expect(layerCounts?.textContent).not.toContain('skjult');
+
+        // With vessels held back by the age filter, the line accounts for
+        // them rather than letting them vanish unexplained.
+        liveLayerCounts.set({ ships: 11, aircraft: 0, hiddenByAge: 1 });
+        expect(layerCounts?.textContent).toBe('11 skip · 0 fly · 1 skjult');
 
         navigate('#/weather');
         expect(layerCounts?.style.display).toBe('none');

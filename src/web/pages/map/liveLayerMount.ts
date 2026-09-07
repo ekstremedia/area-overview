@@ -16,8 +16,14 @@ import type * as Leaflet from 'leaflet';
 import { effect } from '../../core/signal.js';
 
 export interface LiveLayerCallbacks {
-    /** The number of glyphs currently rendered (post age-filter) -- feeds the masthead's live-layer counts. Call with `0` when disabled/unconfigured. */
-    reportCount(count: number): void;
+    /**
+     * The number of glyphs currently rendered (post age-filter), and how
+     * many the BFF returned that the age filter dropped -- both feed the
+     * masthead's live-layer line, the second so a vessel disappearing is
+     * accounted for rather than silent (see `LayerCounts.hiddenByAge`).
+     * Call with `0, 0` when disabled/unconfigured.
+     */
+    reportCount(count: number, hiddenByAge: number): void;
     /** This layer's attribution text while active, or `undefined` while disabled/unconfigured -- feeds the footer's attribution line. */
     reportAttribution(text: string | undefined): void;
 }

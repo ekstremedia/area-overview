@@ -129,7 +129,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
 
             function clear(): void {
                 canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
-                callbacks.reportCount(0);
+                callbacks.reportCount(0, 0);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -143,7 +143,10 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 const showOnGround = settings.get().aircraft.showOnGround;
                 const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
                 canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, new Date());
-                callbacks.reportCount(canvasLayer.count());
+                // `items` is what the BFF returned (less any on-ground
+                // aircraft the viewer chose to hide, which is not an age
+                // matter); `count()` is what survived the age filter.
+                callbacks.reportCount(canvasLayer.count(), items.length - canvasLayer.count());
                 callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
             });
 
@@ -156,7 +159,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 disposeMoveRefetch();
                 res.dispose();
                 canvasLayer.dispose();
-                callbacks.reportCount(0);
+                callbacks.reportCount(0, 0);
                 callbacks.reportAttribution(undefined);
             };
         },

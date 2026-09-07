@@ -410,7 +410,11 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
 
                 canvasLayer.update(singleDescriptors, maxAgeMinutes, now);
                 clusterBadges.update(groupClusters);
-                callbacks.reportCount(visible.length);
+                // `latestShips` is everything the BFF returned for this
+                // viewport; `visible` is what survived the age filter. The
+                // difference is what a viewer would otherwise see simply
+                // vanish -- see `LayerCounts.hiddenByAge`.
+                callbacks.reportCount(visible.length, latestShips.length - visible.length);
                 callbacks.reportAttribution(SHIPS_LAYER.attribution);
             }
 
@@ -419,7 +423,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 latestConfigured = false;
                 canvasLayer.update([], settings.get().ships.maxAgeMinutes, new Date());
                 clusterBadges.update([]);
-                callbacks.reportCount(0);
+                callbacks.reportCount(0, 0);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -450,7 +454,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 res.dispose();
                 canvasLayer.dispose();
                 clusterBadges.dispose();
-                callbacks.reportCount(0);
+                callbacks.reportCount(0, 0);
                 callbacks.reportAttribution(undefined);
             };
         },

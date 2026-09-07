@@ -35,11 +35,16 @@ type LayerId = keyof LayerCounts;
  * page.
  */
 export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void {
-    const counts: LayerCounts = { ships: 0, aircraft: 0 };
+    const counts: LayerCounts = { ships: 0, aircraft: 0, hiddenByAge: 0 };
     const attributions = new Map<LayerId, string>();
+    // Per-layer, so one layer's report never clobbers the other's share of
+    // the single combined figure the masthead shows.
+    const hiddenByAge = new Map<LayerId, number>();
 
-    function reportCount(id: LayerId, count: number): void {
+    function reportCount(id: LayerId, count: number, hidden: number): void {
         counts[id] = count;
+        hiddenByAge.set(id, hidden);
+        counts.hiddenByAge = [...hiddenByAge.values()].reduce((total, value) => total + value, 0);
         liveLayerCounts.set({ ...counts });
     }
 
@@ -56,8 +61,8 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
 
     const disposeShips = registerMapLayer(map, (m) =>
         mountShipsLayer(L, m, {
-            reportCount: (count) => {
-                reportCount('ships', count);
+            reportCount: (count, hidden) => {
+                reportCount('ships', count, hidden);
             },
             reportAttribution: (text) => {
                 reportAttribution('ships', text);
@@ -66,8 +71,8 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     );
     const disposeAircraft = registerMapLayer(map, (m) =>
         mountAircraftLayer(L, m, {
-            reportCount: (count) => {
-                reportCount('aircraft', count);
+            reportCount: (count, hidden) => {
+                reportCount('aircraft', count, hidden);
             },
             reportAttribution: (text) => {
                 reportAttribution('aircraft', text);
