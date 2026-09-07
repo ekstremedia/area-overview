@@ -222,6 +222,11 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.display.themeSystem': 'System',
     'settings.display.fontScale': 'Font size',
 
+    'settings.display.autoCycle': 'Auto-cycle',
+    'settings.display.autoCycleInterval': 'Interval',
+    'settings.display.autoCyclePages': 'Pages to cycle between',
+    'settings.display.autoCyclePagesAllHint': 'Every visible page (none selected)',
+
     'settings.layers.ships': 'Ships · AIS',
     'settings.layers.aircraft': 'Aircraft · ADS-B',
     'settings.layers.pollSeconds': 'Poll interval',

@@ -122,4 +122,91 @@ describe('Display section', () => {
 
         dispose();
     });
+
+    it('renders auto-cycle enable toggle, interval stepper and a five-entry page picker', async () => {
+        const { mount } = await import('./Display.js');
+        const { store } = fakeStore(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 90, pages: [] } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const steppers = [...container.querySelectorAll('.stepper-value')];
+        expect(steppers.some((el) => el.textContent === '90 s')).toBe(true);
+
+        expect(container.querySelectorAll('.settings-page-toggles .toggle-row')).toHaveLength(5);
+        expect(container.querySelector('.settings-auto-cycle-hint')?.textContent).not.toBe('');
+
+        dispose();
+    });
+
+    it('toggling auto-cycle enabled writes the full autoCycle object immediately', async () => {
+        const { mount } = await import('./Display.js');
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({ autoCycle: { enabled: false, intervalSeconds: 180, pages: [] } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const enabledToggle = container.querySelectorAll<HTMLButtonElement>('.settings-field > .toggle-row > .toggle')[0];
+        enabledToggle?.click();
+
+        expect(patchSettings).toHaveBeenCalledWith({ autoCycle: { enabled: true, intervalSeconds: 180, pages: [] } });
+
+        dispose();
+    });
+
+    it('changing the auto-cycle interval writes immediately, once, with no debounce', async () => {
+        const { mount } = await import('./Display.js');
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 180, pages: [] } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const incrementButtons = [...container.querySelectorAll<HTMLButtonElement>('.stepper-button--increment')];
+        // idleReset (0), brightness (1), autoCycle interval (2), fontScale (3).
+        incrementButtons[2]?.click();
+
+        expect(patchSettings).toHaveBeenCalledWith({ autoCycle: { enabled: true, intervalSeconds: 210, pages: [] } });
+
+        dispose();
+    });
+
+    it('checking a page toggle adds it to autoCycle.pages; unchecking removes it, in canonical order', async () => {
+        const { mount } = await import('./Display.js');
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 180, pages: [] } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const pageToggles = [...container.querySelectorAll<HTMLButtonElement>('.settings-page-toggles .toggle')];
+        pageToggles[3]?.click(); // tide
+        expect(patchSettings).toHaveBeenLastCalledWith({ autoCycle: { enabled: true, intervalSeconds: 180, pages: ['tide'] } });
+
+        pageToggles[0]?.click(); // map
+        expect(patchSettings).toHaveBeenLastCalledWith({ autoCycle: { enabled: true, intervalSeconds: 180, pages: ['map', 'tide'] } });
+
+        pageToggles[3]?.click(); // tide off again
+        expect(patchSettings).toHaveBeenLastCalledWith({ autoCycle: { enabled: true, intervalSeconds: 180, pages: ['map'] } });
+
+        dispose();
+    });
+
+    it('shows the "every visible page" hint only when no page is explicitly selected', async () => {
+        const { mount } = await import('./Display.js');
+        const { store } = fakeStore(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 180, pages: ['map'] } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        expect(container.querySelector('.settings-auto-cycle-hint')?.textContent).toBe('');
+
+        dispose();
+    });
+
+    it('auto-cycle controls are disabled when logged out', async () => {
+        const { mount } = await import('./Display.js');
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: false });
+
+        const enabledToggle = container.querySelectorAll<HTMLButtonElement>('.settings-field > .toggle-row > .toggle')[0];
+        expect(enabledToggle?.disabled).toBe(true);
+        expect(container.querySelectorAll<HTMLButtonElement>('.settings-page-toggles .toggle')[0]?.disabled).toBe(true);
+
+        dispose();
+    });
 });

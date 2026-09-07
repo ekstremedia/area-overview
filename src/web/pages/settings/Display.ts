@@ -20,8 +20,21 @@
  * the draft level so a write in flight for one field can't lose a
  * same-tick, not-yet-sent edit to the other -- see `sharedStore.ts`'s
  * `pendingFields` doc comment for why this matters).
+ *
+ * Auto-cycle (`enabled`/`intervalSeconds`/`pages`) is the same kind of
+ * kiosk-display-timing control as idle-reset, so it lives here rather
+ * than in `General.ts` -- landed next to idle reset specifically, since
+ * both are "how long before the display does something on its own"
+ * settings. `intervalSeconds`'s stepper follows `idleResetSeconds`'s own
+ * precedent exactly (raw seconds, no separate minutes input): this app
+ * has no other duration control that lets the user type minutes, so
+ * inventing one here just for this field would be a new, inconsistent
+ * pattern rather than a reused one. The page picker reuses `General.ts`'s
+ * `enabledPages` checklist pattern -- five toggles, one per `PageId` --
+ * with the empty-selection state read as "all", matching
+ * `AutoCycleSchema.pages`'s own sentinel (see that schema's doc comment).
  */
-import type { Settings } from '../../../shared/schemas/settings.js';
+import type { PageId, Settings } from '../../../shared/schemas/settings.js';
 import type { DeviceSettings } from '../../../shared/schemas/device-settings.js';
 import { selectField, type SelectFieldHandle } from '../../components/SelectField.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
@@ -31,6 +44,16 @@ import { effect } from '../../core/signal.js';
 import { deviceSettings, setDeviceSettings } from '../../device-settings.js';
 import { t } from '../../i18n/index.js';
 import type { SectionMount } from './sectionContext.js';
+
+const AUTO_CYCLE_PAGE_IDS: readonly PageId[] = ['map', 'weather', 'aurora', 'tide', 'cameras'];
+
+const AUTO_CYCLE_PAGE_NAV_KEYS: Record<PageId, 'nav.map' | 'nav.weather' | 'nav.aurora' | 'nav.tide' | 'nav.cameras'> = {
+    map: 'nav.map',
+    weather: 'nav.weather',
+    aurora: 'nav.aurora',
+    tide: 'nav.tide',
+    cameras: 'nav.cameras',
+};
 
 function field(labelText: string, control: HTMLElement): HTMLElement {
     const row = document.createElement('div');
@@ -131,6 +154,64 @@ export const mount: SectionMount = (container, ctx) => {
     nightRow.className = 'settings-night-row';
     nightRow.append(nightEnabledToggle.el, nightFromField.el, nightToField.el, nightModeSelect.el);
 
+    // — Auto-cycle (compound: enabled/intervalSeconds/pages) —
+    const autoCycleDraft: Settings['autoCycle'] = { ...initial.autoCycle, pages: [...initial.autoCycle.pages] };
+
+    function writeAutoCycle(next: Partial<Settings['autoCycle']>): void {
+        Object.assign(autoCycleDraft, next);
+        void store.patchSettings({ autoCycle: { ...autoCycleDraft, pages: [...autoCycleDraft.pages] } });
+    }
+
+    const autoCycleEnabledToggle: ToggleHandle = toggle({
+        accessibleLabel: t('settings.display.autoCycle'),
+        checked: autoCycleDraft.enabled,
+        disabled: !loggedIn,
+        onChange: (checked) => {
+            writeAutoCycle({ enabled: checked });
+        },
+    });
+
+    const autoCycleIntervalStepper: StepperHandle = stepper({
+        value: autoCycleDraft.intervalSeconds,
+        min: 30,
+        max: 3600,
+        step: 30,
+        disabled: !loggedIn,
+        formatValue: (v) => `${String(v)} ${t('unit.seconds')}`,
+        onChange: (next) => {
+            writeAutoCycle({ intervalSeconds: next });
+        },
+    });
+
+    // Empty `pages` is the "cycle every currently-enabled page" sentinel
+    // (see `AutoCycleSchema`'s doc comment) -- no explicit "all" toggle,
+    // just this hint text below the checklist when nothing is checked.
+    const autoCyclePageToggles = new Map<PageId, ToggleHandle>();
+    const autoCyclePageTogglesRow = document.createElement('div');
+    autoCyclePageTogglesRow.className = 'settings-page-toggles';
+    for (const pageId of AUTO_CYCLE_PAGE_IDS) {
+        const handle = toggle({
+            label: t(AUTO_CYCLE_PAGE_NAV_KEYS[pageId]),
+            checked: autoCycleDraft.pages.includes(pageId),
+            disabled: !loggedIn,
+            onChange: (checked) => {
+                const current = autoCycleDraft.pages;
+                const next = checked
+                    ? [...current, pageId].filter((id, index, all) => all.indexOf(id) === index)
+                    : current.filter((id) => id !== pageId);
+                writeAutoCycle({ pages: AUTO_CYCLE_PAGE_IDS.filter((id) => next.includes(id)) });
+            },
+        });
+        autoCyclePageToggles.set(pageId, handle);
+        autoCyclePageTogglesRow.append(handle.el);
+    }
+
+    const autoCyclePagesHint = document.createElement('p');
+    autoCyclePagesHint.className = 'settings-auto-cycle-hint';
+
+    const autoCyclePagesField = document.createElement('div');
+    autoCyclePagesField.append(autoCyclePageTogglesRow, autoCyclePagesHint);
+
     // — Device: theme (always editable) —
     const deviceInitial = deviceSettings.get();
     const themeSelect: SelectFieldHandle<DeviceSettings['theme']> = selectField({
@@ -161,6 +242,9 @@ export const mount: SectionMount = (container, ctx) => {
         field(t('settings.display.idleReset'), idleResetStepper.el),
         field(t('settings.display.brightness'), brightnessStepper.el),
         field(t('settings.display.nightSchedule'), nightRow),
+        field(t('settings.display.autoCycle'), autoCycleEnabledToggle.el),
+        field(t('settings.display.autoCycleInterval'), autoCycleIntervalStepper.el),
+        field(t('settings.display.autoCyclePages'), autoCyclePagesField),
         field(t('settings.display.theme'), themeSelect.el),
         field(t('settings.display.fontScale'), fontScaleStepper.el),
     );
@@ -182,6 +266,16 @@ export const mount: SectionMount = (container, ctx) => {
             nightDraft.mode = settings.night.mode;
             nightFromField.update(settings.night.from, !loggedIn);
             nightToField.update(settings.night.to, !loggedIn);
+
+            autoCycleEnabledToggle.setState(settings.autoCycle.enabled, !loggedIn);
+            autoCycleIntervalStepper.setState(settings.autoCycle.intervalSeconds, !loggedIn);
+            autoCycleDraft.enabled = settings.autoCycle.enabled;
+            autoCycleDraft.intervalSeconds = settings.autoCycle.intervalSeconds;
+            autoCycleDraft.pages = [...settings.autoCycle.pages];
+            for (const [pageId, handle] of autoCyclePageToggles) {
+                handle.setState(settings.autoCycle.pages.includes(pageId), !loggedIn);
+            }
+            autoCyclePagesHint.textContent = settings.autoCycle.pages.length === 0 ? t('settings.display.autoCyclePagesAllHint') : '';
         }),
     );
 

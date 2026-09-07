@@ -225,6 +225,11 @@ export const nb = {
     'settings.display.themeSystem': 'System',
     'settings.display.fontScale': 'Skriftstørrelse',
 
+    'settings.display.autoCycle': 'Autobytte',
+    'settings.display.autoCycleInterval': 'Intervall',
+    'settings.display.autoCyclePages': 'Sider som byttes mellom',
+    'settings.display.autoCyclePagesAllHint': 'Alle synlige sider (ingen valgt)',
+
     'settings.layers.ships': 'Skip · AIS',
     'settings.layers.aircraft': 'Fly · ADS-B',
     'settings.layers.pollSeconds': 'Oppdateringsintervall',

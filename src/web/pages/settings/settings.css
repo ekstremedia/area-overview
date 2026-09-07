@@ -83,6 +83,13 @@
     gap: var(--space-4);
 }
 
+.settings-auto-cycle-hint {
+    font-style: italic;
+    font-size: 13px;
+    color: var(--color-muted);
+    margin-top: var(--space-2);
+}
+
 /* — Layers — */
 .settings-layer-block {
     display: flex;
