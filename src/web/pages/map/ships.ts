@@ -14,6 +14,12 @@
  * of the normal triangle rendering and rendered instead as a single
  * numbered badge (an `L.Marker`/`L.divIcon`, the same "circle marker"
  * mechanism `markers.ts`'s camera pins already use, not a third pattern).
+ * A badge with any underway member (`navigationalStatus === 0`) gets a
+ * green ring (`buildClusterIcon`'s `hasUnderway`) -- otherwise the per-ship
+ * green/label the canvas layer draws for an individual underway ship would
+ * be invisible whenever that ship happens to be clustered, which in
+ * practice is most of the time.
+ *
  * Tapping a badge opens a popup listing its members; tapping a member
  * swaps that same popup's content to `buildShipPopup`'s existing full
  * detail view, with a "back" affordance to return to the list -- see
@@ -51,6 +57,14 @@ const NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE = 0;
 function shipColor(ship: Ship): string {
     return ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE ? SHIP_GLYPH_COLOR_UNDERWAY_ENGINE : SHIP_GLYPH_COLOR;
 }
+
+/** `true` for the same `navigationalStatus === 0` subset `shipColor`/the per-ship label already single out -- shared by the cluster-badge indicator and the cluster list popup's per-row colouring below, both additive to the existing per-ship behaviour, not a replacement for it. */
+function isUnderway(ship: Ship): boolean {
+    return ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE;
+}
+
+/** The CSS custom property name the underway-green (`SHIP_GLYPH_COLOR_UNDERWAY_ENGINE`) is threaded through into `map.css`'s cluster-badge/list-row rules -- set as an inline style on the same element that consumes it via `var()`, the same "colour comes from JS, shape comes from CSS" split `canvasGlyphLayer.ts` already uses for the per-ship triangles, since divIcon/popup content is real DOM (unlike the canvas glyphs) and so *can* resolve a custom property, just not one that lives only in `tokens.css` (this green isn't a design token -- see `liveLayerColors.ts`'s doc comment). */
+const UNDERWAY_COLOR_PROPERTY = '--ship-cluster-underway-color';
 
 /** A ship's name for its always-visible label -- falls back to `map.shipUnknown`, same convention as `buildShipPopup`/`buildClusterListPopup`, rather than showing a blank tag next to the triangle. Only called for underway ships (`ships.ts`'s `mountShipsLayer`'s `labelFor`) -- moored/anchored/fishing ships get no label at all, to avoid cluttering the map. */
 function shipLabel(ship: Ship): string {
@@ -143,6 +157,10 @@ function buildClusterListPopup(members: readonly Ship[], onSelect: (mmsi: string
         const name = document.createElement('span');
         name.className = 'ship-cluster-popup-row-name';
         name.textContent = ship.name.trim() === '' ? t('map.shipUnknown') : ship.name;
+        if (isUnderway(ship)) {
+            name.classList.add('ship-cluster-popup-row-name-underway');
+            name.style.setProperty(UNDERWAY_COLOR_PROPERTY, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE);
+        }
         row.append(name);
 
         const meta = document.createElement('span');
@@ -178,17 +196,34 @@ function buildClusterDetailPopup(ship: Ship, onBack: () => void): HTMLElement {
     return root;
 }
 
-/** A numbered badge -- an `L.divIcon` (this codebase's one existing "circle marker" convention, see `markers.ts`'s camera pins) sized to the app's `--tap-min` footprint, with a smaller visible circle centered inside it (`map.css`). */
-function buildClusterIcon(L: typeof Leaflet, count: number): Leaflet.DivIcon {
+/**
+ * A numbered badge -- an `L.divIcon` (this codebase's one existing "circle
+ * marker" convention, see `markers.ts`'s camera pins) sized to the app's
+ * `--tap-min` footprint, with a smaller visible circle centered inside it
+ * (`map.css`). `hasUnderway` (any member with `navigationalStatus === 0`,
+ * see `clusterHasUnderway`) adds a green ring around that circle -- the
+ * only glanceable, no-tap signal that a cluster contains a moving ship,
+ * since the per-ship colour/label the canvas layer already draws for an
+ * individual underway ship never appears once it's absorbed into a badge.
+ */
+function buildClusterIcon(L: typeof Leaflet, count: number, hasUnderway: boolean): Leaflet.DivIcon {
     const label = document.createElement('span');
-    label.className = 'ship-cluster-badge-count';
+    label.className = hasUnderway ? 'ship-cluster-badge-count ship-cluster-badge-count-underway' : 'ship-cluster-badge-count';
     label.textContent = String(count);
+    if (hasUnderway) {
+        label.style.setProperty(UNDERWAY_COLOR_PROPERTY, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE);
+    }
     return L.divIcon({
         className: 'ship-cluster-badge',
         html: label,
         iconSize: [CLUSTER_BADGE_ICON_PX, CLUSTER_BADGE_ICON_PX],
         iconAnchor: [CLUSTER_BADGE_ICON_PX / 2, CLUSTER_BADGE_ICON_PX / 2],
     });
+}
+
+/** `true` when at least one member of the cluster is underway (`isUnderway`) -- the badge's at-a-glance indicator is "any", not "all", since even one moving ship among several moored ones is the signal Terje asked for. */
+function clusterHasUnderway(members: readonly Ship[]): boolean {
+    return members.some(isUnderway);
 }
 
 function clusterKeyOf(members: readonly Ship[]): string {
@@ -246,7 +281,9 @@ interface ClusterBadgeEntry {
 
 function createClusterEntry(L: typeof Leaflet, map: Leaflet.Map, cluster: Cluster<Ship>): ClusterBadgeEntry {
     const state: ClusterPopupState = { mode: 'list', selectedMmsi: undefined, members: cluster.members };
-    const marker = L.marker(clusterCentroidLatLng(L, map, cluster), { icon: buildClusterIcon(L, cluster.members.length) });
+    const marker = L.marker(clusterCentroidLatLng(L, map, cluster), {
+        icon: buildClusterIcon(L, cluster.members.length, clusterHasUnderway(cluster.members)),
+    });
     function refresh(): void {
         marker.setPopupContent(renderClusterPopup(state, refresh));
     }
@@ -265,7 +302,12 @@ function createClusterEntry(L: typeof Leaflet, map: Leaflet.Map, cluster: Cluste
  * key, so `update` removes the old marker (closing any popup it had open,
  * never leaving a stale list referencing ships that no longer exist) and
  * creates a fresh one -- seamless continuity across a membership change
- * was not attempted, only "never stale".
+ * was not attempted, only "never stale". `buildClusterIcon`'s underway
+ * indicator (`clusterHasUnderway`) is recomputed unconditionally on every
+ * `update` call for an existing entry too, the same lifecycle point the
+ * member count already uses -- so a member mooring/getting underway
+ * between polls updates the badge even when membership itself (and so the
+ * key) doesn't change.
  */
 function createClusterBadgeLayer(L: typeof Leaflet, map: Leaflet.Map): { update(clusters: readonly Cluster<Ship>[]): void; dispose(): void } {
     const layerGroup = L.layerGroup().addTo(map);
@@ -280,7 +322,7 @@ function createClusterBadgeLayer(L: typeof Leaflet, map: Leaflet.Map): { update(
             if (existing) {
                 existing.state.members = cluster.members;
                 existing.marker.setLatLng(clusterCentroidLatLng(L, map, cluster));
-                existing.marker.setIcon(buildClusterIcon(L, cluster.members.length));
+                existing.marker.setIcon(buildClusterIcon(L, cluster.members.length, clusterHasUnderway(cluster.members)));
                 if (existing.marker.isPopupOpen()) existing.refresh();
             } else {
                 const entry = createClusterEntry(L, map, cluster);
