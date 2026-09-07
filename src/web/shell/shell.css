@@ -25,73 +25,32 @@
     padding: var(--space-4) clamp(var(--space-3), 4vw, var(--space-6));
 }
 
-/* — masthead — */
+/* — masthead —
+   One 52px row: tabs left, status/date/gear right. The gradient ground
+   is what lets the row sit *over* the map on artboard 01 rather than
+   pushing it down -- it fades to transparent so the tiles show through
+   below the text without a hard edge. */
 .masthead {
+    position: relative; /* the live-layer panel hangs from here */
     padding: var(--space-3) clamp(var(--space-3), 4vw, 28px) 0;
     flex: none;
+    background: linear-gradient(var(--color-bg) 62%, transparent);
 }
 
-.masthead-top {
-    display: flex;
-    align-items: baseline;
-    gap: clamp(var(--space-2), 3vw, var(--space-4));
-    flex-wrap: nowrap;
-    min-width: 0;
-}
-
-.masthead-brand {
-    font-family: var(--font-heading);
-    font-weight: var(--font-heading-weight);
-    font-size: clamp(20px, 3vw, var(--masthead-brand-size));
-    letter-spacing: -0.015em;
-    white-space: nowrap;
-}
-
-.masthead-locality {
-    font-size: var(--masthead-locality-size);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-}
-
-.masthead-clock {
-    margin-left: auto;
-    font-family: var(--font-heading);
-    font-weight: var(--font-heading-weight);
-    font-size: clamp(18px, 3vw, var(--masthead-clock-size));
-    white-space: nowrap;
-}
-
-.masthead-rule-thick {
-    height: var(--masthead-rule-thick);
-    background: var(--color-text);
-    margin-top: var(--space-3);
-}
-
-.masthead-rule-thin {
-    height: var(--masthead-rule-thin);
-    background: color-mix(in srgb, var(--color-text) 50%, transparent);
-}
-
-.masthead-tabs {
+.masthead-row {
     display: flex;
     align-items: center;
-    gap: clamp(var(--space-3), 3vw, 30px);
+    gap: clamp(var(--space-2), 2.2vw, 30px);
     height: var(--masthead-tab-row-height);
     overflow-x: auto;
     scrollbar-width: none;
 }
-.masthead-tabs::-webkit-scrollbar {
+.masthead-row::-webkit-scrollbar {
     display: none;
 }
 
-.masthead-tab,
-.masthead-settings-link {
-    font-size: clamp(15px, 2.4vw, var(--masthead-tab-size));
+.masthead-tab {
+    font-size: clamp(14px, 1.9vw, var(--masthead-tab-size));
     color: var(--color-muted);
     display: inline-flex;
     align-items: center;
@@ -110,14 +69,54 @@
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: clamp(var(--space-3), 3vw, 26px);
+    gap: clamp(var(--space-2), 1.8vw, 22px);
     font-size: var(--masthead-status-size);
     color: var(--color-muted);
     min-width: 0;
 }
 
 .masthead-layer-counts {
+    display: flex;
+    gap: var(--space-4);
     white-space: nowrap;
+}
+
+/* The numeral carries its layer's colour, the unit stays muted -- so the
+   counts read as data at a glance without the whole line competing with
+   the active tab. */
+.masthead-count-ships {
+    color: var(--color-accent);
+}
+
+.masthead-count-aircraft {
+    color: var(--color-accent-2);
+}
+
+.masthead-datetime {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: clamp(13px, 1.6vw, var(--masthead-date-size));
+    color: var(--color-text);
+    white-space: nowrap;
+}
+
+/* A 48px box around a 27px glyph: the icon stays visually light while the
+   tap target clears `--tap-min`. The negative margin pulls it back to the
+   row's true right edge, which the padding would otherwise inset. */
+.masthead-settings-link {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: -10px;
+    color: var(--color-muted);
+}
+
+.masthead-settings-link.masthead-tab--active {
+    color: var(--color-accent);
+    box-shadow: none; /* the underline belongs to the text tabs; the gear shows state by colour alone */
 }
 
 .masthead-stale-banner {
@@ -145,6 +144,76 @@
     white-space: nowrap;
 }
 
+/* The counts are a control: tapping one lists what is actually out
+   there. Styled as bare text so the masthead stays a line of type rather
+   than growing buttons. */
+.masthead-count--interactive {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    min-height: var(--tap-min);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* The list itself hangs under the masthead, over the page. Capped so a
+   busy day (34 ships was observed) scrolls instead of covering the map. */
+.masthead-live-panel {
+    position: absolute;
+    right: clamp(var(--space-3), 4vw, 28px);
+    z-index: 1000;
+    min-width: 240px;
+    max-width: min(420px, 90vw);
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--color-bg);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+
+.masthead-live-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    text-align: left;
+    color: var(--color-text);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.masthead-live-row-detail {
+    font-size: 13px;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.masthead-live-panel-empty {
+    padding: var(--space-3);
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+/* Per the phase spec: the layer-count slot may be dropped at the 800x480
+   worst case; nothing else in the masthead changes. The date loses its
+   weekday there too, for the same reason -- it is the longest string in
+   the row. */
+@media (max-width: 1150px) {
+    /* The weekday is the longest, most redundant word in the row -- anyone
+       looking at a wall clock knows what day it is far better than they
+       know the date. Dropping it is what keeps the settings gear on
+       screen at the kiosk's own 1024px. */
+    .masthead-date-weekday {
+        display: none;
+    }
+}
+
 /* Per the phase spec: the layer-count slot may be dropped at the 800x480
    worst case; nothing else in the masthead changes. */
 @media (max-width: 850px) {
@@ -167,7 +236,6 @@
 }
 
 .footer-attribution,
-.footer-updated,
 .footer-night-note {
     overflow: hidden;
     text-overflow: ellipsis;

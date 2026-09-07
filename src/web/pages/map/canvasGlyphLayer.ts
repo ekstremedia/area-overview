@@ -30,7 +30,7 @@
  * recreated, so an open popup survives a data refresh untouched.
  */
 import type * as Leaflet from 'leaflet';
-import { diffGlyphs, rotatedTrianglePoints, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import { diffGlyphs, rotatedPlanePoints, rotatedTrianglePoints, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 
 export interface CanvasGlyphLayerOptions<T> {
     /** A literal colour string -- see `liveLayerColors.ts`'s doc comment for why this can't be a CSS custom property. */
@@ -39,6 +39,8 @@ export interface CanvasGlyphLayerOptions<T> {
     heightPx: number;
     /** Half-width, in px, of the invisible hit-target triangle -- >= 22 gives a >= 44px tap diameter. */
     hitRadiusPx: number;
+    /** The silhouette each glyph is drawn as. Ships are triangles; aircraft are planes, so the two layers separate at a glance rather than by colour alone. Defaults to the triangle. */
+    shape?: 'triangle' | 'plane';
     buildPopup: (data: T) => HTMLElement;
     /** True for a glyph that should render distinctly/dimmed (e.g. an aircraft reporting from the ground). Defaults to never-distinct. */
     isDistinct?: (data: T) => boolean;
@@ -96,10 +98,12 @@ function cornersToLatLngs<T>(
     descriptor: GlyphDescriptor<T>,
     widthPx: number,
     heightPx: number,
+    shape: 'triangle' | 'plane',
 ): Leaflet.LatLng[] {
     const zoom = map.getZoom();
     const centerPixel = map.project(L.latLng(descriptor.lat, descriptor.lng), zoom);
-    const corners = rotatedTrianglePoints(widthPx, heightPx, descriptor.heading);
+    const corners =
+        shape === 'plane' ? rotatedPlanePoints(widthPx, heightPx, descriptor.heading) : rotatedTrianglePoints(widthPx, heightPx, descriptor.heading);
     return corners.map((corner) => map.unproject(L.point(centerPixel.x + corner.x, centerPixel.y + corner.y), zoom));
 }
 
@@ -109,6 +113,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     const entries = new Map<string, GlyphEntry>();
     const descriptorsById = new Map<string, GlyphDescriptor<T>>();
     const hitMultiplier = hitSizeMultiplier(options.widthPx, options.heightPx, options.hitRadiusPx);
+    const shape = options.shape ?? 'triangle';
     let visibleCount = 0;
 
     function styleFor(descriptor: GlyphDescriptor<T>, opacity: number): { fillOpacity: number; opacity: number; color: string; fillColor: string } {
@@ -193,8 +198,8 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     }
 
     function applyLatLngs(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
-        entry.visible.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx));
-        entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier));
+        entry.visible.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx, shape));
+        entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape));
         anchorLabel(descriptor, entry);
     }
 
@@ -214,7 +219,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
      */
     function createEntry(descriptor: GlyphDescriptor<T>): GlyphEntry {
         const color = options.colorFor?.(descriptor.data) ?? options.color;
-        const visible = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx), {
+        const visible = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx, shape), {
             renderer,
             color,
             fillColor: color,
@@ -223,7 +228,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             weight: 1,
             interactive: false,
         });
-        const hitArea = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier), {
+        const hitArea = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape), {
             renderer,
             fillOpacity: 0,
             opacity: 0,

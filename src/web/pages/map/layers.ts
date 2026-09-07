@@ -11,7 +11,7 @@
  * `MapPage.ts`/`markers.ts` per Terje's explicit choice.
  */
 import type * as Leaflet from 'leaflet';
-import { liveLayerCounts, pageAttribution, type LayerCounts } from '../../shell/page-status.js';
+import { liveLayerCounts, liveLayerListing, pageAttribution, type LayerCounts, type LiveLayerItem } from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
 import { mountShipsLayer } from './ships.js';
 
@@ -40,6 +40,29 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     // Per-layer, so one layer's report never clobbers the other's share of
     // the single combined figure the masthead shows.
     const hiddenByAge = new Map<LayerId, number>();
+    const items = new Map<LayerId, LiveLayerItem[]>();
+
+    /**
+     * Zoomed in far enough that the vessel fills the view rather than
+     * being a dot in it, but not so far that the surrounding coastline
+     * disappears and the position loses its context.
+     */
+    const FOCUS_ZOOM = 13;
+
+    function publishListing(): void {
+        liveLayerListing.set({
+            ships: items.get('ships') ?? [],
+            aircraft: items.get('aircraft') ?? [],
+            focus: (item) => {
+                map.setView([item.lat, item.lng], Math.max(map.getZoom(), FOCUS_ZOOM));
+            },
+        });
+    }
+
+    function reportItems(id: LayerId, next: readonly LiveLayerItem[]): void {
+        items.set(id, [...next]);
+        publishListing();
+    }
 
     function reportCount(id: LayerId, count: number, hidden: number): void {
         counts[id] = count;
@@ -58,6 +81,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     }
 
     liveLayerCounts.set({ ...counts });
+    publishListing();
 
     const disposeShips = registerMapLayer(map, (m) =>
         mountShipsLayer(L, m, {
@@ -66,6 +90,9 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
             },
             reportAttribution: (text) => {
                 reportAttribution('ships', text);
+            },
+            reportItems: (next) => {
+                reportItems('ships', next);
             },
         }),
     );
@@ -77,6 +104,9 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
             reportAttribution: (text) => {
                 reportAttribution('aircraft', text);
             },
+            reportItems: (next) => {
+                reportItems('aircraft', next);
+            },
         }),
     );
 
@@ -84,6 +114,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
         disposeShips();
         disposeAircraft();
         liveLayerCounts.set(null);
+        liveLayerListing.set(null);
         pageAttribution.set(null);
     };
 }

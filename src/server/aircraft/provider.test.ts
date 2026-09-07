@@ -149,6 +149,30 @@ describe('fetchAircraft (v2 providers)', () => {
         expect((fetchMock.mock.calls[1] as [string])[0]).toMatch(/^https:\/\/opendata\.adsb\.fi\/api\/v2\/lat\//);
     });
 
+    it("reads adsb.fi's `aircraft` key as well as adsb.lol's `ac`, so the providers really are interchangeable", async () => {
+        // Shipped broken once: `ADSB_PROVIDER=adsbfi` parsed every real
+        // response as a schema failure, because adsb.fi returns the list
+        // under `aircraft` while adsb.lol uses `ac`. The layer went
+        // silently empty -- planes overhead, nothing on the map.
+        const underAircraftKey = { aircraft: (adsbLolFixture as { ac: unknown[] }).ac };
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(underAircraftKey));
+
+        const result = await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value).toHaveLength(2);
+    });
+
+    it('treats a response carrying neither key as an empty sky, not a malformed payload', async () => {
+        // adsb.fi omits the key entirely when nothing is in range.
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ now: 1788796250.002, resultCount: 0 }));
+
+        const result = await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value).toEqual([]);
+    });
+
     it('returns an error on a non-OK response', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('error', { status: 500 }));
         const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });

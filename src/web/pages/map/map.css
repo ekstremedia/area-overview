@@ -210,19 +210,6 @@
     cursor: pointer;
 }
 
-/* — "N cameras without placement" link (artboard 01: bottom-left, cyan) — */
-.map-unplaced-link {
-    position: absolute;
-    left: var(--space-4);
-    bottom: 48px;
-    font-size: 14px;
-    color: var(--color-accent);
-    z-index: 500;
-    height: var(--tap-min);
-    display: flex;
-    align-items: center;
-}
-
 /* — zoom control: Leaflet's own default is 26px/30px (touch), below this
    app's 44px tap-target minimum. `!important` guards against
    `leaflet.css` landing in the cascade after this file (see this file's
@@ -232,6 +219,21 @@
     width: var(--tap-min) !important;
     height: var(--tap-min) !important;
     line-height: var(--tap-min) !important;
+}
+
+/* The reset control sits in the same top-left stack as the zoom buttons
+   and matches their footprint, so the three read as one column of
+   controls rather than a stray button parked near them. */
+.map-reset-control {
+    margin-top: var(--space-2) !important;
+}
+
+.map-reset-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
 }
 
 /* — live-layer (ships/aircraft, Phase 7) popups: the same dark card

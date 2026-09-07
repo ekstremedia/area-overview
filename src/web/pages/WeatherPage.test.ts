@@ -223,11 +223,71 @@ describe('WeatherPage', () => {
         await vi.waitFor(() => {
             expect(pageFreshness.get()).not.toBeNull();
         });
-        expect(pageAttribution.get()).toBe('MET.no / Yr · Netatmo');
+        expect(pageAttribution.get()).toBe('MET.no / Yr');
 
         dispose();
         expect(pageAttribution.get()).toBeNull();
         expect(pageFreshness.get()).toBeNull();
         vi.useRealTimers();
+    });
+
+    it('drops the summary heading and byline, leaving the prose alone', () => {
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        // The design reduced the summary to bare prose. Nothing should
+        // announce it as a summary or say when it was generated.
+        expect(container.querySelector('.weather-summary-label')).toBeNull();
+        expect(container.querySelector('.weather-summary-age')).toBeNull();
+
+        dispose();
+    });
+
+    it('colours each forecast hour by which side of freezing it falls on', async () => {
+        const container = document.createElement('div');
+        const dispose = render(container);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-forecast-temp')).not.toBeNull();
+        });
+
+        const temps = [...container.querySelectorAll<HTMLElement>('.weather-forecast-temp')];
+        expect(temps.length).toBeGreaterThan(0);
+        for (const temp of temps) {
+            const value = Number.parseFloat(temp.textContent.replace(',', '.'));
+            // The colour must agree with the *rounded* figure on screen, or
+            // a 0.4-degree hour reads "0" in the below-zero colour.
+            const expected = value > 0 ? 'weather-temp-above-zero' : 'weather-temp-below-zero';
+            expect(temp.classList.contains(expected)).toBe(true);
+        }
+
+        // And the legend that explains the two colours is present.
+        expect(container.querySelector('.weather-forecast-legend')?.textContent).toContain('0°');
+
+        dispose();
+    });
+
+    it("scales every day's range bar against the whole week, so the days can be compared", async () => {
+        const container = document.createElement('div');
+        const dispose = render(container);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-daily-range-fill')).not.toBeNull();
+        });
+
+        const fills = [...container.querySelectorAll<HTMLElement>('.weather-daily-range-fill')];
+        expect(fills.length).toBeGreaterThan(1);
+        for (const fill of fills) {
+            const left = Number.parseFloat(fill.style.left);
+            const width = Number.parseFloat(fill.style.width);
+            expect(Number.isFinite(left)).toBe(true);
+            expect(Number.isFinite(width)).toBe(true);
+            // Every bar has to stay inside its own track.
+            expect(left).toBeGreaterThanOrEqual(0);
+            expect(left + width).toBeLessThanOrEqual(100.01);
+            expect(width).toBeGreaterThan(0);
+        }
+        // The coldest day starts at the very left of the shared scale.
+        expect(Math.min(...fills.map((f) => Number.parseFloat(f.style.left)))).toBe(0);
+
+        dispose();
     });
 });

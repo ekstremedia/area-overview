@@ -17,16 +17,18 @@ import type * as Leaflet from 'leaflet';
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
 import { MapConfigResponseSchema } from '../../shared/schemas/map-config.js';
 import { deviceSettings } from '../device-settings.js';
+import { settings as sharedSettings } from '../settings-resource.js';
 import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { nightSchedule } from '../shell/night-schedule.js';
 import './map/map.css';
 import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
-import { startHomeViewSync } from './map/homeView.js';
-import { createCameraMarkerLayer, markerData } from './map/markers.js';
+import { applyHomeView, startHomeViewSync } from './map/homeView.js';
+import { createCameraMarkerLayer } from './map/markers.js';
 import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
+import { addMapResetControl } from './map/resetControl.js';
 import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
 
 /**
@@ -186,6 +188,17 @@ export function render(container: HTMLElement): () => void {
         // reactively re-applied on an unrelated settings poll. —
         const disposeHomeViewSync = startHomeViewSync(map);
 
+        // ...and on demand, for whoever just panned the display to Spain.
+        const disposeResetControl = addMapResetControl(L, map, {
+            label: t('map.resetView'),
+            onReset: () => {
+                // The shared, server-persisted home view -- the same one
+                // `startHomeViewSync` applies on mount and idle-reset, not
+                // a device-local copy.
+                applyHomeView(map, sharedSettings.get().homeView);
+            },
+        });
+
         // — camera markers, updated in place across polls. —
         const markerLayer = createCameraMarkerLayer(L, map, (camera) =>
             buildPopupContent(camera, {
@@ -199,20 +212,10 @@ export function render(container: HTMLElement): () => void {
         // glyphs, polled per the current viewport. See `map/layers.ts`. —
         const disposeLiveLayers = mountLiveLayers(L, map);
 
-        // — "N cameras without placement" link, bottom-left. —
-        const unplacedLink = document.createElement('a');
-        unplacedLink.className = 'map-unplaced-link';
-        unplacedLink.href = '#/settings';
-        wrapper.append(unplacedLink);
-        const disposeUnplacedEffect = effect(() => {
-            const { unplaced } = markerData.get();
-            if (unplaced.length === 0) {
-                unplacedLink.style.display = 'none';
-                return;
-            }
-            unplacedLink.style.display = '';
-            unplacedLink.textContent = t('map.unplacedLink', { count: unplaced.length });
-        });
+        // The "N cameras without placement" link is gone with the
+        // 2026-09-07 design: it nagged permanently about a job that is
+        // done once, in settings, and it sat over the map for the rest of
+        // the display's life.
 
         // — tap-empty-map point forecast. Leaflet doesn't fire the map's own
         // 'click' for a marker click that *opens* a popup (`Marker`'s
@@ -245,10 +248,9 @@ export function render(container: HTMLElement): () => void {
             map.off('click', onMapClick);
             disposeForecastPanel();
             forecastController.dispose();
-            disposeUnplacedEffect();
-            unplacedLink.remove();
             disposeLiveLayers();
             markerLayer.dispose();
+            disposeResetControl();
             disposeHomeViewSync();
             disposeThemeEffect();
             mql.removeEventListener('change', onMqlChange);

@@ -26,6 +26,17 @@ export const nb = {
     'page.placeholderBody': 'Innhold kommer i en senere fase.',
 
     'masthead.stale': 'Gamle data · {duration}',
+    // The masthead's date/time pair, e.g. "mandag 29. august · 12:42".
+    'masthead.dateTime': '{date} · {time}',
+    // The live-layer counts are built as separate elements now, not one
+    // formatted string: the design colours the *numerals* cyan and
+    // magenta while their units stay muted, which a single translated
+    // string cannot express. These are the units alone.
+    'masthead.shipsUnit': 'skip',
+    'masthead.aircraftUnit': 'fly',
+    'masthead.hiddenUnit': 'skjult',
+    'masthead.livePanelEmpty': 'Ingenting i sikte',
+    'masthead.settings': 'Innstillinger',
     'masthead.layerCounts': '{ships} skip · {aircraft} fly',
     // Shown instead of the plain line when the age filter is holding
     // something back, so a vessel disappearing is accounted for rather
@@ -33,8 +44,6 @@ export const nb = {
     // skjult), unlike "gammel/gamle".
     'masthead.layerCountsHidden': '{ships} skip · {aircraft} fly · {hidden} skjult',
 
-    'footer.attributionPlaceholder': 'Kilde kommer',
-    'footer.updated': 'Oppdatert {relative}',
     'footer.nightScheduleActive': 'Nattplan aktiv {from}–{to} · ett trykk løfter sløret i 30 s',
 
     'unit.minutes': 'min',
@@ -58,9 +67,9 @@ export const nb = {
     'unit.wave': 'm bølge',
     'unit.seaTemperature': '°C sjø',
 
-    'map.unplacedLink': '{count} kamera uten plassering →',
     'map.popupClose': 'Lukk',
     'map.noImage': 'Intet bilde ennå',
+    'map.resetView': 'Tilbake til standardvisning',
     'map.cameraImageAlt': 'Bilde fra {name}',
     'map.openCamera': 'Åpne kamera →',
     'map.pointForecastLabel': 'Punktvarsel',
@@ -81,6 +90,26 @@ export const nb = {
     'map.shipSpeed': '{speed} fart',
     'map.shipCourse': '{course} kurs',
     'map.shipType': 'Type {type}',
+    'shipType.fishing': 'Fiskefartøy',
+    'shipType.towing': 'Taueoppdrag',
+    'shipType.dredging': 'Mudring eller undervannsarbeid',
+    'shipType.diving': 'Dykkerfartøy',
+    'shipType.military': 'Militært fartøy',
+    'shipType.sailing': 'Seilbåt',
+    'shipType.pleasure': 'Fritidsbåt',
+    'shipType.pilot': 'Losbåt',
+    'shipType.searchAndRescue': 'Redningsfartøy',
+    'shipType.tug': 'Taubåt',
+    'shipType.portTender': 'Havnefartøy',
+    'shipType.antiPollution': 'Oljevernfartøy',
+    'shipType.lawEnforcement': 'Kystvakt eller politi',
+    'shipType.medical': 'Ambulansefartøy',
+    'shipType.wingInGround': 'WIG-fartøy',
+    'shipType.highSpeed': 'Hurtiggående fartøy',
+    'shipType.passenger': 'Passasjerskip',
+    'shipType.cargo': 'Lasteskip',
+    'shipType.tanker': 'Tankskip',
+    'shipType.other': 'Annet fartøy',
     'map.shipUnknownType': 'Ukjent type',
     'map.shipClusterCount': '{count} skip',
     'map.shipClusterBack': '← Til liste',
@@ -88,6 +117,7 @@ export const nb = {
     'map.aircraftUnknown': 'Ukjent',
     'map.aircraftAltitude': '{feet} / {meters}',
     'map.aircraftOnGround': 'På bakken',
+    'map.aircraftAltitudeShort': '{feet}',
     'map.aircraftSpeed': '{speed} fart',
     'map.aircraftTrack': '{track} kurs',
 
@@ -124,16 +154,16 @@ export const nb = {
     'weather.humidity': 'Fukt',
     'weather.pressure': 'Trykk',
     'weather.precipitation': 'Nedbør 1 t',
-    'weather.summaryLabel': 'Sammendrag',
-    'weather.summaryGenerated': 'generert {age}',
     'weather.forecastLabel': 'Yr · neste {hours} timer',
+    'weather.legendAboveZero': 'over 0°',
+    'weather.legendBelowZero': '0° og under',
     'weather.dailyLabel': 'Yr · neste {days} dager',
     'weather.periodNight': 'Natt',
     'weather.periodMorning': 'Morgen',
     'weather.periodAfternoon': 'Ettermiddag',
     'weather.periodEvening': 'Kveld',
     'weather.periodCondition': '{period}: {condition}',
-    'weather.attributionText': 'MET.no / Yr · Netatmo',
+    'weather.attributionText': 'MET.no / Yr',
 
     'aurora.kpLabel': 'Planetarisk K-indeks',
     'aurora.hemisphericPower': '{value} GW hemisfærisk effekt',
@@ -142,6 +172,9 @@ export const nb = {
     'aurora.band.storm': 'Storm',
     'aurora.kpAxis': '−9 t · nå · +15 t',
     'aurora.bz': 'Bz',
+    'aurora.southward': 'sørvendt i {duration}',
+    'aurora.southwardAtLeast': 'sørvendt i over {duration}',
+    'aurora.southwardDuration': '{minutes} min',
     'aurora.solarWindSpeed': 'Solvindfart',
     'aurora.density': 'Tetthet',
     'aurora.noaaAlert': 'NOAA-varsel · {scale}',
@@ -160,7 +193,6 @@ export const nb = {
     'tide.attributionText': '© Kartverket',
 
     'cameras.fullscreenLink': 'Fullskjerm →',
-    'cameras.attributionText': 'Bilder: nesthus.no',
     'cameras.count.0': 'Ingen kameraer',
     'cameras.count.1': 'Ett kamera',
     'cameras.count.2': 'To kameraer',
@@ -195,6 +227,7 @@ export const nb = {
     'settings.status.pending': 'Venter…',
     'settings.status.saving': 'Lagrer…',
     'settings.status.saved': 'Lagret',
+    'settings.status.savedAt': 'Lagret {time}',
     'settings.status.error': 'Kunne ikke lagre',
     'settings.status.retry': 'Prøv igjen',
 
@@ -264,6 +297,7 @@ export const nb = {
 
     'keyboard.hide': 'Skjul ▾',
     'keyboard.numericLabel': 'Talltastatur',
+    'keyboard.captionWithField': '{kind} · {field}',
     'keyboard.textLabel': 'Tastatur',
 } as const;
 

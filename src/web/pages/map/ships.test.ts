@@ -204,7 +204,7 @@ describe('mountShipsLayer', () => {
         vi.stubGlobal('fetch', fetchMock);
         const { map } = fakeMap();
 
-        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn(), reportItems: vi.fn() });
 
         await vi.advanceTimersByTimeAsync(20_000);
         expect(fetchMock).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe('mountShipsLayer', () => {
         const reportCount = vi.fn();
         const reportAttribution = vi.fn();
 
-        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount, reportAttribution });
+        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount, reportAttribution, reportItems: vi.fn() });
         expect(fetchMock).not.toHaveBeenCalled();
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
@@ -250,7 +250,7 @@ describe('mountShipsLayer', () => {
         const reportAttribution = vi.fn();
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount, reportAttribution });
+        const dispose = mountShipsLayer(fakeLeaflet(), map, { reportCount, reportAttribution, reportItems: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
 
         dispose();
@@ -279,7 +279,11 @@ describe('mountShipsLayer -- colouring by navigationalStatus', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         // Each ship is a (visible, hitArea) pair, in the order it was added.
@@ -309,7 +313,11 @@ describe('mountShipsLayer -- name labels', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         // Each ship is a (visible, hitArea) pair, in the order it was added -- the tooltip lives on the hit area.
@@ -339,7 +347,11 @@ describe('mountShipsLayer -- clustering', () => {
         const reportCount = vi.fn();
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount, reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, {
+            reportCount,
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         expect(createdPolygons).toHaveLength(2); // visible + hit area
@@ -362,7 +374,11 @@ describe('mountShipsLayer -- clustering', () => {
         const reportCount = vi.fn();
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount, reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, {
+            reportCount,
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         expect(createdPolygons).toHaveLength(0); // neither ship rendered as an individual triangle
@@ -385,7 +401,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdMarkers: FakeMarker[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [badge] = createdMarkers;
@@ -410,7 +430,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdMarkers: FakeMarker[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [badge] = createdMarkers;
@@ -447,7 +471,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdMarkers: FakeMarker[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [badge] = createdMarkers;
@@ -467,7 +495,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdMarkers: FakeMarker[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [badge] = createdMarkers;
@@ -492,7 +524,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdMarkers: FakeMarker[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet([], createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         expect(createdMarkers).toHaveLength(1);
@@ -523,7 +559,11 @@ describe('mountShipsLayer -- clustering', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
-        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons, createdMarkers), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
         expect(createdMarkers).toHaveLength(1);
         createdMarkers[0]?.openPopup();

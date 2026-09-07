@@ -39,6 +39,7 @@ import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
 import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
+import { shipTypeKey } from './shipType.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
@@ -134,7 +135,15 @@ function buildShipPopup(ship: Ship, now: Date = new Date()): HTMLElement {
     root.append(course);
 
     const type = document.createElement('div');
-    type.textContent = ship.shipType === null ? t('map.shipUnknownType') : t('map.shipType', { type: ship.shipType });
+    // A named kind of vessel where the AIS code maps to one, the bare code
+    // where it doesn't (reserved/local-use values), and "unknown" when the
+    // transponder never reported one -- see `shipType.ts`.
+    const typeKey = shipTypeKey(ship.shipType);
+    if (typeKey !== null) {
+        type.textContent = t(typeKey);
+    } else {
+        type.textContent = ship.shipType === null ? t('map.shipUnknownType') : t('map.shipType', { type: ship.shipType });
+    }
     root.append(type);
 
     const age = document.createElement('div');
@@ -428,6 +437,15 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // difference is what a viewer would otherwise see simply
                 // vanish -- see `LayerCounts.hiddenByAge`.
                 callbacks.reportCount(visible.length, latestShips.length - visible.length);
+                callbacks.reportItems(
+                    visible.map(({ descriptor }) => ({
+                        id: descriptor.id,
+                        label: shipLabel(descriptor.data),
+                        detail: t('map.shipSpeed', { speed: formatNumber(descriptor.data.speedOverGround, t('unit.knots')) }),
+                        lat: descriptor.lat,
+                        lng: descriptor.lng,
+                    })),
+                );
                 callbacks.reportAttribution(SHIPS_LAYER.attribution);
             }
 
@@ -438,6 +456,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 clusterBadges.update([]);
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -470,6 +489,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 clusterBadges.dispose();
                 trailLayer.dispose();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             };
         },

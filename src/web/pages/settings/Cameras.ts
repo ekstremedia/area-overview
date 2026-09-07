@@ -29,7 +29,7 @@ import { saveIndicator } from '../../components/SaveIndicator.js';
 import type { AutosaveStatus } from '../../settings/autosave.js';
 import { camerasResource } from '../../camera-resource.js';
 import { effect, signal, type Signal } from '../../core/signal.js';
-import { t } from '../../i18n/index.js';
+import { formatTime, t } from '../../i18n/index.js';
 import type { SectionMount } from './sectionContext.js';
 
 const UNDO_WINDOW_MS = 6000;
@@ -55,6 +55,8 @@ function buildPlacedDetail(
     loggedIn: boolean,
     write: (placement: Placement) => ReturnType<import('../../settings/sharedStore.js').SettingsStore['setPlacement']>,
     onRemove: () => void,
+    /** The camera's display name, used to say which camera the on-screen keyboard is editing. */
+    cameraLabel: string,
 ): { el: HTMLElement; latField: NumberFieldHandle; lngField: NumberFieldHandle } {
     const el = document.createElement('div');
     el.className = 'camera-row-fields';
@@ -91,6 +93,9 @@ function buildPlacedDetail(
     const latLabel = document.createElement('div');
     latLabel.className = 'settings-field-label';
     latLabel.textContent = t('settings.map.lat');
+    // Names this field on the on-screen keyboard's caption, so the tray
+    // says which camera and which coordinate it is editing.
+    latField.input.dataset.keyboardContext = `${cameraLabel} · ${t('settings.map.lat')}`;
     latBlock.append(latLabel, latField.el);
 
     const lngBlock = document.createElement('div');
@@ -98,6 +103,7 @@ function buildPlacedDetail(
     const lngLabel = document.createElement('div');
     lngLabel.className = 'settings-field-label';
     lngLabel.textContent = t('settings.map.lng');
+    lngField.input.dataset.keyboardContext = `${cameraLabel} · ${t('settings.map.lng')}`;
     lngBlock.append(lngLabel, lngField.el);
 
     const removeButton = document.createElement('button');
@@ -158,6 +164,9 @@ export function buildRow(
 
     root.append(header, meta, detailSlot);
 
+    // Tracked so the keyboard caption names the camera by its *current*
+    // name, not the one it had when this row was first built.
+    let latestName = camera.name;
     let fields: { latField: NumberFieldHandle; lngField: NumberFieldHandle } | undefined;
     let isPlaced = placement !== null;
     let removedPlacement: Placement | null = null;
@@ -183,6 +192,11 @@ export function buildRow(
         indicatorStatus.set({ kind: 'idle' });
         currentIdleLabel = placed ? t('settings.status.saved') : t('settings.cameras.unplaced');
     }
+
+    /** "Lagret 12:41" -- the artboard timestamps the save, so a glance says whether an edit actually landed. */
+    function setIndicatorSavedAt(at: Date): void {
+        currentIdleLabel = t('settings.status.savedAt', { time: formatTime(at) });
+    }
     let currentIdleLabel = '';
 
     function write(next: Placement): ReturnType<typeof store.setPlacement> {
@@ -194,6 +208,7 @@ export function buildRow(
 
             if (result.ok) {
                 indicatorStatus.set({ kind: 'saved' });
+                setIndicatorSavedAt(new Date());
                 setTimeout(() => {
                     if (token === writeToken) indicatorStatus.set({ kind: 'idle' });
                 }, 1500);
@@ -223,12 +238,19 @@ export function buildRow(
             return;
         }
         placementDraft = { ...placement2 };
-        const built = buildPlacedDetail(camera.camera_id, placementDraft, loggedIn, write, () => {
-            removedPlacement = placement2;
-            showingUndo = true;
-            void store.setPlacement(camera.camera_id, null);
-            showUndo();
-        });
+        const built = buildPlacedDetail(
+            camera.camera_id,
+            placementDraft,
+            loggedIn,
+            write,
+            () => {
+                removedPlacement = placement2;
+                showingUndo = true;
+                void store.setPlacement(camera.camera_id, null);
+                showUndo();
+            },
+            latestName,
+        );
         fields = { latField: built.latField, lngField: built.lngField };
         detailSlot.append(built.el);
         setIndicatorIdleLabel(true);
@@ -267,6 +289,7 @@ export function buildRow(
 
     function update(nextCamera: Camera, nextPlacement: Placement | null, nextLoggedIn: boolean, nextEnabled: boolean): void {
         loggedIn = nextLoggedIn;
+        latestName = nextCamera.name;
         nameEl.textContent = nextCamera.name;
         meta.textContent = `${nextCamera.camera_id} · «${nextCamera.location}»`;
         enabledToggle.setState(nextEnabled, !loggedIn);

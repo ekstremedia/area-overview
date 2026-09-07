@@ -54,9 +54,22 @@ const RawV2AircraftSchema = z.object({
 
 export type RawV2Aircraft = z.infer<typeof RawV2AircraftSchema>;
 
-const RawV2ResponseSchema = z.object({
-    ac: z.array(RawV2AircraftSchema),
-});
+/**
+ * The three v2-style providers agree on the *aircraft* shape but not on
+ * the key holding them: adsb.lol and airplanes.live use `ac`, adsb.fi
+ * uses `aircraft`. Accepting either is what makes them actually
+ * interchangeable -- before this, switching `ADSB_PROVIDER` to `adsbfi`
+ * parsed every response as a schema failure and the layer went silently
+ * empty. Both keys are optional so a provider that returns neither (an
+ * empty sky, which adsb.fi expresses by omitting the key) reads as zero
+ * aircraft rather than a malformed payload.
+ */
+const RawV2ResponseSchema = z
+    .object({
+        ac: z.array(RawV2AircraftSchema).optional(),
+        aircraft: z.array(RawV2AircraftSchema).optional(),
+    })
+    .transform((body) => ({ ac: body.ac ?? body.aircraft ?? [] }));
 
 const V2_PROVIDER_URLS: Record<'adsblol' | 'airplaneslive' | 'adsbfi', (lat: number, lon: number, nm: number) => string> = {
     adsblol: (lat, lon, nm) => `https://api.adsb.lol/v2/lat/${String(lat)}/lon/${String(lon)}/dist/${String(nm)}`,

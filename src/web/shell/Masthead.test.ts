@@ -6,7 +6,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { liveLayerCounts, pageAccountStatus, pageFreshness, pageLocalityOverride } = await import('./page-status.js');
+const { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
 
 function navigate(hash: string): void {
     location.hash = hash;
@@ -18,13 +18,11 @@ function setSettings(patch: Partial<Settings>): void {
 }
 
 describe('mountMasthead', () => {
-    it('renders the brand, five tabs and the Settings link, marking the active tab', () => {
+    it('renders five tabs and the settings gear in one row, marking the active tab', () => {
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/weather');
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
-
-        expect(container.querySelector('.masthead-brand')?.textContent).toBe('Området');
 
         const tabs = [...container.querySelectorAll<HTMLAnchorElement>('.masthead-tab')];
         expect(tabs.map((tab) => tab.textContent)).toEqual(['Kart', 'Vær', 'Nordlys', 'Tidevann', 'Kameraer']);
@@ -33,9 +31,17 @@ describe('mountMasthead', () => {
         expect(activeTab?.textContent).toBe('Vær');
         expect(activeTab?.getAttribute('href')).toBe('#/weather');
 
+        // The wordmark and locality line are gone from the design: one row
+        // now, so a name that never changes doesn't spend vertical space.
+        expect(container.querySelector('.masthead-brand')).toBeNull();
+        expect(container.querySelector('.masthead-locality')).toBeNull();
+
+        // The Settings link is an icon, so its accessible name has to come
+        // from `aria-label` -- there is no text left to read.
         const settingsLink = container.querySelector<HTMLAnchorElement>('.masthead-settings-link');
-        expect(settingsLink?.textContent).toBe('Innstillinger');
         expect(settingsLink?.getAttribute('href')).toBe('#/settings');
+        expect(settingsLink?.getAttribute('aria-label')).toBe('Innstillinger');
+        expect(settingsLink?.querySelector('svg')).not.toBeNull();
 
         dispose();
     });
@@ -64,16 +70,29 @@ describe('mountMasthead', () => {
 
         liveLayerCounts.set({ ships: 14, aircraft: 3, hiddenByAge: 0 });
         expect(layerCounts?.style.display).not.toBe('none');
-        expect(layerCounts?.textContent).toBe('14 skip · 3 fly');
+        expect(layerCounts?.textContent).toContain('14 skip');
+        expect(layerCounts?.textContent).toContain('3 fly');
+
+        // The numeral carries its layer's colour while the unit stays
+        // muted, which is why the counts are separate elements rather than
+        // one formatted string.
+        expect(container.querySelector('.masthead-count-ships')?.textContent).toBe('14');
+        expect(container.querySelector('.masthead-count-aircraft')?.textContent).toBe('3');
 
         // Nothing held back, nothing said: the ordinary line must not carry
-        // a permanent "0 skjult" tail.
-        expect(layerCounts?.textContent).not.toContain('skjult');
+        // a permanent "0 skjult" tail. The toggled element is the wrapper
+        // around the numeral, not the numeral itself.
+        const hidden = container.querySelector<HTMLElement>('.masthead-count-hidden');
+        // `textContent` still includes a display:none node's text, so the
+        // visibility of the wrapper is the thing worth asserting -- that is
+        // what actually keeps "0 skjult" off the screen.
+        expect(hidden?.parentElement?.style.display).toBe('none');
 
         // With vessels held back by the age filter, the line accounts for
         // them rather than letting them vanish unexplained.
         liveLayerCounts.set({ ships: 11, aircraft: 0, hiddenByAge: 1 });
-        expect(layerCounts?.textContent).toBe('11 skip · 0 fly · 1 skjult');
+        expect(hidden?.parentElement?.style.display).not.toBe('none');
+        expect(layerCounts?.textContent).toContain('1 skjult');
 
         navigate('#/weather');
         expect(layerCounts?.style.display).toBe('none');
@@ -89,8 +108,10 @@ describe('mountMasthead', () => {
             const container = document.createElement('div');
             const dispose = mountMasthead(container);
 
-            const clock = container.querySelector<HTMLElement>('.masthead-clock');
+            const clock = container.querySelector<HTMLElement>('.masthead-datetime');
             const initialText = clock?.textContent;
+            // The date and the clock share one element now.
+            expect(initialText).toContain('·');
 
             // Mounted at :47 -- the boundary is 13s away. Advancing by less than
             // that must not tick the clock forward yet.
@@ -124,23 +145,24 @@ describe('mountMasthead', () => {
         dispose();
     });
 
-    it('shows a page-supplied locality override in place of the static localityKey text, and clears it when unset', () => {
-        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
-        pageLocalityOverride.set(null);
-        navigate('#/cameras');
-        const container = document.createElement('div');
-        const dispose = mountMasthead(container);
+    it('shows the weekday, date and time together', () => {
+        vi.useFakeTimers();
+        try {
+            vi.setSystemTime(new Date('2026-08-31T12:42:00.000Z'));
+            const container = document.createElement('div');
+            const dispose = mountMasthead(container);
 
-        const locality = container.querySelector<HTMLElement>('.masthead-locality');
-        expect(locality?.textContent).toBe('To kameraer');
+            // Norwegian long form, replacing the locality line that used to
+            // sit here: "mandag 31. august · 12:42".
+            const dateTime = container.querySelector<HTMLElement>('.masthead-datetime')?.textContent ?? '';
+            expect(dateTime).toContain('mandag');
+            expect(dateTime).toContain('august');
+            expect(dateTime).toMatch(/\d{2}:\d{2}$/);
 
-        pageLocalityOverride.set('Tre kameraer');
-        expect(locality?.textContent).toBe('Tre kameraer');
-
-        pageLocalityOverride.set(null);
-        expect(locality?.textContent).toBe('To kameraer');
-
-        dispose();
+            dispose();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('shows a page-supplied account status and logout button, and hides both when unset', () => {
@@ -168,6 +190,74 @@ describe('mountMasthead', () => {
         pageAccountStatus.set(null);
         expect(statusEl?.style.display).toBe('none');
 
+        dispose();
+    });
+
+    it('opens a list of what is on the map when a count is tapped, and focuses the map on a pick', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set({ ships: 2, aircraft: 1, hiddenByAge: 0 });
+        const focus = vi.fn();
+        liveLayerListing.set({
+            ships: [
+                { id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 },
+                { id: '259', label: 'RO MASTER', detail: '0 kn', lat: 68.6, lng: 15.5 },
+            ],
+            aircraft: [{ id: 'abc', label: 'WIF6T', detail: '9 025 fot', lat: 68.5, lng: 16.1 }],
+            focus,
+        });
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const panel = container.querySelector<HTMLElement>('.masthead-live-panel');
+        expect(panel?.hidden).toBe(true);
+
+        // Tapping the ships count lists the ships, not the aircraft.
+        container.querySelector<HTMLButtonElement>('.masthead-count-ships')?.closest('button')?.click();
+        expect(panel?.hidden).toBe(false);
+        const names = [...container.querySelectorAll('.masthead-live-row-name')].map((el) => el.textContent);
+        expect(names).toEqual(['ARTHUR EILERTSEN', 'RO MASTER']);
+
+        // Picking one focuses the map and closes the list again.
+        container.querySelector<HTMLButtonElement>('.masthead-live-row')?.click();
+        expect(focus).toHaveBeenCalledTimes(1);
+        expect(focus.mock.calls[0]?.[0]).toMatchObject({ id: '257' });
+        expect(panel?.hidden).toBe(true);
+
+        // The other count lists its own group.
+        container.querySelector<HTMLButtonElement>('.masthead-count-aircraft')?.closest('button')?.click();
+        expect([...container.querySelectorAll('.masthead-live-row-name')].map((el) => el.textContent)).toEqual(['WIF6T']);
+
+        // Tapping the same count again closes it.
+        container.querySelector<HTMLButtonElement>('.masthead-count-aircraft')?.closest('button')?.click();
+        expect(panel?.hidden).toBe(true);
+
+        liveLayerCounts.set(null);
+        liveLayerListing.set(null);
+        dispose();
+    });
+
+    it('closes the list when the listing goes away, so it cannot outlive the map page', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set({ ships: 1, aircraft: 0, hiddenByAge: 0 });
+        liveLayerListing.set({
+            ships: [{ id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 }],
+            aircraft: [],
+            focus: vi.fn(),
+        });
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+        container.querySelector<HTMLButtonElement>('.masthead-count-ships')?.closest('button')?.click();
+        expect(container.querySelector<HTMLElement>('.masthead-live-panel')?.hidden).toBe(false);
+
+        liveLayerListing.set(null);
+
+        expect(container.querySelector<HTMLElement>('.masthead-live-panel')?.hidden).toBe(true);
+
+        liveLayerCounts.set(null);
         dispose();
     });
 });

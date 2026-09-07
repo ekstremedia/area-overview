@@ -61,6 +61,36 @@ function areaPath(points: readonly { x: number; y: number }[]): string {
     return `${line} L${String(last.x)},${String(VIEW_HEIGHT)} L${String(first.x)},${String(VIEW_HEIGHT)} Z`;
 }
 
+/**
+ * Round centimetre values to label the curve's vertical scale with, and
+ * where each sits as a percentage down the plotted area.
+ *
+ * Exported separately from `tideCurve` and rendered as HTML rather than
+ * SVG `<text>`: the curve draws with `preserveAspectRatio="none"` so it
+ * can stretch to any container width, which would stretch text with it.
+ *
+ * The step is chosen so the axis gets a handful of labels whatever the
+ * day's range: a spring tide spanning 250cm gets 100s, a neap barely
+ * moving gets 20s.
+ */
+export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): { value: number; topPercent: number }[] {
+    if (series.length === 0) return [];
+    const values = [...series.map((entry) => entry.value), ...extremes.map((extreme) => extreme.value)];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    if (span <= 0) return [];
+
+    const step = [200, 100, 50, 20, 10].find((candidate) => span / candidate >= 2) ?? 10;
+    const scale = makeValueScale(min, max);
+
+    const ticks: { value: number; topPercent: number }[] = [];
+    for (let value = Math.ceil(min / step) * step; value <= max; value += step) {
+        ticks.push({ value, topPercent: (scale(value) / VIEW_HEIGHT) * 100 });
+    }
+    return ticks;
+}
+
 export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extremes: readonly ExtremeEntry[]): SVGElement {
     const svg = svgEl('svg');
     svg.setAttribute('viewBox', `0 0 ${String(VIEW_WIDTH)} ${String(VIEW_HEIGHT)}`);

@@ -24,5 +24,17 @@
  * from the cyan default, not derived from any design token.
  */
 export const SHIP_GLYPH_COLOR = '#62c5ee';
-export const AIRCRAFT_GLYPH_COLOR = '#ff90b1';
+
+/**
+ * Aircraft red, per Terje's ask -- they were the design's magenta
+ * (`--color-accent-2-400`), which sat close enough to the ships' cyan in
+ * peripheral vision on a wall display that a glance didn't separate them.
+ * Red does, and nothing else on the map claims it: the warning yellow
+ * (`--color-process-yellow`) is the only other alarm-ish colour and reads
+ * clearly apart from this at a distance. Like the underway green below,
+ * this is a freestanding literal -- Broadsheet's ramp is the
+ * neutral/cyan/magenta triad and has no red to mirror.
+ */
+export const AIRCRAFT_GLYPH_COLOR = '#ff4d4d';
+
 export const SHIP_GLYPH_COLOR_UNDERWAY_ENGINE = '#4ade80';

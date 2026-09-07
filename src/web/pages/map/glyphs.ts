@@ -107,3 +107,50 @@ export function rotatedTrianglePoints(widthPx: number, heightPx: number, heading
     const [apex, left, right] = triangleLocalPoints(widthPx, heightPx);
     return [rotatePoint(apex, headingDegrees), rotatePoint(left, headingDegrees), rotatePoint(right, headingDegrees)];
 }
+
+/**
+ * A plane seen from above, nose up, centred on the origin and scaled to
+ * fit `widthPx` (wingspan) by `heightPx` (nose to tail).
+ *
+ * Ships stay triangles; aircraft get a silhouette because on a wall
+ * display the two layers had to be told apart at a glance and colour
+ * alone was doing all the work. Drawn as one closed outline -- nose, down
+ * the leading edge to a wingtip, back in to the body, out to the
+ * tailplane and back -- so it renders through exactly the same
+ * `L.Polygon` machinery as the triangle, and rotates the same way.
+ *
+ * The coordinates are fractions of the bounding box rather than absolute
+ * pixels, so the shape survives being scaled up for the invisible
+ * hit-target polygon that sits underneath it.
+ */
+export function planeLocalPoints(widthPx: number, heightPx: number): Point2D[] {
+    const halfWidth = widthPx / 2;
+    const halfHeight = heightPx / 2;
+    // x across the wings, y nose(-) to tail(+).
+    const outline: [number, number][] = [
+        [0, -1], // nose
+        [0.12, -0.55],
+        [0.12, -0.3],
+        [1, 0.1], // starboard wingtip
+        [1, 0.32],
+        [0.12, 0.16],
+        [0.12, 0.62],
+        [0.4, 0.9], // starboard tailplane
+        [0.4, 1],
+        [0, 0.84],
+        [-0.4, 1],
+        [-0.4, 0.9], // port tailplane
+        [-0.12, 0.62],
+        [-0.12, 0.16],
+        [-1, 0.32],
+        [-1, 0.1], // port wingtip
+        [-0.12, -0.3],
+        [-0.12, -0.55],
+    ];
+    return outline.map(([x, y]) => ({ x: x * halfWidth, y: y * halfHeight }));
+}
+
+/** `planeLocalPoints` rotated to point along `headingDegrees`, in screen-pixel offsets from its centre. */
+export function rotatedPlanePoints(widthPx: number, heightPx: number, headingDegrees: number): Point2D[] {
+    return planeLocalPoints(widthPx, heightPx).map((point) => rotatePoint(point, headingDegrees));
+}

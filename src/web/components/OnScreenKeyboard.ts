@@ -212,7 +212,14 @@ export function mountOnScreenKeyboard(attachTo: HTMLElement = document.body, loa
         if (isDisposed() || focusedInput !== input) return;
 
         const language = currentLanguage.get();
-        caption.textContent = kind === 'numeric' ? t('keyboard.numericLabel') : t('keyboard.textLabel');
+        // Which keyboard, and -- when the field says so via
+        // `data-keyboard-context` -- what it is editing. On a tray that
+        // covers half a kiosk screen, "Talltastatur" alone doesn't say
+        // which of two identical-looking number fields has focus.
+        const kindLabel = kind === 'numeric' ? t('keyboard.numericLabel') : t('keyboard.textLabel');
+        const context = input.dataset.keyboardContext;
+        caption.textContent =
+            context === undefined || context === '' ? kindLabel : t('keyboard.captionWithField', { kind: kindLabel, field: context });
 
         // Reload the layout module when the *kind* changes (numeric <-> text),
         // or when it stays 'text' but the language changed underneath it --

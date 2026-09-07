@@ -134,3 +134,12 @@
     color: var(--color-text);
     margin-top: 8px;
 }
+
+/* Bz is the one solar-wind figure with a caption -- how long it has been
+   pointing south. Magenta because it is a statement about the aurora's
+   odds, the same role the Kp figures carry. */
+.aurora-bz-southward {
+    font-size: 13px;
+    color: var(--color-accent-2);
+    margin-top: 2px;
+}

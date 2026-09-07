@@ -14,15 +14,6 @@ export const pageFreshness: Signal<Freshness | null> = signal(null);
 
 export const pageAttribution: Signal<string | null> = signal(null);
 
-/**
- * A page-supplied override for the masthead's locality caption, for the
- * one route (cameras) whose caption depends on live data (the camera
- * count) rather than the static per-route text `registry.ts`'s
- * `localityKey` already covers. `null` (the default) means "use the
- * static `localityKey` text" -- every route but cameras leaves this alone.
- */
-export const pageLocalityOverride: Signal<string | null> = signal(null);
-
 export interface LayerCounts {
     ships: number;
     aircraft: number;
@@ -43,6 +34,40 @@ export interface LayerCounts {
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = signal(null);
+
+/**
+ * One entry in the masthead's tap-through list of what is currently on
+ * the map. Deliberately flat and layer-agnostic -- a name, a line of
+ * detail, and a position -- so the shell can render ships and aircraft
+ * with one component and needs to know nothing about AIS or ADS-B.
+ */
+export interface LiveLayerItem {
+    id: string;
+    /** Ship name or aircraft callsign, already falling back to something readable when the broadcast has none. */
+    label: string;
+    /** A short second line: speed for a ship, altitude for an aircraft. */
+    detail: string;
+    lat: number;
+    lng: number;
+}
+
+export interface LiveLayerListing {
+    ships: LiveLayerItem[];
+    aircraft: LiveLayerItem[];
+    /**
+     * Pans and zooms the map to one item. Supplied by the map page (the
+     * only thing holding a Leaflet instance) rather than reached for
+     * through `activeMapInstance`, so the shell never touches Leaflet and
+     * the listing is inert on any page that doesn't provide one.
+     */
+    focus: (item: LiveLayerItem) => void;
+}
+
+/**
+ * What the masthead's counts open when tapped. `null` on every page but
+ * the map, which is also what keeps the counts inert there.
+ */
+export const liveLayerListing: Signal<LiveLayerListing | null> = signal(null);
 
 /**
  * The settings page's login/logout status line, rendered in the

@@ -18,6 +18,7 @@ import { pageAttribution, pageFreshness } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { activityBandForHemisphericPower, type ActivityBand } from './aurora/activityBand.js';
 import { firstAlertSummary, hemisphericPowerNorthGw, scaleGLevel, solarWindStats } from './aurora/extract.js';
+import { southwardRun } from './aurora/southward.js';
 import { selectKpBars, type KpBar } from './aurora/kpBars.js';
 import './aurora/aurora.css';
 
@@ -97,8 +98,25 @@ function buildLeftColumn(data: AuroraAll): HTMLElement {
     const stats = document.createElement('div');
     stats.className = 'aurora-stats';
     const wind = solarWindStats(data.solarWind.current);
+
+    // Bz gets a caption the other two don't: how long it has been pointing
+    // south, which is the part that says whether tonight is worth going
+    // outside for. Wrapped so the caption sits under its own card rather
+    // than becoming a fourth grid cell.
+    const bzCell = document.createElement('div');
+    bzCell.className = 'aurora-bz-cell';
+    bzCell.append(statCard({ label: t('aurora.bz'), value: wind ? formatNumber(wind.bz) : '—', unit: t('unit.nanotesla'), size: 'lg' }));
+    const run = southwardRun(data.solarWind.mag);
+    if (run) {
+        const caption = document.createElement('div');
+        caption.className = 'aurora-bz-southward';
+        const duration = t('aurora.southwardDuration', { minutes: run.minutes });
+        caption.textContent = run.atLeast ? t('aurora.southwardAtLeast', { duration }) : t('aurora.southward', { duration });
+        bzCell.append(caption);
+    }
+
     stats.append(
-        statCard({ label: t('aurora.bz'), value: wind ? formatNumber(wind.bz) : '—', unit: t('unit.nanotesla'), size: 'lg' }),
+        bzCell,
         statCard({
             label: t('aurora.solarWindSpeed'),
             value: wind ? formatNumber(Math.round(wind.speed)) : '—',

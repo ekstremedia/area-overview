@@ -107,21 +107,13 @@ export function render(container: HTMLElement, cameraId: string): () => void {
         updatedLine.textContent = updatedAt ? t('cameraViewer.updated', { time: formatTime(updatedAt), location: camera.location }) : camera.location;
         ageGroup.append(age, updatedLine);
 
-        const credit = document.createElement('div');
-        credit.className = 'camera-viewer-credit';
-        credit.textContent = t('cameras.attributionText');
-
-        bottomBar.append(ageGroup, credit);
+        // No credit line: the images are Terje's own (artboard 06 drops it).
+        bottomBar.append(ageGroup);
         root.append(bottomBar);
-    });
-
-    const disposeAttributionEffect = effect(() => {
-        pageAttribution.set(t('cameras.attributionText'));
     });
 
     return function dispose(): void {
         disposeEffect();
-        disposeAttributionEffect();
         pageFreshness.set(null);
         pageAttribution.set(null);
         root.remove();

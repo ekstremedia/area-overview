@@ -120,6 +120,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 widthPx: AIRCRAFT_WIDTH_PX,
                 heightPx: AIRCRAFT_HEIGHT_PX,
                 hitRadiusPx: HIT_RADIUS_PX,
+                shape: 'plane',
                 buildPopup: (aircraft) => buildAircraftPopup(aircraft),
                 isDistinct: isOnGround,
                 labelFor: (aircraft) => aircraftLabel(aircraft),
@@ -134,6 +135,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -153,6 +155,18 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 // aircraft the viewer chose to hide, which is not an age
                 // matter); `count()` is what survived the age filter.
                 callbacks.reportCount(canvasLayer.count(), items.length - canvasLayer.count());
+                callbacks.reportItems(
+                    items.map((aircraft) => ({
+                        id: aircraft.icao,
+                        label: aircraftLabel(aircraft),
+                        detail:
+                            aircraft.altitudeFt === 'ground'
+                                ? t('map.aircraftOnGround')
+                                : t('map.aircraftAltitudeShort', { feet: formatNumber(aircraft.altitudeFt, t('unit.feet')) }),
+                        lat: aircraft.lat,
+                        lng: aircraft.lng,
+                    })),
+                );
                 callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
             });
 
@@ -167,6 +181,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 canvasLayer.dispose();
                 trailLayer.dispose();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             };
         },

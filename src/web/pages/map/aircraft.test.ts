@@ -126,7 +126,7 @@ describe('mountAircraftLayer', () => {
         // aircraft.pollSeconds, so this exercises the layer's own
         // independent floor with a value right at that boundary.
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn(), reportItems: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -147,7 +147,7 @@ describe('mountAircraftLayer', () => {
         const reportCount = vi.fn();
         const reportAttribution = vi.fn();
 
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution, reportItems: vi.fn() });
         expect(reportCount).not.toHaveBeenCalled();
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
@@ -174,7 +174,7 @@ describe('mountAircraftLayer', () => {
         const reportCount = vi.fn();
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution: vi.fn(), reportItems: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
         expect(reportCount).toHaveBeenLastCalledWith(0, 0); // filtered out
 
@@ -201,7 +201,11 @@ describe('mountAircraftLayer -- name labels', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         // (visible, hitArea) pair -- the tooltip lives on the hit area.
@@ -224,7 +228,11 @@ describe('mountAircraftLayer -- name labels', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [, hitArea] = createdPolygons;

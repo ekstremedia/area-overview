@@ -14,6 +14,7 @@
  */
 import type * as Leaflet from 'leaflet';
 import { effect } from '../../core/signal.js';
+import type { LiveLayerItem } from '../../shell/page-status.js';
 
 export interface LiveLayerCallbacks {
     /**
@@ -24,6 +25,8 @@ export interface LiveLayerCallbacks {
      * Call with `0, 0` when disabled/unconfigured.
      */
     reportCount(count: number, hiddenByAge: number): void;
+    /** The vessels/aircraft currently drawn, for the masthead's tap-through list. Call with `[]` when disabled/unconfigured. */
+    reportItems(items: readonly LiveLayerItem[]): void;
     /** This layer's attribution text while active, or `undefined` while disabled/unconfigured -- feeds the footer's attribution line. */
     reportAttribution(text: string | undefined): void;
 }
