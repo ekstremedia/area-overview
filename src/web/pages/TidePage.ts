@@ -145,19 +145,7 @@ function buildCurveSection(tide: Tide, now: Date): HTMLElement {
     const label = document.createElement('div');
     label.className = 'tide-column-label';
     label.textContent = t('tide.curveLabel');
-    const legend = document.createElement('div');
-    legend.className = 'tide-legend';
-    const predictionSwatch = document.createElement('span');
-    predictionSwatch.className = 'tide-legend-swatch tide-legend-swatch--prediction';
-    const observedSwatch = document.createElement('span');
-    observedSwatch.className = 'tide-legend-swatch tide-legend-swatch--observed';
-    legend.append(
-        predictionSwatch,
-        document.createTextNode(t('tide.legendPrediction')),
-        observedSwatch,
-        document.createTextNode(t('tide.legendObserved')),
-    );
-    header.append(label, legend);
+    header.append(label);
 
     const curveWrap = document.createElement('div');
     curveWrap.className = 'tide-curve-wrap';

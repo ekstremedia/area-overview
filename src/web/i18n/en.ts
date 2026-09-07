@@ -141,8 +141,6 @@ export const en: Record<keyof typeof nb, string> = {
     'tide.nextLowLabel': 'Next low tide',
     'tide.nextExtremeLine': '{relative} · {level}',
     'tide.curveLabel': '24 hours · cm above chart datum',
-    'tide.legendPrediction': 'prediction',
-    'tide.legendObserved': 'observed',
     'tide.nowAxis': 'now {time}',
     'tide.seaTempLabel': 'sea temperature',
     'tide.attributionText': '© Kartverket',

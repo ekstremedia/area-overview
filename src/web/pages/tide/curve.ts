@@ -101,26 +101,6 @@ export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extreme
     predictionLine.style.vectorEffect = 'non-scaling-stroke';
     svg.append(predictionLine);
 
-    // — observation: only the points that actually carry a real observed
-    // value. Upstream only ever populates `observation` for the past, so
-    // this naturally stops at the last real value instead of projecting a
-    // line into the future -- no separate "find the last past index" logic
-    // needed, just a filter. —
-    const observationPoints = series
-        .filter((entry): entry is TimeseriesEntry & { observation: number } => typeof entry.observation === 'number')
-        .map((entry) => ({ x: timeScale(timeOf(entry)), y: valueScale(entry.observation) }));
-
-    if (observationPoints.length > 0) {
-        const observationLine = svgEl('path');
-        observationLine.setAttribute('d', linePath(observationPoints));
-        observationLine.setAttribute('class', 'tide-curve-observation-line');
-        observationLine.setAttribute('fill', 'none');
-        observationLine.style.stroke = 'var(--color-text)';
-        observationLine.style.strokeWidth = '1.75';
-        observationLine.style.vectorEffect = 'non-scaling-stroke';
-        svg.append(observationLine);
-    }
-
     // — extremes: a small marker at each predicted high/low, wherever it
     // falls within the drawn time window. —
     for (const extreme of extremes) {

@@ -20,27 +20,6 @@ describe('tideCurve', () => {
         expect(svg.querySelector('.tide-curve-prediction-area')).not.toBeNull();
     });
 
-    it('draws the observation line stopping at the last point that actually has a real observation value', () => {
-        const now = new Date(tide.serverNow);
-        const svg = tideCurve(tide.timeseries, now, tide.extremes);
-
-        const observedCount = tide.timeseries.filter((entry) => typeof entry.observation === 'number').length;
-        expect(observedCount).toBeGreaterThan(0);
-
-        const observationLine = svg.querySelector('.tide-curve-observation-line');
-        expect(observationLine).not.toBeNull();
-        const d = observationLine?.getAttribute('d') ?? '';
-        const commandCount = (d.match(/[ML]/g) ?? []).length;
-        expect(commandCount).toBe(observedCount);
-    });
-
-    it('produces no observation path at all when nothing in the series has ever been observed', () => {
-        const seriesWithNoObservations = tide.timeseries.map((entry) => ({ ...entry, observation: undefined }));
-        const svg = tideCurve(seriesWithNoObservations, new Date(tide.serverNow), tide.extremes);
-
-        expect(svg.querySelector('.tide-curve-observation-line')).toBeNull();
-    });
-
     it('draws a now-marker positioned within the chart window', () => {
         const now = new Date(tide.serverNow);
         const svg = tideCurve(tide.timeseries, now, tide.extremes);
