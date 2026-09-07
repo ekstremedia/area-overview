@@ -144,6 +144,12 @@ function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[] } 
         },
         removeLayer: () => undefined,
         getBounds: () => ({ getWest: () => 14.0, getSouth: () => 68.0, getEast: () => 16.0, getNorth: () => 69.0 }),
+        // A laid-out container whose size Leaflet already agrees with --
+        // `mapToBboxQuery` skips a viewport it cannot measure, so a fake
+        // without a size would make every layer here fetch nothing.
+        getContainer: () => ({ clientWidth: 1000, clientHeight: 600 }),
+        getSize: () => ({ x: 1000, y: 600 }),
+        invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any as Leaflet.Map;
     return { map, onCalls, offCalls };

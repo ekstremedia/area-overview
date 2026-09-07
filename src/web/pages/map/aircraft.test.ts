@@ -67,6 +67,11 @@ function fakeMap(): Leaflet.Map {
         off: () => undefined,
         removeLayer: () => undefined,
         getBounds: () => ({ getWest: () => 14.0, getSouth: () => 68.0, getEast: () => 16.0, getNorth: () => 69.0 }),
+        // See `ships.test.ts`'s fake: `mapToBboxQuery` skips a viewport it
+        // cannot measure, so the fake has to have a real size.
+        getContainer: () => ({ clientWidth: 1000, clientHeight: 600 }),
+        getSize: () => ({ x: 1000, y: 600 }),
+        invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any as Leaflet.Map;
 }

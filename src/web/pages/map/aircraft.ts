@@ -33,8 +33,11 @@ const HIT_RADIUS_PX = 22; // half of a 44px tap diameter
 const METERS_PER_FOOT = 0.3048;
 
 async function fetchAircraft(map: Leaflet.Map): Promise<Result<AircraftResponse>> {
+    // Same reasoning as `ships.ts`'s own skip -- see `mapToBboxQuery`.
+    const bbox = mapToBboxQuery(map);
+    if (bbox === null) return err({ message: 'Skipped GET /api/aircraft: the map has no measurable viewport yet' });
     try {
-        const response = await fetch(`/api/aircraft?bbox=${mapToBboxQuery(map)}`);
+        const response = await fetch(`/api/aircraft?bbox=${bbox}`);
         if (!response.ok) {
             return err({ message: `GET /api/aircraft responded ${String(response.status)}` });
         }
