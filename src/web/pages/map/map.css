@@ -281,16 +281,25 @@
     display: none; /* Leaflet's default tooltip arrow -- not wanted for this small a tag. */
 }
 /* The label is a real tap target (`canvasGlyphLayer.ts` binds it
-   `interactive`), but the visible tag renders ~28px tall -- under the 44px
-   `--tap-min` every other control in this app honours. This invisible box
-   makes up the difference (28px + 2x8px = 44px) without growing the tag
-   itself, which has to stay small to avoid burying the map under name
-   plates. Barely widened (the name text is already wide) so it can't reach
-   far enough sideways to swallow a tap meant for a neighbouring glyph. */
+   `interactive`), but the visible tag is far shorter than the 44px
+   `--tap-min` every other control in this app honours -- and exactly how
+   short depends on whose padding wins between this rule and Leaflet's own
+   `.leaflet-tooltip` (equal specificity, so stylesheet order decides).
+   A fixed height centred on the tag is therefore stated outright rather
+   than built up from insets: the tap target stays 44px whatever the tag
+   measures, and stays correct if the font, padding or bundle order ever
+   changes. The tag itself is left small so a busy map doesn't disappear
+   under name plates. Barely widened (the name text is already wide) so it
+   can't reach far enough sideways to swallow a tap meant for a
+   neighbouring glyph. */
 .glyph-label::after {
     content: '';
     position: absolute;
-    inset: -8px -2px;
+    left: -2px;
+    right: -2px;
+    top: 50%;
+    height: var(--tap-min);
+    transform: translateY(-50%);
 }
 
 .ship-popup,

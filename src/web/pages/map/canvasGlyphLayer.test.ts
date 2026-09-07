@@ -17,6 +17,8 @@ interface FakePolygon {
     latLngs: unknown[];
     tooltip: HTMLElement | undefined;
     tooltipOptions: Record<string, unknown> | undefined;
+    /** Whether `bindPopup` was called on this polygon -- lets a test assert which of the pair actually owns the popup, rather than inferring it. */
+    hasPopup: boolean;
     setLatLngs: (next: unknown[]) => FakePolygon;
     setStyle: (style: Record<string, unknown>) => FakePolygon;
     bindPopup: () => FakePolygon;
@@ -34,6 +36,7 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         latLngs: [...latLngs],
         tooltip: undefined,
         tooltipOptions: undefined,
+        hasPopup: false,
         setLatLngs: (next) => {
             polygon.latLngs = [...next];
             return polygon;
@@ -42,7 +45,10 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
             polygon.style = { ...polygon.style, ...style };
             return polygon;
         },
-        bindPopup: () => polygon,
+        bindPopup: () => {
+            polygon.hasPopup = true;
+            return polygon;
+        },
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
         addTo: () => polygon,
@@ -273,12 +279,15 @@ describe('createCanvasGlyphLayer labelFor', () => {
 
         layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
 
-        // `hitArea` (index 1), not the non-interactive `visible` polygon:
         // Leaflet forwards an interactive tooltip's clicks to the layer it
-        // belongs to, and `hitArea` is the one carrying `bindPopup`. A
-        // label bound to `visible` would be inert however interactive it
-        // claimed to be.
+        // belongs to, so the label only opens a popup if it is bound to the
+        // polygon that owns one. Asserting both halves -- which polygon has
+        // the popup, and which has the label -- is what makes this a real
+        // check: a label on the popup-less `visible` polygon would be inert
+        // however interactive it claimed to be.
         const [visible, hitArea] = created;
+        expect(hitArea?.hasPopup).toBe(true);
+        expect(visible?.hasPopup).toBe(false);
         expect(visible?.tooltip).toBeUndefined();
         expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
         expect(hitArea?.tooltipOptions?.interactive).toBe(true);
