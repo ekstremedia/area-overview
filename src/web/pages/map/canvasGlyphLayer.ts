@@ -167,6 +167,13 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             entry.hitArea.setTooltipContent(labelElement(label));
         }
         entry.label = label;
+        // Anchor here too, not only from `applyLatLngs`: a label can appear
+        // long after the glyph did (a ship that gets under way without
+        // having moved yet), and Leaflet anchors a freshly-bound tooltip at
+        // `Polygon.getCenter()` -- the middle of the rotated triangle, not
+        // the vessel. Nothing would correct that until the vessel next
+        // moved.
+        if (label !== null) anchorLabel(descriptor, entry);
     }
 
     /**
@@ -230,8 +237,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         visible.addTo(layerGroup);
         hitArea.addTo(layerGroup);
         const entry: GlyphEntry = { visible, hitArea, label: null };
-        applyLabel(entry, descriptor);
-        anchorLabel(descriptor, entry);
+        applyLabel(entry, descriptor); // anchors the label itself when it binds one
         return entry;
     }
 

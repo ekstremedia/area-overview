@@ -323,6 +323,26 @@ describe('createCanvasGlyphLayer labelFor', () => {
         expect(hitArea?.tooltipLatLng).toEqual({ lat: 68.75, lng: 15.5 });
     });
 
+    it('anchors a label that only appears later, rather than leaving it at the triangle centroid', () => {
+        const created: FakePolygon[] = [];
+        // A ship that gets under way without having moved yet: the label
+        // appears on a later poll, with lat/lng unchanged since creation.
+        const labelFor = (data: TestData) => (data.status === 0 ? 'ALPHA' : null);
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor }));
+        const now = new Date('2026-09-05T12:00:00Z');
+
+        layer.update([glyph({ lat: 68.7, lng: 15.4, data: { status: 1 } })], 30, now);
+        const [, hitArea] = created;
+        expect(hitArea?.tooltip).toBeUndefined();
+
+        layer.update([glyph({ lat: 68.7, lng: 15.4, data: { status: 0 } })], 30, now);
+
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+        // Leaflet would have anchored the freshly-bound tooltip at the
+        // polygon's centre; it belongs on the vessel.
+        expect(hitArea?.tooltipLatLng).toEqual({ lat: 68.7, lng: 15.4 });
+    });
+
     it('treats an empty-string label the same as null -- no tooltip bound', () => {
         const created: FakePolygon[] = [];
         const labelFor = () => '';
