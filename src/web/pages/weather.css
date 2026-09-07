@@ -116,6 +116,14 @@
     gap: 4px;
 }
 
+@media (max-width: 900px) {
+    .weather-forecast-column {
+        flex-direction: column;
+        gap: 0;
+        text-align: center;
+    }
+}
+
 .weather-forecast-hour {
     font-size: 11px;
     line-height: 1.2;
