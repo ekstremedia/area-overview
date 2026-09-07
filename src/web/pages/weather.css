@@ -16,6 +16,18 @@
  * height for the two forecast slots below, which share it with
  * `flex: 1 1 0` each and center their (enlarged) content in it.
  *
+ * That fix was tuned against one exact size (1024x600) and didn't scale to
+ * a normal wide desktop window -- at 1920x1080 the forecast icons/text
+ * stayed pixel-fixed while `flex: 1 1 0` handed them several hundred extra
+ * pixels of centering slack above and below, reading as dead space again,
+ * just redistributed. Icon sizes, forecast/daily font sizes, and the gaps
+ * between them are now `clamp()`s with a `vw`-scaled ceiling (same pattern
+ * as `.weather-temp` below and `aurora.css`'s stat sizes) instead of fixed
+ * pixel values, so they visibly grow to use a wide window's real estate;
+ * the floor of every clamp is the exact value already verified at the
+ * 1024x600 kiosk, so that render is unchanged. Checked against real
+ * 1024x600, 1440x900, and 1920x1080 renders -- see the PR description.
+ *
  * Measured against a real 1024x600 render with real (non-fixture) data:
  * the AI summary is the taller of the two current-conditions columns, and
  * its length varies run to run, so `.weather-summary-text` is capped at a
@@ -82,6 +94,16 @@
     margin-top: 3px;
 }
 
+/* `StatCard`'s own `.stat-card-label` (components.css) is `--color-muted`
+   at 11px -- the "VIND"/"FUKT"/"TRYKK"/"NEDBØR 1 T" labels named in the
+   contrast complaint. Overridden here, scoped to this page's stat row
+   only, rather than in the shared component, so the aurora/tide pages
+   (which use the same component) are untouched. See `.weather-summary-age`
+   for the contrast numbers. */
+.weather-stats .stat-card-label {
+    color: var(--color-neutral-400);
+}
+
 .weather-right {
     display: flex;
     flex-direction: column;
@@ -103,8 +125,15 @@
 }
 
 .weather-summary-age {
-    font-size: 12px;
-    color: var(--color-neutral-600);
+    font-size: clamp(12px, 1vw, 15px);
+    /* `--color-muted` (`--color-neutral-600`) measures 4.45:1 on this
+       page's dark ground -- just under WCAG AA's 4.5:1 floor for normal
+       text, and genuinely hard to read at this size in practice (the
+       complaint this page has had twice now). `--color-neutral-400`
+       measures 9.53:1: still visibly secondary next to full
+       `--color-text`, but comfortably legible small. See the same swap
+       below on every other small/muted label on this page. */
+    color: var(--color-neutral-400);
     white-space: nowrap;
 }
 
@@ -128,24 +157,29 @@
 
 .weather-forecast-label,
 .weather-daily-label {
-    font-size: 11px;
+    font-size: clamp(11px, 0.9vw, 14px);
     line-height: 1.2;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--color-muted);
-    margin-bottom: 3px;
+    /* Matches `.weather-outdoor-label`/`.weather-summary-label` above --
+       every small-caps section label on this page now uses the same
+       bright accent rather than `--color-muted`, which measured under
+       WCAG AA at this size (see `.weather-summary-age`). */
+    color: var(--color-accent);
+    margin-bottom: clamp(3px, 1vh, 14px);
 }
 
 .weather-forecast-columns {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: var(--space-1);
+    gap: clamp(var(--space-1), 1vw, 16px);
+    margin-top: clamp(2px, 1vh, 10px);
 }
 
 .weather-forecast-column {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: clamp(5px, 0.8vw, 14px);
 }
 
 @media (max-width: 900px) {
@@ -157,22 +191,28 @@
 }
 
 .weather-forecast-hour {
-    font-size: 12px;
+    font-size: clamp(12px, 1vw, 16px);
     line-height: 1.2;
-    color: var(--color-muted);
+    /* See `.weather-summary-age` for why this isn't `--color-muted`. */
+    color: var(--color-neutral-400);
 }
 
+/* Fluid, not fixed, so the icon uses more of a wide desktop window instead
+   of sitting tiny in the middle of a mostly-empty column (Terje's "not
+   good utilization of the screen real estate" complaint) -- 34px is the
+   floor already verified at the 1024x600 kiosk; the ceiling was checked
+   against real 1920x1080 and 1440x900 renders (see the PR description). */
 .weather-forecast-icon {
     display: block;
-    width: 34px;
-    height: 34px;
+    width: clamp(34px, 3.4vw, 64px);
+    height: clamp(34px, 3.4vw, 64px);
     flex: none;
 }
 
 .weather-forecast-temp {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
-    font-size: 17px;
+    font-size: clamp(17px, 1.6vw, 26px);
     line-height: 1.2;
 }
 
@@ -183,25 +223,26 @@
 
 .weather-daily {
     border-top: var(--masthead-rule-thin) solid var(--color-divider);
-    padding-top: var(--space-1);
+    padding-top: clamp(var(--space-1), 1.6vh, 20px);
 }
 
 .weather-daily-list {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: var(--space-2);
+    gap: clamp(var(--space-2), 1.6vw, 28px);
 }
 
 .weather-daily-day {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: clamp(var(--space-2), 1.2vw, 20px);
 }
 
+/* See `.weather-forecast-icon` for why this is fluid, not fixed. */
 .weather-daily-icon {
     display: block;
-    width: 38px;
-    height: 38px;
+    width: clamp(38px, 3.8vw, 72px);
+    height: clamp(38px, 3.8vw, 72px);
     flex: none;
 }
 
@@ -210,9 +251,10 @@
 }
 
 .weather-daily-weekday {
-    font-size: 13px;
+    font-size: clamp(13px, 1.1vw, 17px);
     line-height: 1.2;
-    color: var(--color-muted);
+    /* See `.weather-summary-age` for why this isn't `--color-muted`. */
+    color: var(--color-neutral-400);
     white-space: nowrap;
 }
 
@@ -221,23 +263,28 @@
     gap: 8px;
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
-    font-size: 17px;
+    font-size: clamp(17px, 1.6vw, 26px);
     line-height: 1.2;
     margin-top: 1px;
 }
 
 .weather-daily-low {
-    color: var(--color-muted);
+    /* Larger than the 11-13px labels above (17-26px here), so
+       `--color-muted`'s 4.45:1 already clears WCAG AA's 3:1 floor for
+       large text -- but `--color-neutral-500` (6.62:1) reads noticeably
+       more comfortably next to the full-contrast high figure right beside
+       it, for a one-step bump. */
+    color: var(--color-neutral-500);
 }
 
 .weather-daily-periods {
     display: flex;
-    gap: 3px;
+    gap: clamp(3px, 0.4vw, 8px);
     margin-top: 2px;
 }
 
 .weather-daily-period-icon {
     display: block;
-    width: 18px;
-    height: 18px;
+    width: clamp(18px, 1.6vw, 30px);
+    height: clamp(18px, 1.6vw, 30px);
 }
