@@ -193,6 +193,41 @@
     margin-top: var(--space-3);
 }
 
+/* — auto-cycle swipe transition (AppShell.ts's `cycleTo()`) —
+   Steady state is a single `main.page` flowing normally in `#app`'s flex
+   column, same as always. During a transition only, `AppShell.ts`
+   temporarily wraps the outgoing and incoming `.page` containers in one
+   `.page-viewport` so both can be positioned on top of each other and
+   slid past one another; the wrapper and the extra container are both
+   removed again once the transition finishes. `500ms` here must match
+   `SLIDE_MS` in `AppShell.ts`. */
+.page-viewport {
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+.page-viewport > .page {
+    position: absolute;
+    inset: 0;
+}
+
+.page--incoming {
+    transform: translateX(100%);
+}
+
+.page--slide-out {
+    transform: translateX(-100%);
+    transition: transform 500ms ease-in-out;
+}
+
+.page--slide-in {
+    transform: translateX(0);
+    transition: transform 500ms ease-in-out;
+}
+
 /* — night/brightness overlay — */
 .display-overlay {
     position: fixed;
