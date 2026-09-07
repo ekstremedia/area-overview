@@ -95,6 +95,7 @@ function jsonResponse(body: unknown): Response {
 const oneAircraft = {
     configured: true,
     fetchedAt: '2026-09-05T12:00:00Z',
+    sources: ['adsbfi'],
     aircraft: [
         {
             icao: 'abc123',
@@ -154,11 +155,51 @@ describe('mountAircraftLayer', () => {
         await vi.advanceTimersByTimeAsync(0);
 
         expect(reportCount).toHaveBeenLastCalledWith(1, 0);
-        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol');
+        // The response's own `sources` names the provider that actually
+        // served it, not the hard-coded fallback constant.
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.fi');
 
         dispose();
         expect(reportCount).toHaveBeenLastCalledWith(0, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith(undefined);
+    });
+
+    it('names both sources when the response reports OpenSky contributed too', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const bothSources = { ...oneAircraft, sources: ['adsbfi', 'opensky'] };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(bothSources)));
+        const map = fakeMap();
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution, reportItems: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.fi / OpenSky');
+
+        dispose();
+    });
+
+    it('falls back to the hard-coded attribution when the response carries no sources field', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const noSourcesField: Partial<typeof oneAircraft> = { ...oneAircraft };
+        delete noSourcesField.sources;
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(noSourcesField)));
+        const map = fakeMap();
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution, reportItems: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // An older server (or the BFF's own remembered-aircraft fallback)
+        // never sends `sources` at all -- this must read the same as a
+        // response that names nobody, not throw or blank the credit.
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol');
+
+        dispose();
     });
 
     it('hides on-ground aircraft when showOnGround is false, and shows them when true', async () => {

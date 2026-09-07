@@ -21,11 +21,11 @@
  * with OpenSky credentials should verify against a real response.
  */
 import { z } from 'zod';
-import { AircraftSchema, type Aircraft } from '../../shared/schemas/aircraft.js';
+import { AircraftSchema, type Aircraft, type AdsbSource } from '../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../shared/result.js';
 import type { Bbox } from '../layers/bbox.js';
 
-export type AdsbProvider = 'adsblol' | 'airplaneslive' | 'adsbfi' | 'opensky';
+export type AdsbProvider = AdsbSource;
 
 const KNOTS_PER_MPS = 1.94384;
 const KM_PER_DEGREE_LAT = 111;
@@ -536,11 +536,26 @@ export function mergeAircraft(primary: readonly Aircraft[], secondary: readonly 
     return [...byIcao.values()];
 }
 
+export interface FetchAircraftResult {
+    aircraft: Aircraft[];
+    /**
+     * The provider(s) whose data is actually present in `aircraft` --
+     * used for the map footer's attribution credit. `options.provider` is
+     * only ever a *configuration* ("what to ask"); this is the answer to
+     * "what actually answered", which is what the credit must name. In
+     * particular `'opensky'` is included only when its own fetch (fresh
+     * or a still-covering stale snapshot) produced at least one aircraft
+     * that fed into the result -- not merely because credentials are set.
+     */
+    sources: AdsbSource[];
+}
+
 /** Dispatches to the configured ADS-B provider and returns aircraft mapped onto the shared `Aircraft` shape, already filtered to `bbox`. */
-export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<Aircraft[]>> {
+export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<FetchAircraftResult>> {
     const fetchImpl = options.fetchImpl ?? fetch;
     if (options.provider === 'opensky') {
-        return fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
+        const result = await fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
+        return result.ok ? ok({ aircraft: result.value, sources: ['opensky'] }) : result;
     }
 
     const primary = await fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
@@ -549,14 +564,18 @@ export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): 
     // access is capped near 400 requests a day, far too little to be worth
     // spending on a second opinion.
     const credentials = options.openSkyCredentials;
-    if (!credentials) return primary;
+    if (!credentials) return primary.ok ? ok({ aircraft: primary.value, sources: [options.provider] }) : primary;
 
     const secondary = await openSkyAircraftWithin(bbox, credentials, options.upstreamTimeoutMs, fetchImpl, Date.now());
 
     if (!primary.ok) {
         // The primary is down. Anything OpenSky has -- including a stale
         // snapshot -- beats failing the request outright.
-        return secondary && secondary.length > 0 ? ok(secondary) : primary;
+        return secondary && secondary.length > 0 ? ok({ aircraft: secondary, sources: ['opensky'] }) : primary;
     }
-    return ok(secondary ? mergeAircraft(primary.value, secondary) : primary.value);
+
+    const openSkyContributed = secondary !== null && secondary.length > 0;
+    const aircraft = secondary ? mergeAircraft(primary.value, secondary) : primary.value;
+    const sources: AdsbSource[] = openSkyContributed ? [options.provider, 'opensky'] : [options.provider];
+    return ok({ aircraft, sources });
 }

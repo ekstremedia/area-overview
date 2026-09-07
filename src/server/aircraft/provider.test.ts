@@ -142,7 +142,7 @@ describe('fetchAircraft (v2 providers)', () => {
         const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
 
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value).toHaveLength(2);
+        if (result.ok) expect(result.value.aircraft).toHaveLength(2);
         const [url] = fetchMock.mock.calls[0] as [string];
         expect(url).toMatch(/^https:\/\/api\.adsb\.lol\/v2\/lat\/69\/lon\/17\/dist\/\d+$/);
     });
@@ -168,7 +168,7 @@ describe('fetchAircraft (v2 providers)', () => {
         const result = await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
 
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value).toHaveLength(2);
+        if (result.ok) expect(result.value.aircraft).toHaveLength(2);
     });
 
     it('treats a response carrying neither key as an empty sky, not a malformed payload', async () => {
@@ -178,13 +178,20 @@ describe('fetchAircraft (v2 providers)', () => {
         const result = await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
 
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value).toEqual([]);
+        if (result.ok) expect(result.value.aircraft).toEqual([]);
     });
 
     it('returns an error on a non-OK response', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('error', { status: 500 }));
         const result = await fetchAircraft(testBbox, { provider: 'adsblol', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
         expect(result.ok).toBe(false);
+    });
+
+    it('reports the configured provider as the sole source when OpenSky is not configured', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ac: [] }));
+        const result = await fetchAircraft(testBbox, { provider: 'adsbfi', upstreamTimeoutMs: 5000, fetchImpl: fetchMock });
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.sources).toEqual(['adsbfi']);
     });
 });
 
@@ -299,9 +306,9 @@ describe('fetchAircraft (opensky provider) -- schema tolerance for trailing fiel
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-            expect(result.value).toHaveLength(1);
-            expect(result.value[0]?.icao).toBe('4ac9eb');
-            expect(result.value[0]?.callsign).toBe('SAS69L');
+            expect(result.value.aircraft).toHaveLength(1);
+            expect(result.value.aircraft[0]?.icao).toBe('4ac9eb');
+            expect(result.value.aircraft[0]?.callsign).toBe('SAS69L');
         }
     });
 });
@@ -465,7 +472,7 @@ describe('OpenSky augmentation', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value.map((a) => a.icao)).toEqual(['inside']);
+        if (result.ok) expect(result.value.aircraft.map((a) => a.icao)).toEqual(['inside']);
     });
 
     it('serves the stale OpenSky snapshot when the primary provider fails', async () => {
@@ -496,7 +503,7 @@ describe('OpenSky augmentation', () => {
 
         // The snapshot is stale, but it is real aircraft and beats an error.
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value.map((a) => a.icao)).toEqual(['aaa111']);
+        if (result.ok) expect(result.value.aircraft.map((a) => a.icao)).toEqual(['aaa111']);
     });
 
     it('leaves the primary result untouched when OpenSky has nothing to add', async () => {
@@ -514,6 +521,42 @@ describe('OpenSky augmentation', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value).toHaveLength(2);
+        if (result.ok) expect(result.value.aircraft).toHaveLength(2);
+    });
+
+    it('names both sources when OpenSky actually contributes an aircraft', async () => {
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) return Promise.resolve(statesResponse(state('aaa111', 68.7, 15.5)));
+            return Promise.resolve(jsonResponse({ ac: [] }));
+        });
+
+        const result = await fetchAircraft(boxA, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.sources).toEqual(['adsbfi', 'opensky']);
+    });
+
+    it('does not name OpenSky when it has nothing to add', async () => {
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            if (url.includes('opensky')) return Promise.reject(new Error('opensky down'));
+            return Promise.resolve(jsonResponse(adsbLolFixture));
+        });
+
+        const result = await fetchAircraft(testBbox, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.sources).toEqual(['adsbfi']);
     });
 });

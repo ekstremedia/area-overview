@@ -7,7 +7,7 @@
  * regardless of `ADSB_PROVIDER`.
  */
 import type { FastifyInstance } from 'fastify';
-import type { Aircraft, AircraftResponse } from '../../shared/schemas/aircraft.js';
+import type { AdsbSource, Aircraft, AircraftResponse } from '../../shared/schemas/aircraft.js';
 import { bboxCacheKey, clampBbox, parseBbox, roundBbox } from '../layers/bbox.js';
 import { fetchAircraft } from '../aircraft/provider.js';
 import { TtlCache } from '../cache.js';
@@ -20,12 +20,23 @@ export interface AircraftRouteDependencies {
     trails: TrailStore<Aircraft>;
 }
 
-/** Attaches each aircraft's remembered positions and stamps the response. */
-function withTrails(aircraft: readonly Aircraft[], trails: TrailStore<Aircraft>, now: Date): Extract<AircraftResponse, { configured: true }> {
+/**
+ * Attaches each aircraft's remembered positions and stamps the response.
+ * `sources` is left `undefined` for the remembered-aircraft fallback path
+ * (no live provider actually answered this request), which the web layer
+ * reads the same way as an older server that never sent the field at all.
+ */
+function withTrails(
+    aircraft: readonly Aircraft[],
+    trails: TrailStore<Aircraft>,
+    now: Date,
+    sources?: readonly AdsbSource[],
+): Extract<AircraftResponse, { configured: true }> {
     return {
         configured: true,
         aircraft: aircraft.map((item) => ({ ...item, trail: trails.trailFor(item.icao, now) })),
         fetchedAt: now.toISOString(),
+        sources: sources ? [...sources] : undefined,
     };
 }
 
@@ -65,8 +76,8 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
             const now = new Date();
 
             if (result.ok) {
-                dependencies.trails.record(result.value, now);
-                return { ok: true, value: withTrails(result.value, dependencies.trails, now) };
+                dependencies.trails.record(result.value.aircraft, now);
+                return { ok: true, value: withTrails(result.value.aircraft, dependencies.trails, now, result.value.sources) };
             }
 
             // Same reasoning as the ships route: prefer the stale cached

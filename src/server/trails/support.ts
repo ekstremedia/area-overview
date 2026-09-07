@@ -106,7 +106,7 @@ export function createTrailSupport(config: ServerConfig): TrailSupport {
                     openSkyCredentials,
                 });
                 if (!result.ok) return result;
-                aircraft.record(result.value, now);
+                aircraft.record(result.value.aircraft, now);
                 return ok(undefined);
             },
         });

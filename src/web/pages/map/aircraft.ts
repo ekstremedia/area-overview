@@ -14,7 +14,7 @@
  */
 import type * as Leaflet from 'leaflet';
 import { AIRCRAFT_LAYER } from '../../../shared/layers.js';
-import { AircraftResponseSchema, type Aircraft, type AircraftResponse } from '../../../shared/schemas/aircraft.js';
+import { AircraftResponseSchema, type Aircraft, type AircraftResponse, type AdsbSource } from '../../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../../shared/result.js';
 import { resource } from '../../core/resource.js';
 import { effect } from '../../core/signal.js';
@@ -51,6 +51,26 @@ async function fetchAircraft(map: Leaflet.Map): Promise<Result<AircraftResponse>
     } catch (cause) {
         return err({ message: 'Network error fetching /api/aircraft', cause });
     }
+}
+
+/** Display names for the footer credit -- matches how each provider names itself, not this app's internal `AdsbSource` id. */
+const ADSB_SOURCE_LABELS: Record<AdsbSource, string> = {
+    adsblol: 'adsb.lol',
+    airplaneslive: 'airplanes.live',
+    adsbfi: 'adsb.fi',
+    opensky: 'OpenSky',
+};
+
+/**
+ * Builds the footer credit from the response's own `sources`, the same
+ * `Data: <org> / <org>` shape ships already uses for its two credited
+ * organisations. Falls back to the hard-coded constant when `sources` is
+ * absent -- an older server, or the BFF's own remembered-aircraft
+ * fallback, where no live provider actually answered this request.
+ */
+function attributionFor(sources: readonly AdsbSource[] | undefined): string {
+    if (!sources || sources.length === 0) return AIRCRAFT_LAYER.attribution;
+    return `Data: ${sources.map((source) => ADSB_SOURCE_LABELS[source]).join(' / ')}`;
 }
 
 function toGlyph(aircraft: Aircraft): GlyphDescriptor<Aircraft> {
@@ -175,7 +195,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                         lng: descriptor.lng,
                     })),
                 );
-                callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
+                callbacks.reportAttribution(attributionFor(state.data.sources));
             });
 
             const disposeMoveRefetch = refetchOnMapMove(map, () => {
