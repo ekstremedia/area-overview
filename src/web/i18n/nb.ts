@@ -27,6 +27,11 @@ export const nb = {
 
     'masthead.stale': 'Gamle data · {duration}',
     'masthead.layerCounts': '{ships} skip · {aircraft} fly',
+    // Shown instead of the plain line when the age filter is holding
+    // something back, so a vessel disappearing is accounted for rather
+    // than silent. "skjult" stays uninflected across counts (1 skjult, 3
+    // skjult), unlike "gammel/gamle".
+    'masthead.layerCountsHidden': '{ships} skip · {aircraft} fly · {hidden} skjult',
 
     'footer.attributionPlaceholder': 'Kilde kommer',
     'footer.updated': 'Oppdatert {relative}',

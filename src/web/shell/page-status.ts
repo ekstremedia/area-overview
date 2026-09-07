@@ -26,6 +26,20 @@ export const pageLocalityOverride: Signal<string | null> = signal(null);
 export interface LayerCounts {
     ships: number;
     aircraft: number;
+    /**
+     * How many ships/aircraft the BFF returned but the map is not drawing
+     * because their last position fix is older than the layer's
+     * `maxAgeMinutes` -- summed across layers, since the masthead shows one
+     * line for both.
+     *
+     * Surfaced deliberately rather than left implicit: upstream keeps
+     * serving vessels whose fix is hours old (a moored boat that stopped
+     * transmitting was observed at 310 minutes), and dropping them without
+     * a word makes a boat someone was watching vanish for no visible
+     * reason. Zooming makes it worse, since a zoom re-runs the age filter
+     * and so is often the moment a just-expired vessel blinks out.
+     */
+    hiddenByAge: number;
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = signal(null);

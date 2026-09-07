@@ -141,11 +141,11 @@ describe('mountAircraftLayer', () => {
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(reportCount).toHaveBeenLastCalledWith(1);
+        expect(reportCount).toHaveBeenLastCalledWith(1, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol');
 
         dispose();
-        expect(reportCount).toHaveBeenLastCalledWith(0);
+        expect(reportCount).toHaveBeenLastCalledWith(0, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith(undefined);
     });
 
@@ -164,11 +164,11 @@ describe('mountAircraftLayer', () => {
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
         const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
-        expect(reportCount).toHaveBeenLastCalledWith(0); // filtered out
+        expect(reportCount).toHaveBeenLastCalledWith(0, 0); // filtered out
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: true } }));
         await vi.advanceTimersByTimeAsync(5_000);
-        expect(reportCount).toHaveBeenLastCalledWith(1); // now shown, distinctly styled
+        expect(reportCount).toHaveBeenLastCalledWith(1, 0); // now shown, distinctly styled
 
         dispose();
     });

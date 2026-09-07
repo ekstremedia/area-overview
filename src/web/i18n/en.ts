@@ -27,6 +27,7 @@ export const en: Record<keyof typeof nb, string> = {
 
     'masthead.stale': 'Stale data · {duration}',
     'masthead.layerCounts': '{ships} ships · {aircraft} aircraft',
+    'masthead.layerCountsHidden': '{ships} ships · {aircraft} aircraft · {hidden} hidden',
 
     'footer.attributionPlaceholder': 'Source coming',
     'footer.updated': 'Updated {relative}',

@@ -243,7 +243,7 @@ describe('mountShipsLayer', () => {
 
         dispose();
 
-        expect(reportCount).toHaveBeenLastCalledWith(0);
+        expect(reportCount).toHaveBeenLastCalledWith(0, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith(undefined);
         // Every `map.on(...)` registered by the canvas glyph layer (e.g. 'zoomend') is matched by a `map.off(...)` on dispose.
         expect(offCalls.sort()).toEqual(onCalls.sort());
@@ -332,7 +332,7 @@ describe('mountShipsLayer -- clustering', () => {
 
         expect(createdPolygons).toHaveLength(2); // visible + hit area
         expect(createdMarkers).toHaveLength(0); // no cluster badge
-        expect(reportCount).toHaveBeenLastCalledWith(1);
+        expect(reportCount).toHaveBeenLastCalledWith(1, 0);
 
         dispose();
     });
@@ -358,7 +358,7 @@ describe('mountShipsLayer -- clustering', () => {
         const [badge] = createdMarkers;
         const icon = badge?.icon as { html: HTMLElement } | undefined;
         expect(icon?.html.textContent).toBe('2');
-        expect(reportCount).toHaveBeenLastCalledWith(2); // total ship count is unaffected by clustering
+        expect(reportCount).toHaveBeenLastCalledWith(2, 0); // total ship count is unaffected by clustering, and nothing is held back by age
 
         dispose();
     });

@@ -148,7 +148,13 @@ export function mountMasthead(container: HTMLElement): () => void {
                 return;
             }
             layerCounts.style.display = '';
-            layerCounts.textContent = t('masthead.layerCounts', { ships: counts.ships, aircraft: counts.aircraft });
+            // The hidden segment appears only when there is something to
+            // account for -- the ordinary case must stay the plain two-number
+            // line, not a line with a permanent "0 hidden" on the end.
+            layerCounts.textContent =
+                counts.hiddenByAge > 0
+                    ? t('masthead.layerCountsHidden', { ships: counts.ships, aircraft: counts.aircraft, hidden: counts.hiddenByAge })
+                    : t('masthead.layerCounts', { ships: counts.ships, aircraft: counts.aircraft });
         }),
     );
 
