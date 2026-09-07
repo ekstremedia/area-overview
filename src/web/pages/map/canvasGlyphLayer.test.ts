@@ -17,6 +17,9 @@ interface FakePolygon {
     latLngs: unknown[];
     tooltip: HTMLElement | undefined;
     tooltipOptions: Record<string, unknown> | undefined;
+    /** Where the bound tooltip is currently anchored -- real Leaflet only moves this when told, never from `setLatLngs`. */
+    tooltipLatLng: { lat: number; lng: number } | undefined;
+    getTooltip: () => { setLatLng: (latLng: { lat: number; lng: number }) => void } | undefined;
     /** Whether `bindPopup` was called on this polygon -- lets a test assert which of the pair actually owns the popup, rather than inferring it. */
     hasPopup: boolean;
     setLatLngs: (next: unknown[]) => FakePolygon;
@@ -36,7 +39,16 @@ function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): Fake
         latLngs: [...latLngs],
         tooltip: undefined,
         tooltipOptions: undefined,
+        tooltipLatLng: undefined,
         hasPopup: false,
+        getTooltip: () =>
+            polygon.tooltip === undefined
+                ? undefined
+                : {
+                      setLatLng: (latLng) => {
+                          polygon.tooltipLatLng = latLng;
+                      },
+                  },
         setLatLngs: (next) => {
             polygon.latLngs = [...next];
             return polygon;
@@ -291,6 +303,24 @@ describe('createCanvasGlyphLayer labelFor', () => {
         expect(visible?.tooltip).toBeUndefined();
         expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
         expect(hitArea?.tooltipOptions?.interactive).toBe(true);
+    });
+
+    it('moves the label with its glyph on every position update, and pins it to the vessel rather than the triangle centroid', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor: () => 'ALPHA' }));
+        const now = new Date('2026-09-05T12:00:00Z');
+
+        layer.update([glyph({ lat: 68.7, lng: 15.4 })], 30, now);
+        const [, hitArea] = created;
+        expect(hitArea?.tooltipLatLng).toEqual({ lat: 68.7, lng: 15.4 });
+
+        // The vessel sails on. Leaflet re-anchors an open tooltip only on a
+        // layer's `move` event, which a path never fires from `setLatLngs`,
+        // so without an explicit re-anchor the name stays at the old spot
+        // and drifts further from its glyph with every poll.
+        layer.update([glyph({ lat: 68.75, lng: 15.5, timestamp: '2026-09-05T12:00:30Z' })], 30, now);
+
+        expect(hitArea?.tooltipLatLng).toEqual({ lat: 68.75, lng: 15.5 });
     });
 
     it('treats an empty-string label the same as null -- no tooltip bound', () => {

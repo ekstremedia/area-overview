@@ -169,9 +169,26 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         entry.label = label;
     }
 
+    /**
+     * Pins an open label to the glyph's own coordinates.
+     *
+     * Leaflet anchors a tooltip once, when it opens, and then only
+     * re-anchors on its layer's `move` event -- which `L.Marker` fires from
+     * `setLatLng` but a path never fires from `setLatLngs`. So a name label
+     * stayed behind at the vessel's old position while the triangle sailed
+     * away, the two drifting further apart with every poll. Using the
+     * descriptor's own lat/lng rather than the polygon centroid Leaflet
+     * would compute for itself also keeps the tag pinned to the vessel
+     * rather than to the middle of its heading-rotated triangle.
+     */
+    function anchorLabel(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
+        entry.hitArea.getTooltip()?.setLatLng(L.latLng(descriptor.lat, descriptor.lng));
+    }
+
     function applyLatLngs(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
         entry.visible.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx));
         entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier));
+        anchorLabel(descriptor, entry);
     }
 
     /**
@@ -214,6 +231,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         hitArea.addTo(layerGroup);
         const entry: GlyphEntry = { visible, hitArea, label: null };
         applyLabel(entry, descriptor);
+        anchorLabel(descriptor, entry);
         return entry;
     }
 

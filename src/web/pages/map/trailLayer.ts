@@ -64,8 +64,6 @@ interface TrailEntry<T> {
     data: T;
     /** The rendered segments, kept so they can be removed before redrawing. */
     lines: Leaflet.Polyline[];
-    /** `at` of the newest point when `lines` were last drawn -- lets `update` skip the redraw for a vessel that hasn't moved, which is most of them, most polls. */
-    drawnAt: number | undefined;
     lastSeen: number;
 }
 
@@ -125,7 +123,6 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
             line.addTo(layerGroup);
             entry.lines.push(line);
         }
-        entry.drawnAt = entry.points[entry.points.length - 1]?.at;
     }
 
     function update(descriptors: readonly GlyphDescriptor<T>[], now: Date): void {
@@ -143,20 +140,24 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
                 points: [],
                 data: descriptor.data,
                 lines: [],
-                drawnAt: undefined,
                 lastSeen: nowMs,
             };
             entry.data = descriptor.data;
+            const before = entry.points;
             entry.points = appendTrailPoint(
                 entry.points,
                 { lat: descriptor.lat, lng: descriptor.lng, at: reportedAt },
-                { maxPoints: MAX_POINTS, maxAgeMs: MAX_AGE_MS },
+                { maxPoints: MAX_POINTS, maxAgeMs: MAX_AGE_MS, now: nowMs },
             );
             entry.lastSeen = nowMs;
             entries.set(descriptor.id, entry);
 
-            const newestAt = entry.points[entry.points.length - 1]?.at;
-            if (newestAt !== entry.drawnAt) drawTrail(entry);
+            // Identity, not the newest timestamp: `appendTrailPoint` hands
+            // back the very same array when nothing changed, and a different
+            // one whenever anything did -- including an ageing pass that only
+            // dropped old points, which leaves the newest timestamp untouched
+            // while making the drawn trail wrong.
+            if (entry.points !== before) drawTrail(entry);
         }
 
         for (const [id, entry] of entries) {

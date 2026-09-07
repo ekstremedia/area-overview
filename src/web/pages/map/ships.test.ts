@@ -20,6 +20,7 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
     const polygon = {
         style: { ...initial },
         tooltip: undefined as HTMLElement | undefined,
+        tooltipLatLng: undefined as { lat: number; lng: number } | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: (style: Record<string, unknown>) => {
@@ -33,6 +34,17 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
             polygon.tooltip = content;
             return polygon;
         },
+        // Real Leaflet re-anchors an open tooltip only when told to, so the
+        // glyph layer moves it explicitly on every position update; a fake
+        // without this would make that call throw.
+        getTooltip: () =>
+            polygon.tooltip === undefined
+                ? undefined
+                : {
+                      setLatLng: (latLng: { lat: number; lng: number }) => {
+                          polygon.tooltipLatLng = latLng;
+                      },
+                  },
         unbindTooltip: () => {
             polygon.tooltip = undefined;
             return polygon;
