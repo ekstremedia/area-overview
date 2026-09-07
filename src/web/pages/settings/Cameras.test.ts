@@ -287,6 +287,26 @@ describe('Cameras section', () => {
         row.el.remove();
     });
 
+    it('stops saying "uten plassering" once a placement arrives with the settings resource', () => {
+        // The row is built before the placement is known (the settings
+        // resource is still loading), so the label is corrected by
+        // `update()` rather than by the initial render -- the path where a
+        // stale label had nothing left to notify it.
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const row = buildRow(camera(), null, { store, loggedIn: true, enabled: true });
+
+        const label = (): string => row.el.querySelector('.save-indicator')?.textContent.trim() ?? '';
+        expect(label()).toBe('Uten plassering');
+
+        row.update(camera(), { lat: 68.72, lng: 15.42 }, true, true);
+
+        expect(row.el.querySelectorAll('.number-field-input')).toHaveLength(2);
+        expect(label()).not.toBe('Uten plassering');
+
+        row.dispose();
+        row.el.remove();
+    });
+
     it('renames the on-screen keyboard caption when the camera is renamed upstream', () => {
         const { store } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
         const row = buildRow(camera(), { lat: 68.7, lng: 15.4 }, { store, loggedIn: true, enabled: true });

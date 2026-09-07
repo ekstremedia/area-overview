@@ -81,6 +81,21 @@
     white-space: nowrap;
 }
 
+/* Every count centres its own text. The interactive ones are `<button>`s,
+   which centre their content natively, while the hidden-count is a plain
+   `<span>` stretched to the same height by the flex row -- left to itself
+   its text sat at the top of that box, so "4 skjult" rode visibly higher
+   than "19 skip" beside it. */
+.masthead-count {
+    display: flex;
+    align-items: center;
+    /* The markup separates the numeral and its unit with a plain space,
+       which a flex container drops (a whitespace-only child is not
+       rendered as a flex item) -- "19 skip" became "19skip". This restores
+       roughly a word space between them. */
+    gap: 0.28em;
+}
+
 /* The numeral carries its layer's colour, the unit stays muted -- so the
    counts read as data at a glance without the whole line competing with
    the active tab. */

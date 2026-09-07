@@ -197,9 +197,16 @@ export function buildRow(
     // the undo button with the plain "unplaced" text.
     let showingUndo = false;
 
+    // The label is assigned *before* the status is set, never after:
+    // `indicatorStatus.set` notifies synchronously, so the render it
+    // triggers reads `currentIdleLabel` on the spot. Assigning afterwards
+    // meant the indicator rendered the previous label and nothing was left
+    // to notify -- a camera whose placement arrived with the settings
+    // resource (so `update()` re-rendered the row rather than `buildRow`)
+    // kept saying "Uten plassering" beside its own filled-in coordinates.
     function setIndicatorIdleLabel(placed: boolean): void {
-        indicatorStatus.set({ kind: 'idle' });
         currentIdleLabel = placed ? t('settings.status.saved') : t('settings.cameras.unplaced');
+        indicatorStatus.set({ kind: 'idle' });
     }
 
     /** "Lagret 12:41" -- the artboard timestamps the save, so a glance says whether an edit actually landed. */

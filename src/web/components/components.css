@@ -77,10 +77,17 @@
     padding: var(--space-3);
 }
 
+/* The age sits on top of a live photograph, so it carries its own ground
+   rather than trusting whatever the camera happens to be pointing at: the
+   Sigerfjord camera burns a white status line across its own top edge, and
+   the badge landed straight on it, cyan on white. */
 .image-with-age-badge {
     position: absolute;
     right: 14px;
     top: 14px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgb(16 15 15 / 72%);
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
     font-size: 17px;

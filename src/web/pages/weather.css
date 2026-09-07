@@ -87,9 +87,16 @@
     margin-top: 2px;
 }
 
+/* Columns size to their own content rather than four equal quarters:
+   at 1024px a quarter of this column is ~92px, which "994,9 hPa" and
+   "0,606 mm" don't fit, so their unit dropped onto a second line while
+   "1 m/s" and "86 %" stayed inline -- the row read as broken rather than
+   as four stats. `space-between` keeps them spread across the column the
+   way the equal-columns version did. */
 .weather-stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, auto);
+    justify-content: space-between;
     gap: var(--space-1) var(--space-2);
     margin-top: 3px;
 }
