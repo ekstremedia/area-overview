@@ -60,7 +60,34 @@ const AircraftSettingsSchema = z.object({
 });
 
 /**
- * The nine top-level fields a `PATCH` can touch, as *undecorated* schemas
+ * Auto-cycle: kiosk slideshow mode -- rotates through pages on a timer
+ * with a swipe transition (`web/shell/autoCycle.ts` owns the pure "what's
+ * next" logic and its timer; `web/shell/AppShell.ts` owns the transition
+ * itself).
+ *
+ * `pages` uses the empty array as the "cycle every currently-*enabled*
+ * page" sentinel, rather than a separate `allPages: boolean` flag: it
+ * composes for free with `enabledPages` (there's only ever the one array
+ * to consult, no second flag that can drift out of sync with it) and
+ * matches this schema's existing "empty means default" shape for
+ * collection-typed settings elsewhere in the app.
+ *
+ * A page can be listed here and later toggled off via `enabledPages` --
+ * that's allowed, and deliberately not reconciled at write time: the
+ * page simply stays in `autoCycle.pages` but is skipped whenever its turn
+ * comes up. `nextCycleRoute` intersects `autoCycle.pages` (or, if empty,
+ * `enabledPages` itself) with `enabledPages` fresh on every call, so
+ * re-enabling the page later resumes cycling it with no need to re-pick
+ * it in the settings UI.
+ */
+const AutoCycleSchema = z.object({
+    enabled: z.boolean().default(false),
+    intervalSeconds: z.number().min(30).max(3600).default(180), // 3 minutes
+    pages: z.array(PageIdSchema).default([]), // empty = cycle every currently-enabled page; non-empty = cycle only these
+});
+
+/**
+ * The ten top-level fields a `PATCH` can touch, as *undecorated* schemas
  * -- deliberately without their own `.default(...)`. `SettingsSchema`
  * below applies `.default(...)` to each of these when building the full
  * settings object (so `SettingsSchema.parse({})` is still fully
@@ -95,6 +122,7 @@ const patchableFieldSchemas = {
     brightness: z.number().min(20).max(100),
     ships: ShipsSettingsSchema,
     aircraft: AircraftSettingsSchema,
+    autoCycle: AutoCycleSchema,
 };
 
 /**
@@ -113,6 +141,7 @@ export const SettingsSchema = z.object({
     brightness: patchableFieldSchemas.brightness.default(100),
     ships: patchableFieldSchemas.ships.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
     aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
+    autoCycle: patchableFieldSchemas.autoCycle.default({ enabled: false, intervalSeconds: 180, pages: [] }),
     updatedAt: IsoTimestampSchema.default(() => new Date().toISOString()),
 });
 
@@ -135,6 +164,7 @@ export const SettingsPatchSchema = z.object({
     brightness: patchableFieldSchemas.brightness.optional(),
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
+    autoCycle: patchableFieldSchemas.autoCycle.optional(),
 });
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
