@@ -60,6 +60,23 @@ async function fetchCartoApiKey(signal: AbortSignal): Promise<string> {
     }
 }
 
+/**
+ * `true` when `target` is (or is inside) an open Leaflet popup -- Leaflet's
+ * own `L.DomEvent.disableClickPropagation` shield on
+ * `.leaflet-popup-content-wrapper` is supposed to make this unnecessary,
+ * but a real pointer/mouse event sequence landing on popup content (e.g.
+ * `ships.ts`'s cluster list rows) proved that shield doesn't reliably stop
+ * the map's own 'click' from also firing for that same click -- see the
+ * `onMapClick` doc comment in `render()` below for the full story. Exported
+ * so the regression this guards against can be unit-tested directly: a
+ * bare synthetic `.click()` in happy-dom does *not* reproduce the leak
+ * (Leaflet's own shield does stop it there), so asserting on this function
+ * is the effective way to catch it, not a simulated DOM event sequence.
+ */
+export function isInsideLeafletPopup(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('.leaflet-popup') !== null;
+}
+
 /** Mirrors `shell/theme.ts`'s `resolveBaseTheme` -- kept local rather than importing from there, since that module's `matchMedia` listener is owned by `startThemeApplication`'s own lifecycle (started once, for the app's lifetime), not something this page's mount/unmount should share or re-trigger. */
 function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean): 'dark' | 'light' {
     if (theme === 'system') return prefersLight ? 'light' : 'dark';
@@ -198,14 +215,27 @@ export function render(container: HTMLElement): () => void {
         });
 
         // — tap-empty-map point forecast. Leaflet doesn't fire the map's own
-        // 'click' for a marker click that opens a popup (`Marker`'s
-        // `_openPopup` calls `DomEvent.stop` on the originating event), so no
-        // extra "did this hit a marker" check is needed here. —
+        // 'click' for a marker click that *opens* a popup (`Marker`'s
+        // `_openPopup` calls `DomEvent.stop` on the originating event), but
+        // that only covers the click that opens a popup -- a click on
+        // content *inside* an already-open popup (e.g. `ships.ts`'s cluster
+        // list rows, or its "back to list" button) is a separate click
+        // event on a separate DOM subtree (`.leaflet-popup-content`), never
+        // touched by `_openPopup`'s stop call. Leaflet's `Popup` class is
+        // supposed to shield its own content from map clicks
+        // (`L.DomEvent.disableClickPropagation` on
+        // `.leaflet-popup-content-wrapper`), but real pointer/mouse event
+        // sequences (not a bare synthetic `.click()`) proved that shield
+        // doesn't reliably stop this handler from firing for a click that
+        // lands on popup content, closing the popup and updating the
+        // forecast panel as an unwanted side effect. Guard explicitly by
+        // ignoring any click whose target is inside `.leaflet-popup`. —
         const forecastController = createPointForecastController();
         const disposeForecastPanel = mountPointForecastPanel(wrapper, forecastController.state, (lat, lng) => {
             forecastController.requestForecast(lat, lng);
         });
         const onMapClick = (event: Leaflet.LeafletMouseEvent): void => {
+            if (isInsideLeafletPopup(event.originalEvent.target)) return;
             forecastController.requestForecast(event.latlng.lat, event.latlng.lng);
         };
         map.on('click', onMapClick);
