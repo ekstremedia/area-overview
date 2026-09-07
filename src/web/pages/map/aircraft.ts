@@ -24,7 +24,7 @@ import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import type { GlyphDescriptor } from './glyphs.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
-import { mapToBboxQuery, mountWhileEnabled, type LiveLayerCallbacks } from './liveLayerMount.js';
+import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
 const AIRCRAFT_WIDTH_PX = 18;
 const AIRCRAFT_HEIGHT_PX = 24;
@@ -147,8 +147,13 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
             });
 
+            const disposeMoveRefetch = refetchOnMapMove(map, () => {
+                res.refresh();
+            });
+
             return function dispose(): void {
                 disposeEffect();
+                disposeMoveRefetch();
                 res.dispose();
                 canvasLayer.dispose();
                 callbacks.reportCount(0);

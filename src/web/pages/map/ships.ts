@@ -39,7 +39,7 @@ import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
 import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
-import { mapToBboxQuery, mountWhileEnabled, type LiveLayerCallbacks } from './liveLayerMount.js';
+import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
 const SHIP_WIDTH_PX = 14;
 const SHIP_HEIGHT_PX = 19;
@@ -427,6 +427,9 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 if (latestConfigured) render();
             }
             map.on('zoomend', onZoomEnd);
+            const disposeMoveRefetch = refetchOnMapMove(map, () => {
+                res.refresh();
+            });
 
             const disposeEffect = effect(() => {
                 const state = res.state.get();
@@ -443,6 +446,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
             return function dispose(): void {
                 disposeEffect();
                 map.off('zoomend', onZoomEnd);
+                disposeMoveRefetch();
                 res.dispose();
                 canvasLayer.dispose();
                 clusterBadges.dispose();
