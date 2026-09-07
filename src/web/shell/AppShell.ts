@@ -19,11 +19,17 @@
  * the two containers before disposing the outgoing page and settling
  * back to the normal single-container steady state. `location.hash` is
  * updated partway through `cycleTo()` (see its own comment for exactly
- * when and why), which fires the plain route effect too -- that effect
- * is guarded by the `transitioning` flag so it never fights `cycleTo()`
- * for control of `pageContainer`/`disposePage`. A manual tab tap,
- * idle-reset, or any other direct hash change still goes through the
- * plain, instant path unaffected, both before and after a cycle.
+ * when and why), which fires the plain route effect too -- while a cycle
+ * is in flight, that effect compares the new route against the cycle's
+ * own target (`cycleTargetRoute`): the same route means this is just
+ * `cycleTo()`'s own hash update reaching the effect, a no-op; a
+ * DIFFERENT route means a real navigation (a tab tap, idle-reset, a
+ * direct hash change) landed mid-transition, and the effect aborts the
+ * in-flight cycle before mounting the actually-requested page, so that
+ * navigation is never silently lost. A manual tab tap, idle-reset, or
+ * any other direct hash change goes through the plain, instant path
+ * unaffected whenever no cycle is in flight -- only mid-transition does
+ * the interruption logic above apply.
  */
 import { currentRoute, type Route } from '../core/router.js';
 import { effect } from '../core/signal.js';
@@ -57,6 +63,13 @@ function routeForName(name: Route['name']): Route {
     return { name };
 }
 
+/** `Route` equality, including `cameras`' optional `cameraId` -- comparing only `.name` would treat `#/cameras/<id>` and plain `#/cameras` as the same route, which matters for telling "the hash change cycleTo() itself just made" from "a real navigation that interrupted an in-flight cycle" below. */
+function routesEqual(a: Route, b: Route): boolean {
+    if (a.name !== b.name) return false;
+    if (a.name === 'cameras' && b.name === 'cameras') return a.cameraId === b.cameraId;
+    return true;
+}
+
 export function mountAppShell(root: HTMLElement): () => void {
     root.innerHTML = '';
 
@@ -73,6 +86,20 @@ export function mountAppShell(root: HTMLElement): () => void {
     let disposePage: (() => void) | undefined;
     let transitioning = false;
     let cancelActiveCycle: (() => void) | undefined;
+    // The route `cycleTo()`'s own `location.hash` update (in its prewarm
+    // timer, below) is about to produce -- lets the plain route effect
+    // tell "the hash change I myself just caused" from "a real navigation
+    // that happened to land during my transition window" (see the effect
+    // below).
+    let cycleTargetRoute: Route | undefined;
+
+    /** Creates a fresh, empty, attached `<main class="page">` in `pageContainer`'s usual spot -- used after aborting an in-flight cycle, whose outgoing/incoming containers both get torn down, to leave a valid attachment point for whatever navigation interrupted it. */
+    function freshPageContainer(): HTMLElement {
+        const container = document.createElement('main');
+        container.className = 'page';
+        footerContainer.before(container);
+        return container;
+    }
 
     /** The swipe-transition path -- see this module's doc comment for the full sequencing. */
     function cycleTo(nextName: Route['name']): void {
@@ -80,6 +107,8 @@ export function mountAppShell(root: HTMLElement): () => void {
 
         const outgoingContainer = pageContainer;
         const outgoingDispose = disposePage;
+        const targetRoute = routeForName(nextName);
+        cycleTargetRoute = targetRoute;
 
         const incomingContainer = document.createElement('main');
         incomingContainer.className = 'page page--incoming';
@@ -87,7 +116,7 @@ export function mountAppShell(root: HTMLElement): () => void {
         // and `location.hash` still points at the outgoing route -- this is
         // the "already loaded and fresh" part: the incoming page starts
         // fetching immediately, well before it's ever shown.
-        const incomingDispose = pageForRoute(routeForName(nextName)).render(incomingContainer);
+        const incomingDispose = pageForRoute(targetRoute).render(incomingContainer);
 
         const viewport = document.createElement('div');
         viewport.className = 'page-viewport';
@@ -114,27 +143,46 @@ export function mountAppShell(root: HTMLElement): () => void {
             disposePage = incomingDispose;
             transitioning = false;
             cancelActiveCycle = undefined;
+            cycleTargetRoute = undefined;
         }, PREWARM_MS + SLIDE_MS);
 
-        // Lets `dispose()` below tear down a transition that's still in
-        // flight when the whole shell is torn down (e.g. navigating away
-        // from the app entirely mid-swipe) without leaking either page's
-        // effects or leaving orphaned timers.
+        // Tears down a transition that's still in flight, discarding BOTH
+        // containers -- used when the whole shell is torn down mid-swipe
+        // (e.g. navigating away from the app entirely), and also when a
+        // real navigation (a tab tap, idle-reset, a direct hash change)
+        // interrupts an in-flight cycle: that case needs a fresh, attached
+        // container left behind so the plain route effect below has
+        // somewhere valid to mount the actually-requested page into.
         cancelActiveCycle = function cancel(): void {
             clearTimeout(prewarmTimer);
             clearTimeout(finishTimer);
             incomingDispose();
             outgoingDispose?.();
             viewport.remove();
+            pageContainer = freshPageContainer();
             disposePage = undefined;
             transitioning = false;
             cancelActiveCycle = undefined;
+            cycleTargetRoute = undefined;
         };
     }
 
     const disposeRouteEffect = effect(() => {
         const route = currentRoute.get();
-        if (transitioning) return; // this navigation is being driven by cycleTo() above, not this plain path
+        if (transitioning) {
+            // A hash change landed while a cycle transition is in flight.
+            // If it matches the cycle's own target, this is just cycleTo()'s
+            // own `location.hash` update reaching this effect -- `cycleTo()`
+            // is already handling that route, so do nothing. Otherwise, a
+            // real navigation (tab tap, idle-reset, direct hash change)
+            // interrupted the cycle: abort it and fall through to mount the
+            // actually-requested route through the plain path below, rather
+            // than silently losing it (the transition would otherwise
+            // commit to the cycle's target regardless, a few hundred ms
+            // later).
+            if (cycleTargetRoute && routesEqual(route, cycleTargetRoute)) return;
+            cancelActiveCycle?.();
+        }
         disposePage?.();
         pageContainer.innerHTML = '';
         disposePage = pageForRoute(route).render(pageContainer);

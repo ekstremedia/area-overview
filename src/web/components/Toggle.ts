@@ -14,6 +14,8 @@
  */
 export interface ToggleOptions {
     label?: string;
+    /** Accessible name for callers that render the visible label outside this component (e.g. via a `field()` wrapper) instead of passing `label` -- without one of the two, the switch has no accessible name at all. Ignored when `label` is set, since that already becomes the `aria-label`. */
+    accessibleLabel?: string;
     checked: boolean;
     disabled?: boolean;
     onChange: (next: boolean) => void;
@@ -41,6 +43,7 @@ export function toggle(options: ToggleOptions): ToggleHandle {
     button.className = 'toggle';
     button.setAttribute('role', 'switch');
     if (options.label !== undefined) button.setAttribute('aria-label', options.label);
+    else if (options.accessibleLabel !== undefined) button.setAttribute('aria-label', options.accessibleLabel);
 
     const knob = document.createElement('span');
     knob.className = 'toggle-knob';

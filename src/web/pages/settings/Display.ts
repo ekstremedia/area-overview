@@ -163,6 +163,7 @@ export const mount: SectionMount = (container, ctx) => {
     }
 
     const autoCycleEnabledToggle: ToggleHandle = toggle({
+        accessibleLabel: t('settings.display.autoCycle'),
         checked: autoCycleDraft.enabled,
         disabled: !loggedIn,
         onChange: (checked) => {
