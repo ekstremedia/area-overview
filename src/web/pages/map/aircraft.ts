@@ -24,6 +24,7 @@ import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import type { GlyphDescriptor } from './glyphs.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
+import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
 const AIRCRAFT_WIDTH_PX = 18;
@@ -124,11 +125,14 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 labelFor: (aircraft) => aircraftLabel(aircraft),
             });
 
+            const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR });
+
             const pollSeconds = Math.max(settings.get().aircraft.pollSeconds, AIRCRAFT_LAYER.minPollSeconds);
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
 
             function clear(): void {
                 canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
+                trailLayer.clear();
                 callbacks.reportCount(0);
                 callbacks.reportAttribution(undefined);
             }
@@ -142,7 +146,9 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 }
                 const showOnGround = settings.get().aircraft.showOnGround;
                 const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
-                canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, new Date());
+                const now = new Date();
+                canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, now);
+                trailLayer.update(items.map(toGlyph), now);
                 callbacks.reportCount(canvasLayer.count());
                 callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
             });
@@ -156,6 +162,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 disposeMoveRefetch();
                 res.dispose();
                 canvasLayer.dispose();
+                trailLayer.dispose();
                 callbacks.reportCount(0);
                 callbacks.reportAttribution(undefined);
             };

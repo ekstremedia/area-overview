@@ -39,6 +39,7 @@ import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
 import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
+import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
 const SHIP_WIDTH_PX = 14;
@@ -371,6 +372,10 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 labelFor: (ship) => (ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE ? shipLabel(ship) : null),
             });
             const clusterBadges = createClusterBadgeLayer(L, map);
+            // Fed every visible ship below, clustered or not -- see
+            // `trailLayer.ts`'s doc comment for why it can't be fed the
+            // canvas layer's (cluster-filtered) set instead.
+            const trailLayer = createTrailLayer<Ship>(L, map, { color: SHIP_GLYPH_COLOR, colorFor: shipColor });
 
             const pollSeconds = Math.max(settings.get().ships.pollSeconds, SHIPS_LAYER.minPollSeconds);
             const res = resource(() => fetchShips(map), { intervalMs: pollSeconds * 1000 });
@@ -410,6 +415,10 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
 
                 canvasLayer.update(singleDescriptors, maxAgeMinutes, now);
                 clusterBadges.update(groupClusters);
+                trailLayer.update(
+                    visible.map(({ descriptor }) => descriptor),
+                    now,
+                );
                 callbacks.reportCount(visible.length);
                 callbacks.reportAttribution(SHIPS_LAYER.attribution);
             }
@@ -419,6 +428,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 latestConfigured = false;
                 canvasLayer.update([], settings.get().ships.maxAgeMinutes, new Date());
                 clusterBadges.update([]);
+                trailLayer.clear();
                 callbacks.reportCount(0);
                 callbacks.reportAttribution(undefined);
             }
@@ -450,6 +460,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 res.dispose();
                 canvasLayer.dispose();
                 clusterBadges.dispose();
+                trailLayer.dispose();
                 callbacks.reportCount(0);
                 callbacks.reportAttribution(undefined);
             };
