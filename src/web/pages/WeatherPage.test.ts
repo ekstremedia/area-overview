@@ -43,7 +43,65 @@ describe('WeatherPage', () => {
 
         expect(container.querySelector('.weather-temp')?.textContent).toBe('6,2°');
         expect(container.querySelectorAll('.stat-card')).toHaveLength(4);
-        expect(container.querySelectorAll('.weather-forecast-column')).toHaveLength(8);
+        expect(container.querySelectorAll('.weather-forecast-column')).toHaveLength(12);
+
+        dispose();
+    });
+
+    it('renders an icon on every hourly forecast column, sourced from that entry’s real symbol_url', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-forecast-icon')).toHaveLength(12);
+        });
+
+        const icons = Array.from(container.querySelectorAll<HTMLImageElement>('.weather-forecast-icon'));
+        expect(icons.every((icon) => icon.src.startsWith('https://nesthus.no/vendor/laravel-yr/symbols/'))).toBe(true);
+        expect(icons.every((icon) => icon.alt.length > 0)).toBe(true);
+
+        dispose();
+    });
+
+    it('renders the daily forecast section with a day column per shown day, each with an icon and high/low temperatures', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-day')).toHaveLength(5);
+        });
+
+        const days = Array.from(container.querySelectorAll('.weather-daily-day'));
+        // First fixture day: temperature_min 8.1, temperature_max 12.1.
+        const firstDayTemps = days[0]?.querySelector('.weather-daily-temps');
+        expect(firstDayTemps?.querySelector('.weather-daily-high')?.textContent).toBe('12°');
+        expect(firstDayTemps?.querySelector('.weather-daily-low')?.textContent).toBe('8°');
+        expect(days.every((day) => day.querySelector('.weather-daily-icon') !== null)).toBe(true);
+
+        dispose();
+    });
+
+    it('hides the high/low pair only when both temperature_max and temperature_min are absent, not when just one is', async () => {
+        const oneNullTemp = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [{ ...weatherFixture.forecast.daily[0], temperature_max: null }, ...weatherFixture.forecast.daily.slice(1)],
+            },
+        };
+        mockFetch(oneNullTemp, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-day')).toHaveLength(5);
+        });
+
+        const firstDayTemps = container.querySelectorAll('.weather-daily-day')[0]?.querySelector('.weather-daily-temps');
+        expect(firstDayTemps?.querySelector('.weather-daily-high')).toBeNull();
+        expect(firstDayTemps?.querySelector('.weather-daily-low')?.textContent).toBe('8°');
 
         dispose();
     });
@@ -68,7 +126,7 @@ describe('WeatherPage', () => {
         // Fixture hourly entries run 2026-09-05T00:00Z..23:00Z (24 entries). Pin
         // "now" to the last entry: under the old "filter-then-slice" logic only
         // the single last entry would be "upcoming" (>= now - 30min), so the
-        // strip would have rendered just 1 column instead of 8.
+        // strip would have rendered just 1 column instead of FORECAST_HOURS_SHOWN.
         vi.setSystemTime(new Date('2026-09-05T23:00:00Z'));
 
         mockFetch(weatherFixture, weatherSummaryFixture);
@@ -80,13 +138,13 @@ describe('WeatherPage', () => {
         });
 
         const columns = container.querySelectorAll('.weather-forecast-column');
-        expect(columns).toHaveLength(8);
+        expect(columns).toHaveLength(12);
 
         const hours = Array.from(columns).map((column) => column.querySelector('.weather-forecast-hour')?.textContent);
-        // Backfilled from the tail: the last 8 fixture entries (16:00Z..23:00Z),
+        // Backfilled from the tail: the last 12 fixture entries (12:00Z..23:00Z),
         // rendered in the formatter's local timezone.
         const expectedHours = weatherFixture.forecast.hourly
-            .slice(-8)
+            .slice(-12)
             .map((entry) =>
                 new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(entry.time)).slice(0, 2),
             );

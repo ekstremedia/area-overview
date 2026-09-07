@@ -1,27 +1,58 @@
 /**
  * The weather page (artboard 02): a fixed-ish left column (400px at the
  * designed 1024px width, shrinking fluidly at the 800x480 worst case) and
- * a flexible right column, with the Yr strip anchored to the bottom of
- * the page.
+ * a flexible right column, with the Yr hourly strip and a daily forecast
+ * section stacked below.
+ *
+ * The current-conditions row used to carry `flex: 1`, which let it swallow
+ * every pixel of free vertical space on the 1024x600 kiosk -- its own
+ * content (the big temperature numeral, a deliberate design size,
+ * `--stat-size-xl` -- see `tokens.css`) is shorter than that, so the extra
+ * space just sat empty in the middle of the page while the two forecast
+ * sections below were squeezed into whatever was left (the exact "dead
+ * gap" bug fixed on the aurora page in `aurora.css` -- read that file's
+ * history for the pattern). Fixed the same way: the top row now sizes to
+ * its own content (`flex: 0 0 auto`) instead of stretching, freeing real
+ * height for the two forecast slots below, which share it with
+ * `flex: 1 1 0` each and center their (enlarged) content in it.
+ *
+ * Measured against a real 1024x600 render with real (non-fixture) data:
+ * the AI summary is the taller of the two current-conditions columns, and
+ * its length varies run to run, so `.weather-summary-text` is capped at a
+ * fixed number of lines (see below) rather than left free to size the
+ * whole row -- otherwise an unusually long summary would starve the
+ * forecast sections exactly the way the removed `flex: 1` did. Every
+ * other margin/gap on this page is deliberately tighter than this app's
+ * usual page rhythm for the same reason: three stacked blocks (current
+ * conditions, hourly strip, daily list) share a fixed, small budget.
  */
 .weather-page {
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    gap: var(--space-4);
+    gap: var(--space-1);
 }
 
 .weather-columns {
     display: grid;
     grid-template-columns: minmax(240px, 400px) minmax(0, 1fr);
     gap: clamp(var(--space-4), 4vw, 44px);
-    flex: 1;
+    flex: 0 0 auto;
+}
+
+.weather-forecast-slot,
+.weather-daily-slot {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 0;
     min-height: 0;
 }
 
 .weather-outdoor-label {
     font-size: 11px;
+    line-height: 1.2;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--color-accent);
@@ -33,21 +64,22 @@
     font-size: clamp(72px, 14vw, var(--stat-size-xl));
     line-height: 0.82;
     letter-spacing: -0.05em;
-    margin: 14px 0 0 -4px;
+    margin: 3px 0 0 -4px;
 }
 
 .weather-condition {
     font-style: italic;
     font-size: clamp(18px, 2.6vw, 27px);
+    line-height: 1.2;
     color: var(--color-text);
-    margin-top: 10px;
+    margin-top: 2px;
 }
 
 .weather-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 26px 20px;
-    margin-top: clamp(var(--space-4), 4vh, 38px);
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-1) var(--space-2);
+    margin-top: 3px;
 }
 
 .weather-right {
@@ -76,52 +108,136 @@
     white-space: nowrap;
 }
 
+/* Capped to a fixed line count, not left to grow with the AI-generated
+   text's length -- see the file-header comment. `-webkit-line-clamp` is
+   well-supported in the Chromium this app's kiosk browser runs (and in
+   Chrome/Vite dev, used to verify this page); the plain `line-clamp`
+   property is included for forward compatibility. */
 .weather-summary-text {
     font-style: italic;
     font-size: clamp(17px, 2.4vw, 25px);
     line-height: 1.45;
     color: var(--color-text);
-    margin-top: 14px;
+    margin-top: 8px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+    line-clamp: 6;
+    overflow: hidden;
 }
 
-.weather-forecast-label {
+.weather-forecast-label,
+.weather-daily-label {
     font-size: 11px;
+    line-height: 1.2;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--color-muted);
-    margin-bottom: 18px;
+    margin-bottom: 3px;
 }
 
 .weather-forecast-columns {
     display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 12px;
-    align-items: end;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--space-1);
 }
 
-.weather-forecast-bar-track {
-    height: 44px;
+.weather-forecast-column {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
+    gap: 5px;
 }
 
-.weather-forecast-bar {
-    width: 100%;
-    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+@media (max-width: 900px) {
+    .weather-forecast-column {
+        flex-direction: column;
+        gap: 0;
+        text-align: center;
+    }
 }
 
-.weather-forecast-bar--current {
-    background: var(--color-accent);
+.weather-forecast-hour {
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--color-muted);
+}
+
+.weather-forecast-icon {
+    display: block;
+    width: 34px;
+    height: 34px;
+    flex: none;
 }
 
 .weather-forecast-temp {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
-    font-size: clamp(18px, 2.6vw, 26px);
-    margin-top: 10px;
+    font-size: 17px;
+    line-height: 1.2;
 }
 
-.weather-forecast-hour {
+.weather-forecast-column--current .weather-forecast-hour,
+.weather-forecast-column--current .weather-forecast-temp {
+    color: var(--color-accent);
+}
+
+.weather-daily {
+    border-top: var(--masthead-rule-thin) solid var(--color-divider);
+    padding-top: var(--space-1);
+}
+
+.weather-daily-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.weather-daily-day {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.weather-daily-icon {
+    display: block;
+    width: 38px;
+    height: 38px;
+    flex: none;
+}
+
+.weather-daily-meta {
+    min-width: 0;
+}
+
+.weather-daily-weekday {
     font-size: 13px;
+    line-height: 1.2;
     color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.weather-daily-temps {
+    display: flex;
+    gap: 8px;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 17px;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+.weather-daily-low {
+    color: var(--color-muted);
+}
+
+.weather-daily-periods {
+    display: flex;
+    gap: 3px;
+    margin-top: 2px;
+}
+
+.weather-daily-period-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
 }

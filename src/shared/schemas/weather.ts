@@ -68,22 +68,51 @@ const HourlyForecastEntrySchema = z.object({
     fog: z.number().optional(),
 });
 
+// A single part-of-day slice of a daily entry's `periods` object (night/
+// morning/afternoon/evening), each with its own icon -- what lets a daily
+// row show the four small period icons the way Yr's own UI does. All three
+// fields are `.nullable()`, not just `.optional()`: a real live response
+// (`GET /api/weather` against nesthus.no, checked while building this)
+// sends `symbol_code`/`symbol_url`/`precipitation` as `null` -- not
+// omitted -- for far-future days/periods the upstream forecast model has
+// less confidence in, matching the same defensive convention as
+// `DailyForecastEntrySchema`'s own top-level fields below.
+const DailyForecastPeriodSchema = z.object({
+    symbol_code: z.string().nullable().optional(),
+    symbol_url: z.string().nullable().optional(),
+    precipitation: z.number().nullable().optional(),
+});
+
+const DailyForecastPeriodsSchema = z.object({
+    night: DailyForecastPeriodSchema,
+    morning: DailyForecastPeriodSchema,
+    afternoon: DailyForecastPeriodSchema,
+    evening: DailyForecastPeriodSchema,
+});
+
 // Daily forecast entries carry a large, upstream-specific nested shape
-// (`periods`, `steps`, ...) that this app does not consume field-by-field
-// yet; only the top-level summary fields it will actually use are
-// validated, everything else passes through untouched.
+// (`steps`, ...) that this app does not consume field-by-field and does
+// not validate; only the top-level summary fields plus `periods` (used by
+// the daily forecast section's part-of-day icons) are validated,
+// everything else passes through untouched. `periods` is `.optional()`,
+// not required: `weather-netatmo-offline.json`'s fixture daily entries
+// (a real captured degraded-upstream response) omit it entirely.
 const DailyForecastEntrySchema = z.object({
     date: z.string(),
     temperature_min: z.number().nullable().optional(),
     temperature_max: z.number().nullable().optional(),
     symbol_code: z.string().nullable().optional(),
     symbol_url: z.string().nullable().optional(),
+    periods: DailyForecastPeriodsSchema.optional(),
 });
 
 export const WeatherForecastSchema = z.object({
     hourly: z.array(HourlyForecastEntrySchema),
     daily: z.array(DailyForecastEntrySchema),
 });
+
+/** A single day of `forecast.daily`, exported for `WeatherPage.ts`'s daily forecast section. */
+export type DailyForecastEntry = z.infer<typeof DailyForecastEntrySchema>;
 
 export const WeatherAttributionSchema = z.object({
     yr: z.object({ text: z.string(), url: z.string(), license: z.string().optional() }),

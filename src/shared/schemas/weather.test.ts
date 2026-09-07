@@ -41,6 +41,60 @@ describe('WeatherSchema', () => {
             expect(result.data.current.rain.last_24h).toBeUndefined();
         }
     });
+
+    // Regression: a real live GET /api/weather response against nesthus.no
+    // (checked while building the daily forecast section) sends `null` --
+    // not omitted -- for `periods.<part>.symbol_code`/`symbol_url`/
+    // `precipitation` on far-future days/periods the upstream forecast
+    // model has less confidence in. The fixture itself never has this
+    // (all-populated, one specific real capture), so this constructs the
+    // shape directly rather than relying on a fixture to happen to have it.
+    it('parses a daily entry whose periods carry null symbol_code/symbol_url/precipitation', () => {
+        const dailyWithNullPeriodFields = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [
+                    {
+                        date: '2026-09-14',
+                        temperature_min: 8.9,
+                        temperature_max: 12.5,
+                        symbol_code: 'rain',
+                        symbol_url: 'https://nesthus.no/vendor/laravel-yr/symbols/rain.svg',
+                        periods: {
+                            night: { symbol_code: null, symbol_url: null, precipitation: null },
+                            morning: { symbol_code: null, symbol_url: null, precipitation: null },
+                            afternoon: { symbol_code: null, symbol_url: null, precipitation: null },
+                            evening: { symbol_code: null, symbol_url: null, precipitation: null },
+                        },
+                    },
+                ],
+            },
+        };
+        const result = WeatherSchema.safeParse(dailyWithNullPeriodFields);
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.forecast.daily[0]?.periods?.night.symbol_code).toBeNull();
+        }
+    });
+
+    it('parses a daily entry with a fully populated periods object (night/morning/afternoon/evening, each with a symbol_url)', () => {
+        const result = WeatherSchema.safeParse(weatherFixture);
+        expect(result.success).toBe(true);
+        if (result.success) {
+            const [firstDay] = result.data.forecast.daily;
+            expect(firstDay?.periods?.night.symbol_url).toBe('https://nesthus.no/vendor/laravel-yr/symbols/partlycloudy_night.svg');
+            expect(firstDay?.periods?.afternoon.symbol_url).toBe('https://nesthus.no/vendor/laravel-yr/symbols/fair_day.svg');
+        }
+    });
+
+    it('parses the netatmo-offline fixture whose daily entries omit periods entirely', () => {
+        const result = WeatherSchema.safeParse(weatherNetatmoOfflineFixture);
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.forecast.daily[0]?.periods).toBeUndefined();
+        }
+    });
 });
 
 describe('WeatherSummarySchema', () => {

@@ -93,6 +93,16 @@ export function formatTime(date: Date): string {
     return new Intl.DateTimeFormat(locale.get(), { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
 }
 
+/** A localized short weekday name (`Intl.DateTimeFormat`), e.g. "Mon"/"man.", for the daily forecast section. */
+export function formatWeekday(date: Date): string {
+    return new Intl.DateTimeFormat(locale.get(), { weekday: 'short' }).format(date);
+}
+
+/** A localized short day-and-month date (no year -- the forecast never spans one), e.g. "7 Sep"/"7. sep.". */
+export function formatShortDate(date: Date): string {
+    return new Intl.DateTimeFormat(locale.get(), { day: 'numeric', month: 'short' }).format(date);
+}
+
 /**
  * A localized number, optionally with a unit suffix. The one sanctioned
  * way to put a number on screen -- no page should concatenate a raw
