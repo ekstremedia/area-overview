@@ -204,8 +204,12 @@
    against real 1920x1080 and 1440x900 renders (see the PR description). */
 .weather-forecast-icon {
     display: block;
-    width: clamp(34px, 3.4vw, 64px);
-    height: clamp(34px, 3.4vw, 64px);
+    /* `3.4vw` alone overshoots 34px at exactly the 1024px kiosk width
+       (34.816px) -- anchored so the preferred value equals the floor
+       exactly at 1024px and grows only above it, reaching the 64px
+       ceiling at 1920px per the verified render noted above. */
+    width: clamp(34px, calc(34px + (100vw - 1024px) * 0.0335), 64px);
+    height: clamp(34px, calc(34px + (100vw - 1024px) * 0.0335), 64px);
     flex: none;
 }
 
@@ -238,11 +242,13 @@
     gap: clamp(var(--space-2), 1.2vw, 20px);
 }
 
-/* See `.weather-forecast-icon` for why this is fluid, not fixed. */
+/* See `.weather-forecast-icon` for why this is fluid, not fixed, and
+   why the preferred value is anchored via `calc()` rather than a bare
+   `vw` (38px floor exactly at 1024px, 72px ceiling at 1920px). */
 .weather-daily-icon {
     display: block;
-    width: clamp(38px, 3.8vw, 72px);
-    height: clamp(38px, 3.8vw, 72px);
+    width: clamp(38px, calc(38px + (100vw - 1024px) * 0.0379), 72px);
+    height: clamp(38px, calc(38px + (100vw - 1024px) * 0.0379), 72px);
     flex: none;
 }
 
