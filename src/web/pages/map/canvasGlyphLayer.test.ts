@@ -14,23 +14,28 @@ import type { GlyphDescriptor } from './glyphs.js';
 
 interface FakePolygon {
     style: Record<string, unknown>;
+    latLngs: unknown[];
     tooltip: HTMLElement | undefined;
-    setLatLngs: () => FakePolygon;
+    setLatLngs: (next: unknown[]) => FakePolygon;
     setStyle: (style: Record<string, unknown>) => FakePolygon;
     bindPopup: () => FakePolygon;
     isPopupOpen: () => boolean;
     setPopupContent: () => FakePolygon;
     addTo: () => FakePolygon;
-    bindTooltip: (content: HTMLElement) => FakePolygon;
+    bindTooltip: (content: HTMLElement, options?: Record<string, unknown>) => FakePolygon;
     unbindTooltip: () => FakePolygon;
     setTooltipContent: (content: HTMLElement) => FakePolygon;
 }
 
-function fakePolygon(initial: Record<string, unknown>): FakePolygon {
+function fakePolygon(latLngs: unknown[], initial: Record<string, unknown>): FakePolygon {
     const polygon: FakePolygon = {
         style: { ...initial },
+        latLngs: [...latLngs],
         tooltip: undefined,
-        setLatLngs: () => polygon,
+        setLatLngs: (next) => {
+            polygon.latLngs = [...next];
+            return polygon;
+        },
         setStyle: (style) => {
             polygon.style = { ...polygon.style, ...style };
             return polygon;
@@ -39,7 +44,15 @@ function fakePolygon(initial: Record<string, unknown>): FakePolygon {
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
         addTo: () => polygon,
-        bindTooltip: (content) => {
+        // Models the one real-Leaflet behaviour that broke production: a
+        // `permanent` tooltip is opened the moment it is bound to an
+        // on-map layer, and opening it resolves the anchor through
+        // `Polygon.getCenter()` -> `polygonCenter()`, which throws this
+        // exact message on a polygon with no points (Leaflet 1.9.4). The
+        // fake used to accept any `bindTooltip` call, which is why a full
+        // green test suite still shipped a map with no ships on it.
+        bindTooltip: (content, options = {}) => {
+            if (options.permanent === true && polygon.latLngs.length === 0) throw new Error('latlngs not passed');
             polygon.tooltip = content;
             return polygon;
         },
@@ -64,8 +77,8 @@ function fakeLeaflet(createdPolygons: FakePolygon[]): typeof Leaflet {
     return {
         canvas: () => ({}),
         layerGroup: fakeLayerGroup,
-        polygon: (_latlngs: unknown, options: Record<string, unknown> = {}) => {
-            const polygon = fakePolygon(options);
+        polygon: (latlngs: unknown[] = [], options: Record<string, unknown> = {}) => {
+            const polygon = fakePolygon(latlngs, options);
             createdPolygons.push(polygon);
             return polygon;
         },
@@ -227,6 +240,28 @@ describe('createCanvasGlyphLayer labelFor', () => {
         // ...and regains it, with fresh content, once it goes back to status 0.
         layer.update([glyph({ data: { status: 0 } })], 30, now);
         expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+    });
+
+    it('gives both polygons their corners before binding the label, and finishes the update -- a labelled glyph must never be bound while empty', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ labelFor: () => 'ALPHA' }));
+
+        // Shipped broken once: `createEntry` built `L.polygon([])`, bound the
+        // permanent tooltip, and only positioned the polygon afterwards --
+        // so Leaflet threw `latlngs not passed` out of `bindTooltip`, out of
+        // `update()`, and out of the effect driving it. Every later glyph in
+        // the same batch was dropped, the count never reached the masthead
+        // (a permanent `0 skip`), attribution never reached the footer, and
+        // each poll orphaned another polygon pair on the map. Asserting the
+        // count here is what proves `update()` ran to completion, not just
+        // that the tooltip happens to be bound.
+        layer.update([glyph({ data: { status: 0 } })], 30, new Date('2026-09-05T12:00:00Z'));
+
+        const [visible, hitArea] = created;
+        expect(visible?.latLngs).toHaveLength(3);
+        expect(hitArea?.latLngs).toHaveLength(3);
+        expect(hitArea?.tooltip?.textContent).toBe('ALPHA');
+        expect(layer.count()).toBe(1);
     });
 
     it('treats an empty-string label the same as null -- no tooltip bound', () => {

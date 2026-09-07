@@ -162,9 +162,23 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier));
     }
 
+    /**
+     * Both polygons are built with their real corners up front rather than
+     * as empty `L.polygon([])`s filled in by a later `setLatLngs`: a
+     * permanent tooltip (`applyLabel`, below) is opened by Leaflet the
+     * instant it is bound to a layer that is already on the map, and
+     * opening one resolves its anchor through `Polygon.getCenter()`, which
+     * throws `latlngs not passed` on a polygon that has no points yet.
+     * That threw for real, in production, on every labelled glyph -- and
+     * because the throw escaped mid-`update()`, it took the whole ships
+     * layer with it (no glyphs, a stuck `0 skip` count, no attribution)
+     * while leaving the already-added polygons orphaned on the map. Never
+     * letting a glyph exist in an empty state is what keeps that safe,
+     * independently of the order the calls below happen to be in.
+     */
     function createEntry(descriptor: GlyphDescriptor<T>): GlyphEntry {
         const color = options.colorFor?.(descriptor.data) ?? options.color;
-        const visible = L.polygon([], {
+        const visible = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx), {
             renderer,
             color,
             fillColor: color,
@@ -173,7 +187,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             weight: 1,
             interactive: false,
         });
-        const hitArea = L.polygon([], {
+        const hitArea = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier), {
             renderer,
             fillOpacity: 0,
             opacity: 0,
@@ -217,9 +231,10 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         );
 
         for (const descriptor of diff.toAdd) {
+            // No `applyLatLngs` here -- `createEntry` builds both polygons
+            // already positioned (see its doc comment).
             const entry = createEntry(descriptor);
             descriptorsById.set(descriptor.id, descriptor);
-            applyLatLngs(descriptor, entry);
             entry.visible.setStyle(styleFor(descriptor, opacityById.get(descriptor.id) ?? 1));
             entries.set(descriptor.id, entry);
         }
