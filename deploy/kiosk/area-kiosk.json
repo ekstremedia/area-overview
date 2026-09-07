@@ -1,0 +1,13 @@
+{
+    "URLAllowlist": ["area.nesthus.no", "basemaps.cartocdn.com", "tile.openstreetmap.org"],
+    "URLBlocklist": ["*"],
+    "IncognitoModeAvailability": 1,
+    "DeveloperToolsAvailability": 2,
+    "BrowserAddPersonEnabled": false,
+    "BrowserGuestModeEnabled": false,
+    "HomepageLocation": "https://area.nesthus.no/",
+    "RestoreOnStartup": 4,
+    "RestoreOnStartupURLs": ["https://area.nesthus.no/"],
+    "SyncDisabled": true,
+    "PasswordManagerEnabled": false
+}

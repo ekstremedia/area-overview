@@ -1,0 +1,17 @@
+# Ignore the HDMI-CEC remote-control input devices (vc4-hdmi-0, vc4-hdmi-1)
+# created by the kernel's RC subsystem for each HDMI controller on the Pi.
+#
+# udev classifies these as ID_INPUT_POINTINGSTICK=1 (they carry REL_X/REL_Y),
+# so libinput treats them as a mouse and creates a wl_pointer for them even
+# though there is no physical mouse attached to this kiosk (only a
+# touchscreen). Beyond the cosmetic cursor this causes, these devices also
+# carry EV_KEY, so anything on the HDMI/CEC bus capable of sending CEC
+# remote-control signals could otherwise inject keystrokes into whatever has
+# seat focus (the kiosk's Chromium) -- a real input-injection surface this
+# rule closes, independent of the cursor issue.
+#
+# ATTRS{name} walks up the device tree to find the name attribute on the
+# parent device (the input/inputM class device that wraps event*), so it
+# correctly matches the RC device's name here even though we're filtering
+# at the event* level.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="vc4-hdmi-?", ENV{LIBINPUT_IGNORE_DEVICE}="1"
