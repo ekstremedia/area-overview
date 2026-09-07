@@ -240,4 +240,33 @@ describe('mountAircraftLayer -- name labels', () => {
 
         dispose();
     });
+
+    it('never offers an aircraft the map is hiding for age, so a tap cannot land on empty sky', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const stale = {
+            configured: true,
+            fetchedAt: '2026-09-05T12:00:00Z',
+            aircraft: [
+                { ...oneAircraft.aircraft[0], icao: 'fresh01', timestamp: '2026-09-05T11:59:00Z' },
+                // 40 minutes old against a 10-minute window: drawn by
+                // nothing, so it must not be listed either.
+                { ...oneAircraft.aircraft[0], icao: 'stale01', timestamp: '2026-09-05T11:20:00Z' },
+            ],
+        };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(stale)));
+        const reportItems = vi.fn();
+        const reportCount = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: true } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), fakeMap(), { reportCount, reportAttribution: vi.fn(), reportItems });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const listed = (reportItems.mock.calls.at(-1)?.[0] ?? []) as { id: string }[];
+        expect(listed.map((item) => item.id)).toEqual(['fresh01']);
+        // And the one held back is still accounted for in the count.
+        expect(reportCount).toHaveBeenLastCalledWith(1, 1);
+
+        dispose();
+    });
 });

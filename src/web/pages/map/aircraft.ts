@@ -22,7 +22,7 @@ import { formatNumber, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
-import type { GlyphDescriptor } from './glyphs.js';
+import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
@@ -149,22 +149,30 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 const showOnGround = settings.get().aircraft.showOnGround;
                 const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
                 const now = new Date();
-                canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, now);
-                trailLayer.update(items.map(toGlyph), now);
-                // `items` is what the BFF returned (less any on-ground
-                // aircraft the viewer chose to hide, which is not an age
-                // matter); `count()` is what survived the age filter.
-                callbacks.reportCount(canvasLayer.count(), items.length - canvasLayer.count());
+                const maxAgeMinutes = settings.get().aircraft.maxAgeMinutes;
+                const glyphs = items.map(toGlyph);
+                canvasLayer.update(glyphs, maxAgeMinutes, now);
+                trailLayer.update(glyphs, now);
+
+                // The same age filter the canvas layer applies, computed
+                // here too so the masthead's list offers only aircraft that
+                // are actually drawn -- listing one the map is hiding
+                // sends a tap to empty sky. `items` is everything the BFF
+                // returned (less any on-ground aircraft the viewer chose
+                // to hide, which is not an age matter), so the difference
+                // is what the age filter held back.
+                const visible = visibleGlyphs(glyphs, maxAgeMinutes, now);
+                callbacks.reportCount(visible.length, items.length - visible.length);
                 callbacks.reportItems(
-                    items.map((aircraft) => ({
-                        id: aircraft.icao,
-                        label: aircraftLabel(aircraft),
+                    visible.map(({ descriptor }) => ({
+                        id: descriptor.id,
+                        label: aircraftLabel(descriptor.data),
                         detail:
-                            aircraft.altitudeFt === 'ground'
+                            descriptor.data.altitudeFt === 'ground'
                                 ? t('map.aircraftOnGround')
-                                : t('map.aircraftAltitudeShort', { feet: formatNumber(aircraft.altitudeFt, t('unit.feet')) }),
-                        lat: aircraft.lat,
-                        lng: aircraft.lng,
+                                : t('map.aircraftAltitudeShort', { feet: formatNumber(descriptor.data.altitudeFt, t('unit.feet')) }),
+                        lat: descriptor.lat,
+                        lng: descriptor.lng,
                     })),
                 );
                 callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);

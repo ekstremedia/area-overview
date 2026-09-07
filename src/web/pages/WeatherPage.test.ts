@@ -232,6 +232,7 @@ describe('WeatherPage', () => {
     });
 
     it('drops the summary heading and byline, leaving the prose alone', () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
 
@@ -244,6 +245,7 @@ describe('WeatherPage', () => {
     });
 
     it('colours each forecast hour by which side of freezing it falls on', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
         await vi.waitFor(() => {
@@ -267,6 +269,7 @@ describe('WeatherPage', () => {
     });
 
     it("scales every day's range bar against the whole week, so the days can be compared", async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
         await vi.waitFor(() => {

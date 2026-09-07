@@ -32,6 +32,17 @@ interface MagPoint {
     bz: number;
 }
 
+/**
+ * The largest gap between consecutive readings that still counts as one
+ * continuous spell.
+ *
+ * The upstream series is one point a minute. If readings are missing, the
+ * field could have swung north and back in the dark, so counting straight
+ * across the hole would claim a continuity nobody measured. Five minutes
+ * tolerates the odd dropped sample without inventing history.
+ */
+const MAX_GAP_MS = 5 * 60_000;
+
 /** Pulls the well-formed `{time, bz}` points out of the unvalidated `mag` blob, oldest first. */
 function readPoints(mag: unknown): MagPoint[] {
     if (typeof mag !== 'object' || mag === null) return [];
@@ -68,12 +79,19 @@ export function southwardRun(mag: unknown): SouthwardRun | null {
     let index = points.length - 1;
     for (;;) {
         const previous = points[index - 1];
-        if (previous === undefined || previous.bz >= 0) break;
+        const current = points[index];
+        if (previous === undefined || current === undefined) break;
+        if (previous.bz >= 0) break;
+        // A hole in the series ends the run: the field may have turned
+        // north and back while nobody was reading it.
+        if (current.time - previous.time > MAX_GAP_MS) break;
         index -= 1;
     }
 
     const runStart = points[index];
     if (runStart === undefined) return null; // unreachable: `newest` proves the array is non-empty
     const minutes = Math.max(1, Math.round((newest.time - runStart.time) / 60_000));
+    // "At least" only when the run really does reach the oldest reading --
+    // a run cut short by a gap has a known start, so its figure is exact.
     return { minutes, atLeast: index === 0 };
 }

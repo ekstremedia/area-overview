@@ -65,4 +65,33 @@ describe('southwardRun', () => {
         expect(southwardRun({ points: 'nope' })).toBeNull();
         expect(southwardRun({ points: [] })).toBeNull();
     });
+
+    it('stops the run at a hole in the series rather than counting across it', () => {
+        // Southward before and after a 30-minute gap. The field could have
+        // turned north and back unobserved, so only the readings since the
+        // gap can honestly be claimed.
+        const start = Date.parse('2026-09-07T15:00:00Z');
+        const points = [
+            { time: new Date(start).toISOString(), bz: -6 },
+            { time: new Date(start + 60_000).toISOString(), bz: -5 },
+            { time: new Date(start + 31 * 60_000).toISOString(), bz: -4 },
+            { time: new Date(start + 32 * 60_000).toISOString(), bz: -3 },
+        ];
+
+        // One minute of measured continuity, and exact -- the run's start
+        // is known, so this is not an "at least".
+        expect(southwardRun({ points })).toEqual({ minutes: 1, atLeast: false });
+    });
+
+    it('tolerates a single dropped sample without ending the run', () => {
+        const start = Date.parse('2026-09-07T15:00:00Z');
+        const points = [
+            { time: new Date(start).toISOString(), bz: -6 },
+            // one missing minute
+            { time: new Date(start + 2 * 60_000).toISOString(), bz: -5 },
+            { time: new Date(start + 3 * 60_000).toISOString(), bz: -4 },
+        ];
+
+        expect(southwardRun({ points })).toEqual({ minutes: 3, atLeast: true });
+    });
 });
