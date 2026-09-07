@@ -319,8 +319,15 @@ export function render(container: HTMLElement): () => void {
     right.className = 'weather-right';
     columns.append(left, right);
 
+    // Own flex items of `.weather-page` (unlike `.weather-forecast`/
+    // `.weather-daily`, which get swapped in and out inside these on every
+    // fetch) -- `flex: 1 1 0` lives on these slot classes so the space
+    // freed by the current-conditions row no longer growing to fill the
+    // page (see weather.css) goes to the forecast sections instead.
     const forecastSlot = document.createElement('div');
+    forecastSlot.className = 'weather-forecast-slot';
     const dailySlot = document.createElement('div');
+    dailySlot.className = 'weather-daily-slot';
 
     wrapper.append(errorSlot, columns, forecastSlot, dailySlot);
     container.append(wrapper);
