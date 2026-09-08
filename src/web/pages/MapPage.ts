@@ -130,6 +130,13 @@ export function render(container: HTMLElement): () => void {
         } catch (error) {
             if (isDisposed()) return; // navigated away; nothing to render
             console.error('Failed to load the map page', error);
+            // A failure *after* the map was built (the live-layer chunk not
+            // loading, say) leaves a live Leaflet instance behind the
+            // "map unavailable" message, still holding tiles, listeners and
+            // `activeMapInstance`. Tear down whatever exists before
+            // replacing what is on screen.
+            cleanupInner?.();
+            cleanupInner = undefined;
             renderMapUnavailable();
         }
     })();
@@ -194,7 +201,7 @@ export function render(container: HTMLElement): () => void {
         );
 
         // — live layers (ships, aircraft): canvas-rendered, heading-rotated
-        // glyphs, polled per the current viewport. See `map/layers.ts`. —
+        // glyphs, polled per the current viewport. See `map/layers.ts`.
         //
         // Imported here rather than at the top of the file for the same
         // reason Leaflet itself is: none of it can do anything without a
@@ -202,10 +209,35 @@ export function render(container: HTMLElement): () => void {
         // pays for. It is a big subtree -- both live layers, the glyph and
         // trail renderers, clustering, dead reckoning -- and it was the
         // single largest thing in the initial chunk that only one page
-        // could ever use. Awaited after Leaflet, which the line above has
-        // already fetched, so this is a warm module in practice.
+        // could ever use. —
+        /**
+         * Everything built above, torn down in the order it was built --
+         * with the live layers passed in once they exist.
+         *
+         * Registered as `cleanupInner` *before* the deferred import below,
+         * not after: an `await` with the map, its tiles, its marker layer
+         * and `activeMapInstance` already alive is a window in which
+         * `dispose()` can run, and a `dispose()` that found no
+         * `cleanupInner` would leave every one of them behind.
+         */
+        function cleanupWith(disposeLiveLayers?: () => void): void {
+            activeMapInstance.set(null);
+            disposeLiveLayers?.();
+            markerLayer.dispose();
+            disposeResetControl();
+            disposeHomeViewSync();
+            disposeThemeEffect();
+            mql.removeEventListener('change', onMqlChange);
+            disposeTiles(map);
+            map.remove();
+        }
+        cleanupInner = (): void => {
+            cleanupWith();
+        };
+
+        // — live layers (ships, aircraft) —
         const { mountLiveLayers } = await import('./map/layers.js');
-        if (isDisposed()) return; // navigated away while the layer code loaded
+        if (isDisposed()) return; // navigated away while the layer code loaded; `dispose()` has already run the cleanup above
         const disposeLiveLayers = mountLiveLayers(L, map, status);
 
         // The "N cameras without placement" link is gone with the
@@ -214,15 +246,7 @@ export function render(container: HTMLElement): () => void {
         // the display's life.
 
         cleanupInner = (): void => {
-            activeMapInstance.set(null);
-            disposeLiveLayers();
-            markerLayer.dispose();
-            disposeResetControl();
-            disposeHomeViewSync();
-            disposeThemeEffect();
-            mql.removeEventListener('change', onMqlChange);
-            disposeTiles(map);
-            map.remove();
+            cleanupWith(disposeLiveLayers);
         };
     }
 
