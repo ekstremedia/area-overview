@@ -16,7 +16,7 @@ import { errorBand } from '../components/ErrorBand.js';
 import { CAMERAS_POLL_INTERVAL_MS, camerasResource } from '../camera-resource.js';
 import { effect } from '../core/signal.js';
 import { t } from '../i18n/index.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { enabledCameras } from './cameras/enabledCameras.js';
 import { settings } from '../settings-resource.js';
@@ -72,6 +72,8 @@ function buildCameraCard(camera: Camera, now: Date): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
+    const releaseStatus = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'cameras-page';
 
@@ -106,12 +108,11 @@ export function render(container: HTMLElement): () => void {
 
     return function dispose(): void {
         disposeGridEffect();
-        pageAttribution.set(null);
         // `reportFreshness` never reverts a once-set freshness back to
         // `null` by design (see `resourceStatus.ts`) -- unmounting this
         // page must still zero it out, so a later page never inherits a
         // stale "cameras" freshness value.
-        pageFreshness.set(null);
+        releaseStatus();
         wrapper.remove();
     };
 }

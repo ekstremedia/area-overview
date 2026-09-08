@@ -1,11 +1,15 @@
 /**
  * Shared, page-supplied status the masthead and footer read from: the
  * active page's data freshness (for the stale banner and "Updated ...
- * ago"), its attribution text, and (map only) live layer counts. No page
- * has real data yet (Phase 6+), so nothing calls `.set(...)` on any of
- * these in this phase -- every one stays at its "nothing to report"
- * default, which the masthead/footer render as hidden/placeholder rather
- * than fabricating data to demo the mechanism.
+ * ago"), its attribution text, (map only) live layer counts, and
+ * (settings only) the account line. Each stays at its "nothing to
+ * report" default of `null` until the mounted page publishes something,
+ * which the masthead/footer render as hidden rather than fabricating a
+ * placeholder.
+ *
+ * A page claims these slots on mount and gives them back on dispose
+ * (`claimPageStatus`) -- which is more than bookkeeping, because two
+ * pages are alive at once during the shell's slide transition.
  */
 import { signal, type Signal } from '../core/signal.js';
 import type { Freshness } from './staleness.js';
@@ -13,6 +17,46 @@ import type { Freshness } from './staleness.js';
 export const pageFreshness: Signal<Freshness | null> = signal(null);
 
 export const pageAttribution: Signal<string | null> = signal(null);
+
+/** Bumped by every `claimPageStatus()`; a claim clears the slots on release only while it still holds the newest number. */
+let statusGeneration = 0;
+
+/**
+ * Claims the shared status slots for one mounted page, and returns the
+ * function that gives them back.
+ *
+ * The shell mounts the incoming page while the outgoing one is still on
+ * screen (`AppShell.ts`'s slide), so for a few hundred milliseconds two
+ * pages are alive at once and the outgoing one is disposed *after* the
+ * incoming one has already published its own attribution and freshness.
+ * A page that cleared these slots unconditionally on dispose would
+ * therefore wipe its successor's: the footer's attribution line went
+ * blank at the end of every transition -- visibly, since the footer loses
+ * a line and the page above it grows to fill the gap.
+ *
+ * So the release is conditional: clearing only happens while this claim
+ * is still the newest one. A page mounted and disposed on its own (every
+ * unit test, and any navigation that isn't a slide) clears exactly as
+ * before.
+ *
+ * Not a guard on *writes*, only on the clear-on-unmount: an outgoing
+ * page's own poll landing inside that same window can still publish over
+ * its successor's line, which self-corrects on the incoming page's next
+ * poll. The unconditional clear could not self-correct, because nothing
+ * would write again until then.
+ */
+export function claimPageStatus(): () => void {
+    statusGeneration += 1;
+    const claimed = statusGeneration;
+    return function release(): void {
+        if (statusGeneration !== claimed) return; // another page has taken the slots over; they are its business now
+        pageFreshness.set(null);
+        pageAttribution.set(null);
+        liveLayerCounts.set(null);
+        liveLayerListing.set(null);
+        pageAccountStatus.set(null);
+    };
+}
 
 export interface LayerCounts {
     ships: number;

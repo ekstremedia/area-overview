@@ -20,6 +20,7 @@ import { settings as sharedSettings } from '../settings-resource.js';
 import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { nightSchedule } from '../shell/night-schedule.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import './map/map.css';
 import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
@@ -67,6 +68,10 @@ function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean)
 }
 
 export function render(container: HTMLElement): () => void {
+    // The live layers below publish the counts/attribution the masthead and
+    // footer read; this is what takes those slots back when the map page
+    // goes away (see `claimPageStatus`).
+    const releaseStatus = claimPageStatus();
     let disposed = false;
     // Read through a function, not the bare `disposed` variable, below: it
     // can flip to `true` from `dispose()` while suspended on the `await
@@ -215,6 +220,7 @@ export function render(container: HTMLElement): () => void {
         disposed = true;
         mapConfigAbortController.abort();
         cleanupInner?.();
+        releaseStatus();
         preconnectLink.remove();
         wrapper.remove();
     };

@@ -29,12 +29,18 @@ type LayerId = keyof LayerCounts;
  * Mounts every live layer, combining their individually-reported counts
  * into the one `{ships, aircraft}` object the masthead reads, and their
  * individually-reported attribution strings into the one joined line the
- * footer reads. Both are reset to their "nothing to report" defaults
- * (`null`) on this function's own dispose, so leaving the map page never
- * leaves a stale ship/aircraft attribution or count behind on another
- * page.
+ * footer reads. Clearing both again is `MapPage.ts`'s job, through its
+ * `claimPageStatus()` release: the shell keeps the incoming page mounted
+ * while the outgoing one is still on screen, so a slot cleared here on
+ * dispose would wipe the *next* page's freshly-published line.
  */
 export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void {
+    // Tearing a layer down makes it report one last time -- zero vessels,
+    // no attribution -- and by then the shared slots may already belong to
+    // the page sliding in behind this one. Publishing that final nothing
+    // would blank its footer line. Nobody needs a count from a layer that
+    // is going away, so teardown says nothing at all.
+    let disposed = false;
     const counts: LayerCounts = { ships: 0, aircraft: 0, hiddenByAge: 0 };
     const attributions = new Map<LayerId, string>();
     // Per-layer, so one layer's report never clobbers the other's share of
@@ -50,6 +56,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     const FOCUS_ZOOM = 13;
 
     function publishListing(): void {
+        if (disposed) return;
         liveLayerListing.set({
             ships: items.get('ships') ?? [],
             aircraft: items.get('aircraft') ?? [],
@@ -60,11 +67,13 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     }
 
     function reportItems(id: LayerId, next: readonly LiveLayerItem[]): void {
+        if (disposed) return;
         items.set(id, [...next]);
         publishListing();
     }
 
     function reportCount(id: LayerId, count: number, hidden: number): void {
+        if (disposed) return;
         counts[id] = count;
         hiddenByAge.set(id, hidden);
         counts.hiddenByAge = [...hiddenByAge.values()].reduce((total, value) => total + value, 0);
@@ -72,6 +81,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     }
 
     function reportAttribution(id: LayerId, text: string | undefined): void {
+        if (disposed) return;
         if (text === undefined) {
             attributions.delete(id);
         } else {
@@ -111,10 +121,8 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
     );
 
     return function dispose(): void {
+        disposed = true;
         disposeShips();
         disposeAircraft();
-        liveLayerCounts.set(null);
-        liveLayerListing.set(null);
-        pageAttribution.set(null);
     };
 }

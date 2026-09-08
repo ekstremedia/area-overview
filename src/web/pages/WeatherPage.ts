@@ -21,7 +21,7 @@ import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
 import { formatNumber, formatShortDate, formatTime, formatWeekday, t } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus, pageAttribution } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { compassWord, humanizeSymbolCode } from '../weather-symbols.js';
 import './weather.css';
@@ -397,6 +397,8 @@ function buildDailyForecast(weather: Weather): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
+    const releaseStatus = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'weather-page';
 
@@ -466,8 +468,7 @@ export function render(container: HTMLElement): () => void {
         disposeAttributionEffect();
         weatherResource.dispose();
         summaryResource.dispose();
-        pageAttribution.set(null);
-        pageFreshness.set(null);
+        releaseStatus();
         wrapper.remove();
     };
 }

@@ -14,7 +14,7 @@ import { statCard } from '../components/StatCard.js';
 import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
 import { formatNumber, t, type ParamlessKey } from '../i18n/index.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus, pageAttribution } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { activityBandForHemisphericPower, type ActivityBand } from './aurora/activityBand.js';
 import { firstAlertSummary, hemisphericPowerNorthGw, scaleGLevel, solarWindStats } from './aurora/extract.js';
@@ -189,6 +189,8 @@ function buildRightColumn(data: AuroraAll): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
+    const releaseStatus = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'aurora-page';
 
@@ -222,8 +224,7 @@ export function render(container: HTMLElement): () => void {
     return function dispose(): void {
         disposeEffect();
         auroraResource.dispose();
-        pageAttribution.set(null);
-        pageFreshness.set(null);
+        releaseStatus();
         wrapper.remove();
     };
 }
