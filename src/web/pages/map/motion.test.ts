@@ -38,11 +38,14 @@ describe('projectPosition', () => {
         expect((next.lat - 68.7) * 111_320).toBeCloseTo(77, 0);
     });
 
-    it('stops projecting once a fix is old enough to be a guess', () => {
-        const capped = projectPosition({ lat: 68, lng: 15 }, { speedKt: 240, courseDeg: 0 }, MAX_PROJECTION_MS + 3_600_000);
-        const atCap = projectPosition({ lat: 68, lng: 15 }, { speedKt: 240, courseDeg: 0 }, MAX_PROJECTION_MS);
+    it('falls back to the last measured position once a fix is old enough to be a guess', () => {
+        // Not "frozen 90 seconds ahead": an aircraft that stopped
+        // reporting may have turned or landed, and the only position
+        // anyone actually measured is the one to show.
+        const at = { lat: 68, lng: 15 };
 
-        expect(capped).toEqual(atCap);
+        expect(projectPosition(at, { speedKt: 240, courseDeg: 0 }, MAX_PROJECTION_MS + 1)).toEqual(at);
+        expect(projectPosition(at, { speedKt: 240, courseDeg: 0 }, MAX_PROJECTION_MS).lat).toBeGreaterThan(68); // still projected right up to the cap
     });
 
     it('leaves anything it cannot honestly project exactly where it was', () => {

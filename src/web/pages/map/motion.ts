@@ -58,7 +58,13 @@ export function projectPosition(from: Position, velocity: Velocity | null, elaps
     if (!Number.isFinite(speedKt) || !Number.isFinite(courseDeg) || speedKt <= 0) return from;
     if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return from;
 
-    const metres = (Math.min(elapsedMs, MAX_PROJECTION_MS) / 3_600_000) * speedKt * METRES_PER_NM;
+    // Past the cap the glyph goes back to the last position anyone
+    // actually measured, rather than freezing at 90 seconds' worth of
+    // invented travel and staying there for as long as the age filter
+    // keeps it on screen.
+    if (elapsedMs > MAX_PROJECTION_MS) return from;
+
+    const metres = (elapsedMs / 3_600_000) * speedKt * METRES_PER_NM;
     const course = (courseDeg * Math.PI) / 180;
 
     const latitudeScale = Math.cos((from.lat * Math.PI) / 180);
