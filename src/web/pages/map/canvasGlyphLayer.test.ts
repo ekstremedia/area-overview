@@ -441,3 +441,102 @@ describe('createCanvasGlyphLayer velocityFor', () => {
         }
     });
 });
+
+describe('createCanvasGlyphLayer coastMs', () => {
+    /** The `visible` polygon of the only glyph these tests create. */
+    function glyphOf(created: FakePolygon[]): FakePolygon | undefined {
+        return created[0];
+    }
+
+    it('keeps drawing a glyph that dropped out of a poll, dimmed, until the coast runs out', () => {
+        // Aircraft blink out of ADS-B coverage for a poll or two. Removing
+        // one the instant a single answer omits it makes the map flicker
+        // between "there is a plane" and "there is nothing".
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ coastMs: 30_000 }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        expect(glyphOf(created)?.style.opacity).toBe(1);
+
+        // Missing from the next answer, 10s later: still drawn, visibly
+        // less certain.
+        layer.update([], 30, new Date('2026-09-05T12:00:10Z'));
+        expect(glyphOf(created)?.style.opacity).toBe(0.45);
+
+        // Still missing 40s after it was last seen: gone.
+        layer.update([], 30, new Date('2026-09-05T12:00:40Z'));
+        expect(layer.count()).toBe(0);
+        expect(created).toHaveLength(2); // no new polygons were built for it
+        layer.dispose();
+    });
+
+    it('restores a returning glyph to full certainty', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ coastMs: 30_000 }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        layer.update([], 30, new Date('2026-09-05T12:00:10Z'));
+        expect(glyphOf(created)?.style.opacity).toBe(0.45);
+
+        // Back in the feed: the same glyph, not a second one.
+        layer.update([glyph({ timestamp: '2026-09-05T12:00:20Z' })], 30, new Date('2026-09-05T12:00:20Z'));
+
+        expect(glyphOf(created)?.style.opacity).toBe(1);
+        expect(created).toHaveLength(2);
+        layer.dispose();
+    });
+
+    it('starts the coast from the poll that lost it, not from the one before', () => {
+        // Seen at :00, :10 and :20, then lost. The coast has to run to
+        // :50, not to :30.
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ coastMs: 30_000 }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:10Z'));
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:20Z'));
+        layer.update([], 30, new Date('2026-09-05T12:00:40Z'));
+
+        expect(glyphOf(created)?.style.opacity).toBe(0.45);
+
+        layer.dispose();
+    });
+
+    it('drops a missing glyph immediately when no coast is configured, as ships do', () => {
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions());
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        layer.update([], 30, new Date('2026-09-05T12:00:01Z'));
+
+        expect(layer.count()).toBe(0);
+        layer.dispose();
+    });
+
+    it('keeps a coasting glyph moving along its last known course', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        try {
+            const created: FakePolygon[] = [];
+            const layer = createCanvasGlyphLayer(
+                fakeLeaflet(created),
+                fakeMap(),
+                baseOptions({ coastMs: 30_000, velocityFor: () => ({ speedKt: 600, courseDeg: 0 }) }),
+            );
+
+            layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+            const latLngs = () => ((glyphOf(created)?.latLngs ?? []) as { lat: number }[]).map((corner) => corner.lat);
+            const atFix = Math.max(...latLngs());
+
+            vi.setSystemTime(new Date('2026-09-05T12:00:10Z'));
+            layer.update([], 30, new Date('2026-09-05T12:00:10Z')); // the poll that lost it
+            vi.advanceTimersByTime(5_000); // and its own frames after that
+
+            expect(Math.max(...latLngs())).toBeGreaterThan(atFix);
+
+            layer.dispose();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
