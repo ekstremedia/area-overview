@@ -43,9 +43,9 @@ const FORECAST_DAYS_SHOWN = 5;
  *
  * The page's own legend beside the hourly strip reads "0° og under", so a
  * reading shown as 0° belongs on the freezing side however it got there.
- * Everything that colours a temperature, and the daily range bar's split
- * point, goes through this one number, so a 0.4-degree low can never be
- * lettered as freezing while the bar beneath it is drawn as mild.
+ * Everything that colours a temperature goes through this one number, so
+ * the hourly strip and the daily low can never disagree about a reading
+ * that both of them print as 0°.
  */
 const FREEZING_DISPLAY_MAX = 0.5;
 
@@ -234,14 +234,14 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     return strip;
 }
 
-function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureRange | null): HTMLElement {
+function buildDailyDayColumn(entry: DailyForecastEntry, scaleMax: number | null): HTMLElement {
     const column = document.createElement('div');
     column.className = 'weather-daily-day';
 
     // Icon beside the weekday/temps block, not above it -- the same
     // width-over-height trade as the hourly strip's columns (see
-    // weather.css's file-header comment). The condition word and range bar
-    // then stack underneath this row.
+    // weather.css's file-header comment). The condition word and the
+    // precipitation bar then stack underneath this row.
     const head = document.createElement('div');
     head.className = 'weather-daily-day-head';
 
@@ -286,9 +286,8 @@ function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureR
             // negative low gets the cyan accent (see the compound override
             // in weather.css: `.weather-daily-low` alone would otherwise
             // win the cascade on source order and stay grey).
-            // Same boundary as the hourly strip and the range bar below,
-            // so the three never disagree about a 0°: see
-            // `FREEZING_DISPLAY_MAX`.
+            // Same boundary as the hourly strip, so the two rows never
+            // disagree about a 0°: see `FREEZING_DISPLAY_MAX`.
             low.className = displaysAsFreezing(entry.temperature_min) ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
             low.textContent = `${formatNumber(roundedLow)}°`;
             temps.append(low);
@@ -301,88 +300,101 @@ function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureR
 
     // The condition in words under the figures -- the icon says it too, but
     // only if you already know the icon set, and this line is what makes
-    // the day scannable from across the room.
-    if (entry.symbol_code) {
-        const condition = document.createElement('div');
-        condition.className = 'weather-daily-condition';
-        condition.textContent = humanizeSymbolCode(entry.symbol_code);
-        column.append(condition);
+    // the day scannable from across the room. The millimetres sit at its
+    // right end, so the bar below has a number attached to it on the days
+    // that have one.
+    const total = dailyPrecipitation(entry);
+    if (entry.symbol_code || (total !== null && total > 0)) {
+        const line = document.createElement('div');
+        line.className = 'weather-daily-condition';
+
+        const condition = document.createElement('span');
+        condition.textContent = entry.symbol_code ? humanizeSymbolCode(entry.symbol_code) : '';
+        line.append(condition);
+
+        if (total !== null && total > 0) {
+            const amount = document.createElement('span');
+            amount.className = 'weather-daily-precip-amount';
+            amount.textContent = precipitationText(total);
+            line.append(amount);
+        }
+        column.append(line);
     }
 
-    const bar = buildDailyRangeBar(entry, range);
+    const bar = buildDailyPrecipitationBar(entry, scaleMax);
     if (bar) column.append(bar);
 
     return column;
 }
 
-/** The coldest and warmest figures across the days on screen -- the scale every day's range bar is drawn against. */
-interface DailyTemperatureRange {
-    min: number;
-    max: number;
-}
+/**
+ * Millimetres of precipitation Yr expects across a day's four periods.
+ *
+ * `null` means the forecast says nothing at all -- `periods` missing, or
+ * every period's `precipitation` absent, which the upstream really does
+ * send for far-future days it has no confidence in. That is not the same
+ * fact as "no rain expected", and the two must not draw the same.
+ */
+function dailyPrecipitation(entry: DailyForecastEntry): number | null {
+    const periods = entry.periods;
+    if (!periods) return null;
 
-function dailyTemperatureRange(entries: readonly DailyForecastEntry[]): DailyTemperatureRange | null {
-    const values: number[] = [];
-    for (const entry of entries) {
-        if (typeof entry.temperature_min === 'number') values.push(entry.temperature_min);
-        if (typeof entry.temperature_max === 'number') values.push(entry.temperature_max);
+    let total: number | null = null;
+    for (const period of [periods.night, periods.morning, periods.afternoon, periods.evening]) {
+        const mm = period.precipitation;
+        if (typeof mm !== 'number' || !Number.isFinite(mm)) continue;
+        total = (total ?? 0) + mm;
     }
-    if (values.length === 0) return null;
-    return { min: Math.min(...values), max: Math.max(...values) };
+    return total;
 }
 
 /**
- * A day's temperature span drawn against the whole week's span, so five
- * days can be compared at a glance -- a warm day sits right, a cold one
- * left, and a changeable day is wide.
+ * The millimetre figure a full-width bar stands for: the wettest day on
+ * screen, rounded up to a round number so the legend can name it.
  *
- * Returns `null` rather than an empty track when the day has no figures
- * to place, and falls back to a full-width bar when every day on screen
- * shares one temperature (a zero-width scale would otherwise divide by
- * zero and place nothing).
+ * `null` for a week with nothing forecast, which draws no bars at all --
+ * five empty tracks under five dry days is decoration, and the legend
+ * says "none expected" instead.
  */
-function buildDailyRangeBar(entry: DailyForecastEntry, range: DailyTemperatureRange | null): HTMLElement | null {
-    if (!range) return null;
-    const low = typeof entry.temperature_min === 'number' ? entry.temperature_min : entry.temperature_max;
-    const high = typeof entry.temperature_max === 'number' ? entry.temperature_max : entry.temperature_min;
-    if (typeof low !== 'number' || typeof high !== 'number') return null;
+function precipitationScaleMax(totals: readonly (number | null)[]): number | null {
+    const wettest = Math.max(0, ...totals.map((total) => total ?? 0));
+    if (wettest <= 0) return null;
+    return [1, 2, 5, 10, 20, 50, 100].find((step) => wettest <= step) ?? Math.ceil(wettest);
+}
 
-    const span = range.max - range.min;
-    const startPercent = span === 0 ? 0 : ((low - range.min) / span) * 100;
-    const widthPercent = span === 0 ? 100 : Math.max(((high - low) / span) * 100, 4); // a floor so a flat day is still visible
-    const clampedWidthPercent = Math.min(widthPercent, 100 - startPercent);
+/** One decimal: Yr forecasts tenths of a millimetre, and a day rounded to a whole "0 mm" would deny a drizzle the icon beside it is showing. */
+function precipitationText(mm: number): string {
+    return `${formatNumber(Math.round(mm * 10) / 10)} ${t('unit.millimeters')}`;
+}
+
+/**
+ * How much rain a day expects, drawn against the wettest day on screen --
+ * the five bars compared at a glance are what the eye reads, with the
+ * millimetre figure beside the condition for the day it lands on.
+ *
+ * This replaced a temperature-range bar, which drew a second time what
+ * the two figures above it already said in words. Precipitation is the
+ * one thing a five-day forecast has to tell you that this page did not
+ * say anywhere else.
+ *
+ * Returns `null` when the day has no forecast at all (see
+ * `dailyPrecipitation`); a dry day gets the empty track, which is a real
+ * statement -- "nothing expected" -- rather than an absence.
+ */
+function buildDailyPrecipitationBar(entry: DailyForecastEntry, scaleMax: number | null): HTMLElement | null {
+    if (scaleMax === null) return null;
+    const total = dailyPrecipitation(entry);
+    if (total === null) return null;
 
     const track = document.createElement('div');
-    track.className = 'weather-daily-range';
+    track.className = 'weather-daily-precip';
 
-    // A day whose own low/high straddle the freezing boundary draws as two
-    // adjacent segments -- cyan below, magenta above -- split by the
-    // proportion of THIS day's span (not the whole week's) that is on the
-    // cold side; that is what reproduces the design's own numbers (see
-    // WeatherPage.test.ts). The boundary is `FREEZING_DISPLAY_MAX`, not a
-    // bare 0, so the bar and the figures printed beside it agree about
-    // which side a 0.4-degree reading is on.
-    if (displaysAsFreezing(low) && !displaysAsFreezing(high)) {
-        const belowZeroRatio = (FREEZING_DISPLAY_MAX - low) / (high - low);
-        const belowWidthPercent = clampedWidthPercent * belowZeroRatio;
-        const aboveWidthPercent = clampedWidthPercent - belowWidthPercent;
-
-        const belowFill = document.createElement('div');
-        belowFill.className = 'weather-daily-range-fill weather-daily-range-fill--below-zero';
-        belowFill.style.left = `${String(startPercent)}%`;
-        belowFill.style.width = `${String(belowWidthPercent)}%`;
-
-        const aboveFill = document.createElement('div');
-        aboveFill.className = 'weather-daily-range-fill weather-daily-range-fill--above-zero';
-        aboveFill.style.left = `${String(startPercent + belowWidthPercent)}%`;
-        aboveFill.style.width = `${String(aboveWidthPercent)}%`;
-
-        track.append(belowFill, aboveFill);
-    } else {
+    if (total > 0) {
         const fill = document.createElement('div');
-        fill.className = `weather-daily-range-fill ${displaysAsFreezing(low) ? 'weather-daily-range-fill--below-zero' : 'weather-daily-range-fill--above-zero'}`;
-        fill.style.left = `${String(startPercent)}%`;
-        fill.style.width = `${String(clampedWidthPercent)}%`;
+        fill.className = 'weather-daily-precip-fill';
+        // A floor, so a tenth of a millimetre is a visible mark rather
+        // than a sliver indistinguishable from a dry day.
+        fill.style.width = `${String(Math.max(Math.min((total / scaleMax) * 100, 100), 3))}%`;
         track.append(fill);
     }
 
@@ -401,27 +413,20 @@ function buildDailyForecast(weather: Weather): HTMLElement {
 
     const list = document.createElement('div');
     list.className = 'weather-daily-list';
-    const range = dailyTemperatureRange(shown);
+    const scaleMax = precipitationScaleMax(shown.map(dailyPrecipitation));
 
-    // The bars are a scale, and a scale nobody can read is decoration:
-    // without this line the coloured stripe under each day is a mystery
-    // (Terje's, in as many words). Naming the two ends of the week's own
-    // span is what turns it back into a measurement.
+    // A bar nobody can read is decoration: the legend says what the length
+    // measures and what a full one would mean, and says so plainly on a
+    // week with nothing to draw.
     const header = document.createElement('div');
     header.className = 'weather-daily-header';
-    header.append(label);
-    if (range) {
-        const legend = document.createElement('div');
-        legend.className = 'weather-daily-legend';
-        legend.textContent = t('weather.dailyRangeLegend', {
-            min: formatNumber(Math.round(range.min)),
-            max: formatNumber(Math.round(range.max)),
-        });
-        header.append(legend);
-    }
+    const legend = document.createElement('div');
+    legend.className = 'weather-daily-legend';
+    legend.textContent = scaleMax === null ? t('weather.dailyPrecipNone') : t('weather.dailyPrecipLegend', { max: formatNumber(scaleMax) });
+    header.append(label, legend);
     section.append(header);
     shown.forEach((entry) => {
-        list.append(buildDailyDayColumn(entry, range));
+        list.append(buildDailyDayColumn(entry, scaleMax));
     });
     section.append(list);
 

@@ -278,32 +278,6 @@ describe('WeatherPage', () => {
         dispose();
     });
 
-    it("scales every day's range bar against the whole week, so the days can be compared", async () => {
-        mockFetch(weatherFixture, weatherSummaryFixture);
-        const container = document.createElement('div');
-        const dispose = render(container);
-        await vi.waitFor(() => {
-            expect(container.querySelector('.weather-daily-range-fill')).not.toBeNull();
-        });
-
-        const fills = [...container.querySelectorAll<HTMLElement>('.weather-daily-range-fill')];
-        expect(fills.length).toBeGreaterThan(1);
-        for (const fill of fills) {
-            const left = Number.parseFloat(fill.style.left);
-            const width = Number.parseFloat(fill.style.width);
-            expect(Number.isFinite(left)).toBe(true);
-            expect(Number.isFinite(width)).toBe(true);
-            // Every bar has to stay inside its own track.
-            expect(left).toBeGreaterThanOrEqual(0);
-            expect(left + width).toBeLessThanOrEqual(100.01);
-            expect(width).toBeGreaterThan(0);
-        }
-        // The coldest day starts at the very left of the shared scale.
-        expect(Math.min(...fills.map((f) => Number.parseFloat(f.style.left)))).toBe(0);
-
-        dispose();
-    });
-
     it("colours a daily low at or below zero with the hourly strip's freezing colour", async () => {
         const dailyWithSubZero = {
             ...weatherFixture,
@@ -340,120 +314,135 @@ describe('WeatherPage', () => {
         dispose();
     });
 
-    it("splits a day's range bar into a cyan sub-zero segment and a magenta segment when its range crosses 0°C", async () => {
-        const dailyCrossingZero = {
-            ...weatherFixture,
-            forecast: {
-                ...weatherFixture.forecast,
-                daily: [{ ...weatherFixture.forecast.daily[0], temperature_min: -2, temperature_max: 8 }, ...weatherFixture.forecast.daily.slice(1)],
-            },
-        };
-        mockFetch(dailyCrossingZero, weatherSummaryFixture);
-        const container = document.createElement('div');
-        const dispose = render(container);
-
-        await vi.waitFor(() => {
-            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
-        });
-
-        const firstDay = container.querySelectorAll('.weather-daily-day')[0];
-        const belowFill = firstDay?.querySelector<HTMLElement>('.weather-daily-range-fill--below-zero');
-        const aboveFill = firstDay?.querySelector<HTMLElement>('.weather-daily-range-fill--above-zero');
-        expect(belowFill).not.toBeNull();
-        expect(aboveFill).not.toBeNull();
-
-        // Overall week range across the (modified) fixture: min -2 (this
-        // day), max 13.5 (2026-09-09) -- span 15.5. This day's own span is
-        // -2..8 (10 wide), of which -2..0.5 is the part that displays as 0°
-        // or colder (`FREEZING_DISPLAY_MAX`), i.e. 2.5/10.
-        const belowLeft = Number.parseFloat(belowFill?.style.left ?? '');
-        const belowWidth = Number.parseFloat(belowFill?.style.width ?? '');
-        const aboveLeft = Number.parseFloat(aboveFill?.style.left ?? '');
-        const aboveWidth = Number.parseFloat(aboveFill?.style.width ?? '');
-        const totalWidth = ((8 - -2) / 15.5) * 100;
-
-        expect(belowLeft).toBeCloseTo(0, 5);
-        expect(belowWidth).toBeCloseTo(totalWidth * 0.25, 5);
-        expect(aboveLeft).toBeCloseTo(belowWidth, 5);
-        expect(aboveWidth).toBeCloseTo(totalWidth * 0.75, 5);
-
-        dispose();
-    });
-
-    it('names the scale the range bars are drawn against', async () => {
-        // Without it the coloured stripe under each day is decoration:
-        // there is nothing on screen to say what its length or position
-        // measures.
+    it("scales every day's precipitation bar against the wettest day on screen", async () => {
+        // The fixture's week: 6.4mm on the third day, 3.1mm on the fourth,
+        // nothing on the other three. A full bar stands for 10mm (the
+        // rounded-up scale), so those two are 64% and 31% of the track.
         mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
 
         await vi.waitFor(() => {
-            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+            expect(container.querySelectorAll('.weather-daily-precip')).toHaveLength(5);
         });
 
-        const legend = container.querySelector('.weather-daily-legend');
-        expect(legend).not.toBeNull();
-        // The two ends of the week's own span, which is what the track
-        // behind each bar represents.
-        expect(legend?.textContent).toMatch(/\d+°/);
+        const widths = [...container.querySelectorAll<HTMLElement>('.weather-daily-day')].map((day) => {
+            const fill = day.querySelector<HTMLElement>('.weather-daily-precip-fill');
+            return fill ? Math.round(Number.parseFloat(fill.style.width)) : null;
+        });
+
+        expect(widths).toEqual([null, null, 64, 31, null]);
 
         dispose();
     });
 
-    it('colours the bar on the same side of zero as the figure printed beside it', async () => {
-        // A low of 0.4 is lettered "0°", and the page's own legend reads
-        // "0° og under" -- so the bar must show a cold segment there too,
-        // rather than drawing the day as entirely mild.
-        const dailyJustAboveZero = {
-            ...weatherFixture,
-            forecast: {
-                ...weatherFixture.forecast,
-                daily: [{ ...weatherFixture.forecast.daily[0], temperature_min: 0.4, temperature_max: 8 }, ...weatherFixture.forecast.daily.slice(1)],
-            },
-        };
-        mockFetch(dailyJustAboveZero, weatherSummaryFixture);
+    it('gives a dry day its empty track, not a missing one', async () => {
+        // "No rain expected" is a forecast; leaving the row out entirely
+        // would read as "nothing known about this day".
+        mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
 
         await vi.waitFor(() => {
-            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+            expect(container.querySelectorAll('.weather-daily-precip')).toHaveLength(5);
         });
 
-        const firstDay = container.querySelectorAll('.weather-daily-day')[0];
-        const low = firstDay?.querySelector('.weather-daily-low');
-        expect(low?.textContent).toBe('0°');
-        expect(low?.classList.contains('weather-temp-below-zero')).toBe(true);
-        expect(firstDay?.querySelector('.weather-daily-range-fill--below-zero')).not.toBeNull();
+        const firstDay = container.querySelector('.weather-daily-day');
+        expect(firstDay?.querySelector('.weather-daily-precip')).not.toBeNull();
+        expect(firstDay?.querySelector('.weather-daily-precip-fill')).toBeNull();
+        expect(firstDay?.querySelector('.weather-daily-precip-amount')).toBeNull();
 
         dispose();
     });
 
-    it('renders a single cyan fill, no magenta segment, for a day whose whole range sits below 0°C', async () => {
-        const dailyEntirelyBelowZero = {
-            ...weatherFixture,
-            forecast: {
-                ...weatherFixture.forecast,
-                daily: [
-                    weatherFixture.forecast.daily[0],
-                    { ...weatherFixture.forecast.daily[1], temperature_min: -5, temperature_max: -2 },
-                    ...weatherFixture.forecast.daily.slice(2),
-                ],
-            },
-        };
-        mockFetch(dailyEntirelyBelowZero, weatherSummaryFixture);
+    it("prints the day's millimetres beside its condition, and only when there are any", async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
         const container = document.createElement('div');
         const dispose = render(container);
 
         await vi.waitFor(() => {
-            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+            expect(container.querySelectorAll('.weather-daily-precip')).toHaveLength(5);
         });
 
-        const secondDay = container.querySelectorAll('.weather-daily-day')[1];
-        const fills = secondDay?.querySelectorAll('.weather-daily-range-fill') ?? [];
-        expect(fills).toHaveLength(1);
-        expect(fills[0]?.classList.contains('weather-daily-range-fill--below-zero')).toBe(true);
-        expect(fills[0]?.classList.contains('weather-daily-range-fill--above-zero')).toBe(false);
+        const amounts = [...container.querySelectorAll<HTMLElement>('.weather-daily-day')].map(
+            (day) => day.querySelector('.weather-daily-precip-amount')?.textContent ?? null,
+        );
+
+        expect(amounts).toEqual([null, null, `${formatNumber(6.4)} mm`, `${formatNumber(3.1)} mm`, null]);
+
+        dispose();
+    });
+
+    it('names what a full bar stands for', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-daily-legend')).not.toBeNull();
+        });
+
+        // Rounded up from the wettest day (6.4mm) to a figure a legend can
+        // name, so the bars are readable as a measure rather than as five
+        // relative lengths.
+        expect(container.querySelector('.weather-daily-legend')?.textContent).toContain('10 mm');
+
+        dispose();
+    });
+
+    it('draws no bars at all for a week with no rain forecast, and says so', async () => {
+        const dryWeek = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: weatherFixture.forecast.daily.map((day) => ({
+                    ...day,
+                    periods: {
+                        night: { precipitation: 0 },
+                        morning: { precipitation: 0 },
+                        afternoon: { precipitation: 0 },
+                        evening: { precipitation: 0 },
+                    },
+                })),
+            },
+        };
+        mockFetch(dryWeek, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-day')).toHaveLength(5);
+        });
+
+        // Five empty tracks under five dry days is decoration; the legend
+        // carries the fact instead.
+        expect(container.querySelectorAll('.weather-daily-precip')).toHaveLength(0);
+        expect(container.querySelector('.weather-daily-legend')?.textContent).toMatch(/ingen ventet|none expected/);
+
+        dispose();
+    });
+
+    it('draws nothing for a day the forecast says nothing about', async () => {
+        // Yr sends far-future days with no `periods` at all. An empty track
+        // there would claim a dry day it has not forecast.
+        const noPeriods = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [{ ...weatherFixture.forecast.daily[0], periods: undefined }, ...weatherFixture.forecast.daily.slice(1)],
+            },
+        };
+        mockFetch(noPeriods, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-day')).toHaveLength(5);
+        });
+
+        const days = [...container.querySelectorAll('.weather-daily-day')];
+        expect(days[0]?.querySelector('.weather-daily-precip')).toBeNull();
+        expect(days[2]?.querySelector('.weather-daily-precip')).not.toBeNull();
 
         dispose();
     });
