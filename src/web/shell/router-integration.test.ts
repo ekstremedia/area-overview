@@ -13,7 +13,7 @@
  * observation that must stay exactly as responsive as expected, no more,
  * no less), one level up the stack.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signal } from '../core/signal.js';
 import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js';
 
@@ -72,10 +72,26 @@ vi.mock('../pages/SettingsPage.js', async () => {
 
 const { mountAppShell } = await import('./AppShell.js');
 
+/**
+ * A navigation, run all the way through. Every navigation is a slide now
+ * (`AppShell.ts`), so the hash change alone leaves two pages briefly
+ * alive on purpose; advancing past the slide is what settles the shell
+ * back to one container, which is the state every assertion below is
+ * about. `SLIDE_MS` in `AppShell.ts`.
+ */
 function navigate(hash: string): void {
     location.hash = hash;
     window.dispatchEvent(new HashChangeEvent('hashchange'));
+    vi.advanceTimersByTime(500);
 }
+
+beforeEach(() => {
+    vi.useFakeTimers();
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 function setLanguage(language: 'nb' | 'en'): void {
     mockSettings.set({ ...mockSettings.get(), language });

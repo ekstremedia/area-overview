@@ -26,7 +26,6 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         upstreamBaseUrl: 'https://upstream.example',
         upstreamTimeoutMs: 1000,
         cacheTtlMs: 20,
-        pointForecastTtlMs: 20,
         settingsPassword: 'test-password-at-least-16-chars',
         settingsFile: DEFAULT_TEST_SETTINGS_FILE,
         barentswatchClientId: '',

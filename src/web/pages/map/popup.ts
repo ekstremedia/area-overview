@@ -14,6 +14,7 @@
  * that's more precision than a 30s-polled age needs.
  */
 import type { Camera } from '../../../shared/schemas/camera.js';
+import { encodeCameraId } from '../../core/router.js';
 import { t } from '../../i18n/index.js';
 import { formatAge } from '../../shell/staleness.js';
 
@@ -94,7 +95,7 @@ export function buildPopupContent(camera: Camera, callbacks: PopupCallbacks, now
 
     const link = document.createElement('a');
     link.className = 'camera-popup-link';
-    link.href = `#/cameras/${camera.camera_id}`;
+    link.href = `#/cameras/${encodeCameraId(camera.camera_id)}`;
     link.textContent = t('map.openCamera');
 
     footer.append(location, link);

@@ -21,7 +21,7 @@ import { effect } from '../core/signal.js';
 import { mountLoginDialog, type LoginDialogHandle } from '../components/LoginDialog.js';
 import { mountOnScreenKeyboard } from '../components/OnScreenKeyboard.js';
 import { t, type ParamlessKey } from '../i18n/index.js';
-import { pageAccountStatus } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { isLoggedIn, logout } from '../settings/session.js';
 import { createSettingsStore } from '../settings/sharedStore.js';
 import * as AccountSection from './settings/Account.js';
@@ -51,6 +51,8 @@ const SECTIONS: readonly SectionDescriptor[] = [
 ];
 
 export function render(container: HTMLElement): () => void {
+    const status = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'settings-page';
 
@@ -67,7 +69,13 @@ export function render(container: HTMLElement): () => void {
     const sectionContainer = document.createElement('div');
     sectionContainer.className = 'settings-section-container';
 
-    wrapper.append(nav, loggedOutNotice, loginButton, sectionContainer);
+    // The nav is a column down the left (artboard 07), so everything else
+    // shares one scrolling area beside it rather than stacking under it.
+    const main = document.createElement('div');
+    main.className = 'settings-main';
+    main.append(loggedOutNotice, loginButton, sectionContainer);
+
+    wrapper.append(nav, main);
     container.append(wrapper);
 
     const store = createSettingsStore();
@@ -163,7 +171,7 @@ export function render(container: HTMLElement): () => void {
 
     const disposeAccountStatusEffect = effect(() => {
         if (isLoggedIn.get()) {
-            pageAccountStatus.set({
+            status.accountStatus({
                 text: t('settings.loggedInStatus'),
                 logoutLabel: t('settings.logOut'),
                 onLogout: () => {
@@ -171,14 +179,14 @@ export function render(container: HTMLElement): () => void {
                 },
             });
         } else {
-            pageAccountStatus.set(null);
+            status.accountStatus(null);
         }
     });
 
     return function dispose(): void {
         disposed = true;
         disposeAccountStatusEffect();
-        pageAccountStatus.set(null);
+        status.release();
         disposeLoginStateEffect();
         disposeTabsEffect();
         disposeSection?.();

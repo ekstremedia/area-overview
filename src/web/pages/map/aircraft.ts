@@ -14,7 +14,7 @@
  */
 import type * as Leaflet from 'leaflet';
 import { AIRCRAFT_LAYER } from '../../../shared/layers.js';
-import { AircraftResponseSchema, type Aircraft, type AircraftResponse } from '../../../shared/schemas/aircraft.js';
+import { AircraftResponseSchema, type Aircraft, type AircraftResponse, type AdsbSource } from '../../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../../shared/result.js';
 import { resource } from '../../core/resource.js';
 import { effect } from '../../core/signal.js';
@@ -22,7 +22,7 @@ import { formatNumber, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
-import type { GlyphDescriptor } from './glyphs.js';
+import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
@@ -51,6 +51,26 @@ async function fetchAircraft(map: Leaflet.Map): Promise<Result<AircraftResponse>
     } catch (cause) {
         return err({ message: 'Network error fetching /api/aircraft', cause });
     }
+}
+
+/** Display names for the footer credit -- matches how each provider names itself, not this app's internal `AdsbSource` id. */
+const ADSB_SOURCE_LABELS: Record<AdsbSource, string> = {
+    adsblol: 'adsb.lol',
+    airplaneslive: 'airplanes.live',
+    adsbfi: 'adsb.fi',
+    opensky: 'OpenSky',
+};
+
+/**
+ * Builds the footer credit from the response's own `sources`, the same
+ * `Data: <org> / <org>` shape ships already uses for its two credited
+ * organisations. Falls back to the hard-coded constant when `sources` is
+ * absent -- an older server, or the BFF's own remembered-aircraft
+ * fallback, where no live provider actually answered this request.
+ */
+function attributionFor(sources: readonly AdsbSource[] | undefined): string {
+    if (!sources || sources.length === 0) return AIRCRAFT_LAYER.attribution;
+    return `Data: ${sources.map((source) => ADSB_SOURCE_LABELS[source]).join(' / ')}`;
 }
 
 function toGlyph(aircraft: Aircraft): GlyphDescriptor<Aircraft> {
@@ -120,6 +140,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 widthPx: AIRCRAFT_WIDTH_PX,
                 heightPx: AIRCRAFT_HEIGHT_PX,
                 hitRadiusPx: HIT_RADIUS_PX,
+                shape: 'plane',
                 buildPopup: (aircraft) => buildAircraftPopup(aircraft),
                 isDistinct: isOnGround,
                 labelFor: (aircraft) => aircraftLabel(aircraft),
@@ -134,6 +155,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -147,13 +169,33 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 const showOnGround = settings.get().aircraft.showOnGround;
                 const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
                 const now = new Date();
-                canvasLayer.update(items.map(toGlyph), settings.get().aircraft.maxAgeMinutes, now);
-                trailLayer.update(items.map(toGlyph), now);
-                // `items` is what the BFF returned (less any on-ground
-                // aircraft the viewer chose to hide, which is not an age
-                // matter); `count()` is what survived the age filter.
-                callbacks.reportCount(canvasLayer.count(), items.length - canvasLayer.count());
-                callbacks.reportAttribution(AIRCRAFT_LAYER.attribution);
+                const maxAgeMinutes = settings.get().aircraft.maxAgeMinutes;
+                const glyphs = items.map(toGlyph);
+                canvasLayer.update(glyphs, maxAgeMinutes, now);
+                trailLayer.update(glyphs, now);
+
+                // The same age filter the canvas layer applies, computed
+                // here too so the masthead's list offers only aircraft that
+                // are actually drawn -- listing one the map is hiding
+                // sends a tap to empty sky. `items` is everything the BFF
+                // returned (less any on-ground aircraft the viewer chose
+                // to hide, which is not an age matter), so the difference
+                // is what the age filter held back.
+                const visible = visibleGlyphs(glyphs, maxAgeMinutes, now);
+                callbacks.reportCount(visible.length, items.length - visible.length);
+                callbacks.reportItems(
+                    visible.map(({ descriptor }) => ({
+                        id: descriptor.id,
+                        label: aircraftLabel(descriptor.data),
+                        detail:
+                            descriptor.data.altitudeFt === 'ground'
+                                ? t('map.aircraftOnGround')
+                                : t('map.aircraftAltitudeShort', { feet: formatNumber(descriptor.data.altitudeFt, t('unit.feet')) }),
+                        lat: descriptor.lat,
+                        lng: descriptor.lng,
+                    })),
+                );
+                callbacks.reportAttribution(attributionFor(state.data.sources));
             });
 
             const disposeMoveRefetch = refetchOnMapMove(map, () => {
@@ -167,6 +209,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 canvasLayer.dispose();
                 trailLayer.dispose();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             };
         },

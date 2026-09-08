@@ -11,6 +11,10 @@ vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { render } = await import('./WeatherPage.js');
 const { pageAttribution, pageFreshness } = await import('../shell/page-status.js');
+// Deferred like the imports above -- `../i18n/index.js` itself imports
+// `../settings-resource.js`, so a static top-level import here would
+// resolve the real module before `vi.mock` above takes effect.
+const { formatNumber } = await import('../i18n/index.js');
 
 function jsonResponse(body: unknown, ok = true): Response {
     return { ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) } as Response;
@@ -223,11 +227,213 @@ describe('WeatherPage', () => {
         await vi.waitFor(() => {
             expect(pageFreshness.get()).not.toBeNull();
         });
-        expect(pageAttribution.get()).toBe('MET.no / Yr · Netatmo');
+        expect(pageAttribution.get()).toBe('MET.no / Yr');
 
         dispose();
         expect(pageAttribution.get()).toBeNull();
         expect(pageFreshness.get()).toBeNull();
         vi.useRealTimers();
+    });
+
+    it('drops the summary heading and byline, leaving the prose alone', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        // The design reduced the summary to bare prose. Nothing should
+        // announce it as a summary or say when it was generated -- but the
+        // summary arrives from its own async resource, so wait for the prose
+        // first: asserting on an empty slot would pass whether or not the
+        // heading was ever removed.
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-summary-text')).not.toBeNull();
+        });
+        expect(container.querySelector('.weather-summary-label')).toBeNull();
+        expect(container.querySelector('.weather-summary-age')).toBeNull();
+
+        dispose();
+    });
+
+    it('colours each forecast hour by which side of freezing it falls on', async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-forecast-temp')).not.toBeNull();
+        });
+
+        const temps = [...container.querySelectorAll<HTMLElement>('.weather-forecast-temp')];
+        expect(temps.length).toBeGreaterThan(0);
+        for (const temp of temps) {
+            const value = Number.parseFloat(temp.textContent.replace(',', '.'));
+            // The colour must agree with the *rounded* figure on screen, or
+            // a 0.4-degree hour reads "0" in the below-zero colour.
+            const expected = value > 0 ? 'weather-temp-above-zero' : 'weather-temp-below-zero';
+            expect(temp.classList.contains(expected)).toBe(true);
+        }
+
+        // And the legend that explains the two colours is present.
+        expect(container.querySelector('.weather-forecast-legend')?.textContent).toContain('0°');
+
+        dispose();
+    });
+
+    it("scales every day's range bar against the whole week, so the days can be compared", async () => {
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+        await vi.waitFor(() => {
+            expect(container.querySelector('.weather-daily-range-fill')).not.toBeNull();
+        });
+
+        const fills = [...container.querySelectorAll<HTMLElement>('.weather-daily-range-fill')];
+        expect(fills.length).toBeGreaterThan(1);
+        for (const fill of fills) {
+            const left = Number.parseFloat(fill.style.left);
+            const width = Number.parseFloat(fill.style.width);
+            expect(Number.isFinite(left)).toBe(true);
+            expect(Number.isFinite(width)).toBe(true);
+            // Every bar has to stay inside its own track.
+            expect(left).toBeGreaterThanOrEqual(0);
+            expect(left + width).toBeLessThanOrEqual(100.01);
+            expect(width).toBeGreaterThan(0);
+        }
+        // The coldest day starts at the very left of the shared scale.
+        expect(Math.min(...fills.map((f) => Number.parseFloat(f.style.left)))).toBe(0);
+
+        dispose();
+    });
+
+    it("colours a daily low at or below zero with the hourly strip's freezing colour", async () => {
+        const dailyWithSubZero = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [
+                    { ...weatherFixture.forecast.daily[0], temperature_min: -2, temperature_max: 9 },
+                    // Boundary: the legend beside the hourly strip reads
+                    // "0° og under", so a rounded 0° belongs to the cold
+                    // side here too -- the two rows must not disagree.
+                    { ...weatherFixture.forecast.daily[1], temperature_min: 0, temperature_max: 6 },
+                    ...weatherFixture.forecast.daily.slice(2),
+                ],
+            },
+        };
+        mockFetch(dailyWithSubZero, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-day')).toHaveLength(5);
+        });
+
+        const days = Array.from(container.querySelectorAll('.weather-daily-day'));
+
+        const subZeroLow = days[0]?.querySelector('.weather-daily-low');
+        expect(subZeroLow?.textContent).toBe(`${formatNumber(-2)}°`);
+        expect(subZeroLow?.classList.contains('weather-temp-below-zero')).toBe(true);
+
+        const zeroLow = days[1]?.querySelector('.weather-daily-low');
+        expect(zeroLow?.textContent).toBe(`${formatNumber(0)}°`);
+        expect(zeroLow?.classList.contains('weather-temp-below-zero')).toBe(true);
+
+        dispose();
+    });
+
+    it("splits a day's range bar into a cyan sub-zero segment and a magenta segment when its range crosses 0°C", async () => {
+        const dailyCrossingZero = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [{ ...weatherFixture.forecast.daily[0], temperature_min: -2, temperature_max: 8 }, ...weatherFixture.forecast.daily.slice(1)],
+            },
+        };
+        mockFetch(dailyCrossingZero, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+        });
+
+        const firstDay = container.querySelectorAll('.weather-daily-day')[0];
+        const belowFill = firstDay?.querySelector<HTMLElement>('.weather-daily-range-fill--below-zero');
+        const aboveFill = firstDay?.querySelector<HTMLElement>('.weather-daily-range-fill--above-zero');
+        expect(belowFill).not.toBeNull();
+        expect(aboveFill).not.toBeNull();
+
+        // Overall week range across the (modified) fixture: min -2 (this
+        // day), max 13.5 (2026-09-09) -- span 15.5. This day's own span is
+        // -2..8 (10 wide), of which -2..0.5 is the part that displays as 0°
+        // or colder (`FREEZING_DISPLAY_MAX`), i.e. 2.5/10.
+        const belowLeft = Number.parseFloat(belowFill?.style.left ?? '');
+        const belowWidth = Number.parseFloat(belowFill?.style.width ?? '');
+        const aboveLeft = Number.parseFloat(aboveFill?.style.left ?? '');
+        const aboveWidth = Number.parseFloat(aboveFill?.style.width ?? '');
+        const totalWidth = ((8 - -2) / 15.5) * 100;
+
+        expect(belowLeft).toBeCloseTo(0, 5);
+        expect(belowWidth).toBeCloseTo(totalWidth * 0.25, 5);
+        expect(aboveLeft).toBeCloseTo(belowWidth, 5);
+        expect(aboveWidth).toBeCloseTo(totalWidth * 0.75, 5);
+
+        dispose();
+    });
+
+    it('colours the bar on the same side of zero as the figure printed beside it', async () => {
+        // A low of 0.4 is lettered "0°", and the page's own legend reads
+        // "0° og under" -- so the bar must show a cold segment there too,
+        // rather than drawing the day as entirely mild.
+        const dailyJustAboveZero = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [{ ...weatherFixture.forecast.daily[0], temperature_min: 0.4, temperature_max: 8 }, ...weatherFixture.forecast.daily.slice(1)],
+            },
+        };
+        mockFetch(dailyJustAboveZero, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+        });
+
+        const firstDay = container.querySelectorAll('.weather-daily-day')[0];
+        const low = firstDay?.querySelector('.weather-daily-low');
+        expect(low?.textContent).toBe('0°');
+        expect(low?.classList.contains('weather-temp-below-zero')).toBe(true);
+        expect(firstDay?.querySelector('.weather-daily-range-fill--below-zero')).not.toBeNull();
+
+        dispose();
+    });
+
+    it('renders a single cyan fill, no magenta segment, for a day whose whole range sits below 0°C', async () => {
+        const dailyEntirelyBelowZero = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [
+                    weatherFixture.forecast.daily[0],
+                    { ...weatherFixture.forecast.daily[1], temperature_min: -5, temperature_max: -2 },
+                    ...weatherFixture.forecast.daily.slice(2),
+                ],
+            },
+        };
+        mockFetch(dailyEntirelyBelowZero, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+        });
+
+        const secondDay = container.querySelectorAll('.weather-daily-day')[1];
+        const fills = secondDay?.querySelectorAll('.weather-daily-range-fill') ?? [];
+        expect(fills).toHaveLength(1);
+        expect(fills[0]?.classList.contains('weather-daily-range-fill--below-zero')).toBe(true);
+        expect(fills[0]?.classList.contains('weather-daily-range-fill--above-zero')).toBe(false);
+
+        dispose();
     });
 });

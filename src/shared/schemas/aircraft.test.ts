@@ -54,4 +54,24 @@ describe('AircraftResponseSchema', () => {
         const result = AircraftResponseSchema.safeParse({ configured: false });
         expect(result.success).toBe(true);
     });
+
+    it('accepts a configured:true shape with sources', () => {
+        const result = AircraftResponseSchema.safeParse({
+            configured: true,
+            aircraft: [validAircraft],
+            fetchedAt: '2026-09-05T01:00:00Z',
+            sources: ['adsbfi', 'opensky'],
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it('rejects a source outside the known provider set', () => {
+        const result = AircraftResponseSchema.safeParse({
+            configured: true,
+            aircraft: [validAircraft],
+            fetchedAt: '2026-09-05T01:00:00Z',
+            sources: ['not-a-real-provider'],
+        });
+        expect(result.success).toBe(false);
+    });
 });

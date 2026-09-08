@@ -76,8 +76,39 @@ describe('Cameras section', () => {
         const dispose = mount(container, { store, loggedIn: true });
 
         const row = container.querySelector('.camera-row');
-        expect(row?.querySelector('.camera-row-unplaced')?.textContent).toBe('Uten plassering');
+        expect(row?.querySelector('.camera-row-unplaced')?.textContent).toContain('Uten plassering');
         expect(row?.querySelectorAll('.number-field-input')).toHaveLength(0);
+
+        dispose();
+    });
+
+    it('offers to place an unplaced camera, seeding the shared home view', async () => {
+        // Without this the row is a dead end: no coordinate fields to edit,
+        // and so no way to discover that placing is possible at all.
+        setCameras([camera({ camera_id: 'spjutvika_01', name: 'Spjutvika' })]);
+        const { store, setPlacement } = fakeStore(SettingsSchema.parse({ homeView: { lat: 68.6984, lng: 15.4129, zoom: 11 } }));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const place = container.querySelector<HTMLButtonElement>('.camera-row-place');
+        expect(place?.disabled).toBe(false);
+        place?.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(setPlacement).toHaveBeenCalledWith('spjutvika_01', { lat: 68.6984, lng: 15.4129 });
+        // And the row becomes editable, rather than needing a reload.
+        expect(container.querySelectorAll('.number-field-input')).toHaveLength(2);
+
+        dispose();
+    });
+
+    it('does not offer to place a camera while logged out', () => {
+        setCameras([camera({ camera_id: 'spjutvika_01', name: 'Spjutvika' })]);
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: false });
+
+        expect(container.querySelector<HTMLButtonElement>('.camera-row-place')?.disabled).toBe(true);
 
         dispose();
     });
@@ -282,6 +313,52 @@ describe('Cameras section', () => {
         // A stale, snapshotted `isPlaced` (the pre-fix bug) would still read
         // `false` here even though `update()` just recorded a placement.
         expect(row.isPlaced).toBe(true);
+
+        row.dispose();
+        row.el.remove();
+    });
+
+    it('stops saying "uten plassering" once a placement arrives with the settings resource', () => {
+        // The row is built before the placement is known (the settings
+        // resource is still loading), so the label is corrected by
+        // `update()` rather than by the initial render -- the path where a
+        // stale label had nothing left to notify it.
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const row = buildRow(camera(), null, { store, loggedIn: true, enabled: true });
+
+        const label = (): string => row.el.querySelector('.save-indicator')?.textContent.trim() ?? '';
+        expect(label()).toBe('Uten plassering');
+
+        row.update(camera(), { lat: 68.72, lng: 15.42 }, true, true);
+
+        expect(row.el.querySelectorAll('.number-field-input')).toHaveLength(2);
+        expect(label()).not.toBe('Uten plassering');
+
+        row.dispose();
+        row.el.remove();
+    });
+
+    it('renames the on-screen keyboard caption when the camera is renamed upstream', () => {
+        const { store } = fakeStore(SettingsSchema.parse({ placements: { sigerfjord_01: { lat: 68.7, lng: 15.4 } } }));
+        const row = buildRow(camera(), { lat: 68.7, lng: 15.4 }, { store, loggedIn: true, enabled: true });
+
+        const captions = (): string[] =>
+            [...row.el.querySelectorAll<HTMLInputElement>('.number-field-input')].map((input) => input.dataset.keyboardContext ?? '');
+        const before = captions();
+        // Asserted, not assumed: an empty list would make both loops below
+        // pass without checking a single caption.
+        expect(before).toHaveLength(2);
+        for (const caption of before) expect(caption).toContain('Sigerfjord');
+
+        row.update(camera({ name: 'Sigerfjord kai' }), { lat: 68.7, lng: 15.4 }, true, true);
+
+        // The caption is written once when the fields are built, so a name
+        // arriving later from the cameras resource has to be pushed into
+        // the existing inputs -- otherwise the keyboard tray keeps naming
+        // the camera that no longer exists under that name.
+        const after = captions();
+        expect(after).toHaveLength(2);
+        for (const caption of after) expect(caption).toContain('Sigerfjord kai');
 
         row.dispose();
         row.el.remove();

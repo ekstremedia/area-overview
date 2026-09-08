@@ -9,7 +9,7 @@
  * Colors are set via `style.stroke`/`style.fill` referencing this app's
  * CSS custom properties (`var(--color-accent)`, etc.), not raw hex, so
  * the curve repaints correctly across the light/dark theme switch without
- * needing to be rebuilt.
+ * needing to be rebuilt. Vertical scale ticks are computed via `tideCurveTicks`.
  */
 import type { Tide } from '../../../shared/schemas/tide.js';
 
@@ -61,6 +61,58 @@ function areaPath(points: readonly { x: number; y: number }[]): string {
     return `${line} L${String(last.x)},${String(VIEW_HEIGHT)} L${String(first.x)},${String(VIEW_HEIGHT)} Z`;
 }
 
+/**
+ * Every centimetre value the chart has to fit on its vertical axis:
+ * predictions, observations where the gauge has reported one, and the
+ * day's extremes.
+ *
+ * Shared by `tideCurve` and `tideCurveTicks` because they must agree. An
+ * observed level outside the predicted range (a storm surge is exactly
+ * that) widens the drawn scale, and ticks computed from a narrower set of
+ * values would then be positioned against a scale the curve is not using
+ * -- labels sliding off the water they claim to measure.
+ */
+function curveValues(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): number[] {
+    return [
+        ...series.map((entry) => entry.value),
+        ...series.flatMap((entry) => (typeof entry.observation === 'number' ? [entry.observation] : [])),
+        ...extremes.map((extreme) => extreme.value),
+    ];
+}
+
+/**
+ * Round centimetre values to label the curve's vertical scale with, and
+ * where each sits as a percentage down the plotted area.
+ *
+ * Exported separately from `tideCurve` and rendered as HTML rather than
+ * SVG `<text>`: the curve draws with `preserveAspectRatio="none"` so it
+ * can stretch to any container width, which would stretch text with it.
+ *
+ * The step is chosen so the axis gets a handful of labels whatever the
+ * day's range: a spring tide spanning 250cm gets 100s, a neap barely
+ * moving gets 20s. The candidates run all the way down to 1cm because
+ * the smallest step that still gives two labels is the point -- stopping
+ * at 10 left a range like 101-102cm with no gridline and no scale at
+ * all, a curve floating in an empty box.
+ */
+export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): { value: number; topPercent: number }[] {
+    if (series.length === 0) return [];
+    const values = curveValues(series, extremes);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    if (span <= 0) return [];
+
+    const step = [200, 100, 50, 20, 10, 5, 2, 1].find((candidate) => span / candidate >= 2) ?? 1;
+    const scale = makeValueScale(min, max);
+
+    const ticks: { value: number; topPercent: number }[] = [];
+    for (let value = Math.ceil(min / step) * step; value <= max; value += step) {
+        ticks.push({ value, topPercent: (scale(value) / VIEW_HEIGHT) * 100 });
+    }
+    return ticks;
+}
+
 export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extremes: readonly ExtremeEntry[]): SVGElement {
     const svg = svgEl('svg');
     svg.setAttribute('viewBox', `0 0 ${String(VIEW_WIDTH)} ${String(VIEW_HEIGHT)}`);
@@ -74,12 +126,23 @@ export function tideCurve(series: readonly TimeseriesEntry[], now: Date, extreme
     const domainEnd = Math.max(...series.map(timeOf));
     const timeScale = makeTimeScale(domainStart, domainEnd);
 
-    const allValues = [
-        ...series.map((entry) => entry.value),
-        ...series.flatMap((entry) => (typeof entry.observation === 'number' ? [entry.observation] : [])),
-        ...extremes.map((extreme) => extreme.value),
-    ];
+    const allValues = curveValues(series, extremes);
     const valueScale = makeValueScale(Math.min(...allValues), Math.max(...allValues));
+
+    // — the level grid, drawn first so the curve sits on top of it. One
+    // rule per tick label, and a solid one at zero: the sea-chart datum is
+    // a real reference, the others are only helpful. —
+    for (const tick of tideCurveTicks(series, extremes)) {
+        const y = valueScale(tick.value);
+        const rule = svgEl('line');
+        rule.setAttribute('x1', '0');
+        rule.setAttribute('x2', String(VIEW_WIDTH));
+        rule.setAttribute('y1', String(y));
+        rule.setAttribute('y2', String(y));
+        rule.setAttribute('class', tick.value === 0 ? 'tide-curve-grid tide-curve-grid--datum' : 'tide-curve-grid');
+        rule.style.vectorEffect = 'non-scaling-stroke';
+        svg.append(rule);
+    }
 
     // — prediction: the full series, always present. —
     const predictionPoints = series.map((entry) => ({ x: timeScale(timeOf(entry)), y: valueScale(entry.value) }));

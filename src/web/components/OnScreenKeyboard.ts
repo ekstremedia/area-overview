@@ -77,9 +77,14 @@ async function defaultLoadEnglishLayout(): Promise<{ default: KeyboardLayoutShap
     return mod as unknown as { default: KeyboardLayoutShape };
 }
 
-/** Matches the artboard's numeric tray: two rows of six, `,` as the decimal separator, a backspace key. */
+/**
+ * The artboard's numeric tray: one row of twelve, `,` as the decimal
+ * separator, a backspace key. A single row keeps the digits in their
+ * familiar left-to-right order and costs one row of height instead of
+ * two, which is what the tray can afford over a 600px-tall screen.
+ */
 const NUMERIC_LAYOUT: KeyboardLayoutShape = {
-    layout: { default: ['1 2 3 4 5 6', '7 8 9 0 , {bksp}'] },
+    layout: { default: ['1 2 3 4 5 6 7 8 9 0 , {bksp}'] },
 };
 
 const HIDE_GRACE_MS = 150;
@@ -212,7 +217,14 @@ export function mountOnScreenKeyboard(attachTo: HTMLElement = document.body, loa
         if (isDisposed() || focusedInput !== input) return;
 
         const language = currentLanguage.get();
-        caption.textContent = kind === 'numeric' ? t('keyboard.numericLabel') : t('keyboard.textLabel');
+        // Which keyboard, and -- when the field says so via
+        // `data-keyboard-context` -- what it is editing. On a tray that
+        // covers half a kiosk screen, "Talltastatur" alone doesn't say
+        // which of two identical-looking number fields has focus.
+        const kindLabel = kind === 'numeric' ? t('keyboard.numericLabel') : t('keyboard.textLabel');
+        const context = input.dataset.keyboardContext;
+        caption.textContent =
+            context === undefined || context === '' ? kindLabel : t('keyboard.captionWithField', { kind: kindLabel, field: context });
 
         // Reload the layout module when the *kind* changes (numeric <-> text),
         // or when it stays 'text' but the language changed underneath it --

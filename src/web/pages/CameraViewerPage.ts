@@ -20,7 +20,7 @@ import type { Camera } from '../../shared/schemas/camera.js';
 import { CAMERAS_POLL_INTERVAL_MS, camerasResource } from '../camera-resource.js';
 import { effect } from '../core/signal.js';
 import { formatRelative, formatTime, t } from '../i18n/index.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import './cameras/cameraViewer.css';
 
@@ -29,6 +29,8 @@ function findCamera(cameras: readonly Camera[], cameraId: string): Camera | unde
 }
 
 export function render(container: HTMLElement, cameraId: string): () => void {
+    const status = claimPageStatus();
+
     const root = document.createElement('div');
     root.className = 'camera-viewer';
     container.append(root);
@@ -42,7 +44,7 @@ export function render(container: HTMLElement, cameraId: string): () => void {
         location.hash = '#/cameras';
     });
 
-    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS, status);
 
     const disposeEffect = effect(() => {
         const state = camerasResource.state.get();
@@ -107,23 +109,14 @@ export function render(container: HTMLElement, cameraId: string): () => void {
         updatedLine.textContent = updatedAt ? t('cameraViewer.updated', { time: formatTime(updatedAt), location: camera.location }) : camera.location;
         ageGroup.append(age, updatedLine);
 
-        const credit = document.createElement('div');
-        credit.className = 'camera-viewer-credit';
-        credit.textContent = t('cameras.attributionText');
-
-        bottomBar.append(ageGroup, credit);
+        // No credit line: the images are Terje's own (artboard 06 drops it).
+        bottomBar.append(ageGroup);
         root.append(bottomBar);
-    });
-
-    const disposeAttributionEffect = effect(() => {
-        pageAttribution.set(t('cameras.attributionText'));
     });
 
     return function dispose(): void {
         disposeEffect();
-        disposeAttributionEffect();
-        pageFreshness.set(null);
-        pageAttribution.set(null);
+        status.release();
         root.remove();
     };
 }

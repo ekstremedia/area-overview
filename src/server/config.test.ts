@@ -14,7 +14,6 @@ const baseEnv = {
     UPSTREAM_BASE_URL: 'https://upstream.example',
     UPSTREAM_TIMEOUT_MS: '8000',
     CACHE_TTL_MS: '30000',
-    POINT_FORECAST_TTL_MS: '60000',
 };
 
 describe('loadConfig / SETTINGS_PASSWORD', () => {

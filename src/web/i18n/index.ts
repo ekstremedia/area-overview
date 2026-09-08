@@ -103,6 +103,16 @@ export function formatShortDate(date: Date): string {
     return new Intl.DateTimeFormat(locale.get(), { day: 'numeric', month: 'short' }).format(date);
 }
 
+/** The masthead's spelled-out weekday on its own, e.g. "mandag"/"Monday" -- separate from the date so the masthead can drop it when the row runs out of width. */
+export function formatWeekdayLong(date: Date): string {
+    return new Intl.DateTimeFormat(locale.get(), { weekday: 'long' }).format(date);
+}
+
+/** The masthead's day and month without the weekday, e.g. "7. september"/"7 September" -- no year, since a wall display never shows a date far enough away to need one. */
+export function formatDayMonth(date: Date): string {
+    return new Intl.DateTimeFormat(locale.get(), { day: 'numeric', month: 'long' }).format(date);
+}
+
 /**
  * A localized number, optionally with a unit suffix. The one sanctioned
  * way to put a number on screen -- no page should concatenate a raw

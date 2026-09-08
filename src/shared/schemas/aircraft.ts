@@ -23,11 +23,29 @@ export const AircraftSchema = z.object({
 
 export type Aircraft = z.infer<typeof AircraftSchema>;
 
+/**
+ * The ADS-B providers `src/server/aircraft/provider.ts` can query. Kept
+ * here (not just server-side) because the response below needs to say
+ * which of these actually produced this response's data, for the map
+ * footer's attribution credit.
+ */
+export const AdsbSourceSchema = z.enum(['adsblol', 'airplaneslive', 'adsbfi', 'opensky']);
+export type AdsbSource = z.infer<typeof AdsbSourceSchema>;
+
 export const AircraftResponseSchema = z.discriminatedUnion('configured', [
     z.object({
         configured: z.literal(true),
         aircraft: z.array(AircraftSchema),
         fetchedAt: IsoTimestampSchema,
+        /**
+         * The provider(s) that genuinely contributed to `aircraft` --
+         * never merely what `ADSB_PROVIDER` is set to. Optional so an
+         * older server (field never sent) and a response served from the
+         * BFF's own remembered-aircraft fallback (no live source actually
+         * answered) both read the same way: the web layer falls back to
+         * its own hard-coded attribution when this is absent.
+         */
+        sources: z.array(AdsbSourceSchema).optional(),
     }),
     z.object({
         configured: z.literal(false),

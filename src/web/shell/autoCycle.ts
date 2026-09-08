@@ -73,9 +73,10 @@ export interface StartAutoCycleOptions {
     onCycle: (nextRouteName: Route['name']) => void;
 }
 
-/** A cheap structural key for the three fields that govern re-arming -- see the `lastArmedKey` doc below. */
-function armKey(settings: Settings): string {
-    return `${String(settings.autoCycle.enabled)}:${String(settings.autoCycle.intervalSeconds)}:${settings.autoCycle.pages.join(',')}`;
+/** A cheap structural key for the fields that govern re-arming -- see the `lastArmedKey` doc below. The route is part of it because the interval is measured from the page currently showing: see `startAutoCycle`. */
+function armKey(settings: Settings, route: Route): string {
+    const page = route.name === 'cameras' && route.cameraId !== undefined ? `cameras/${route.cameraId}` : route.name;
+    return `${String(settings.autoCycle.enabled)}:${String(settings.autoCycle.intervalSeconds)}:${settings.autoCycle.pages.join(',')}:${page}`;
 }
 
 export function startAutoCycle(options: StartAutoCycleOptions): () => void {
@@ -84,12 +85,20 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
     const onCycle = options.onCycle;
 
     let timer: ReturnType<typeof setInterval> | undefined;
-    // Tracks the last-armed (enabled, intervalSeconds, pages) combination
-    // so a settings *poll* that leaves all three unchanged doesn't restart
-    // the in-flight interval -- same reasoning, and same shape, as
+    // Tracks the last-armed (enabled, intervalSeconds, pages, route)
+    // combination so a settings *poll* that leaves them unchanged doesn't
+    // restart the in-flight interval -- same reasoning, and same shape, as
     // `idle.ts`'s `lastArmedSeconds`. `enabledPages` changing alone does
     // NOT re-arm: it only affects *which* page `nextCycleRoute` picks next,
     // not the timing, so it's read fresh on every `fire()` instead.
+    //
+    // The route IS part of the key: the interval is "this page has been up
+    // for N seconds", not a metronome running since the app booted. Without
+    // it, tapping a tab a second before the timer happened to be due would
+    // swipe the page away immediately -- the visitor's own navigation
+    // undone by a tick they never saw coming. Re-arming also means an
+    // auto-cycle's own hash change restarts the clock, so every page gets
+    // its full interval however long the slide before it took.
     let lastArmedKey: string | undefined;
 
     function clear(): void {
@@ -112,7 +121,7 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
 
     const disposeEffect = effect(() => {
         const settings = settingsSignal.get();
-        const key = armKey(settings);
+        const key = armKey(settings, routeSignal.get());
         if (key !== lastArmedKey) {
             lastArmedKey = key;
             arm(settings);

@@ -14,9 +14,9 @@ import { statCard } from '../components/StatCard.js';
 import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
 import { formatNumber, formatRelative, formatTime, t, type ParamlessKey } from '../i18n/index.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
-import { tideCurve } from './tide/curve.js';
+import { tideCurve, tideCurveTicks } from './tide/curve.js';
 import './tide/tide.css';
 
 const TIDE_POLL_INTERVAL_MS = 30_000;
@@ -151,6 +151,16 @@ function buildCurveSection(tide: Tide, now: Date): HTMLElement {
     curveWrap.className = 'tide-curve-wrap';
     curveWrap.append(tideCurve(tide.timeseries, now, tide.extremes));
 
+    // The vertical scale, so the curve's shape reads as centimetres rather
+    // than just a wave. HTML, not SVG text -- see `tideCurveTicks`.
+    for (const tick of tideCurveTicks(tide.timeseries, tide.extremes)) {
+        const label = document.createElement('div');
+        label.className = 'tide-curve-tick';
+        label.style.top = `${String(tick.topPercent)}%`;
+        label.textContent = formatNumber(tick.value);
+        curveWrap.append(label);
+    }
+
     section.append(header, curveWrap, buildAxis(tide, now));
     return section;
 }
@@ -177,6 +187,8 @@ function buildSeaStateRow(tide: Tide): HTMLElement | null {
 }
 
 export function render(container: HTMLElement): () => void {
+    const status = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'tide-page';
 
@@ -187,7 +199,7 @@ export function render(container: HTMLElement): () => void {
     container.append(wrapper);
 
     const tideResource = resource(fetchTide, { intervalMs: TIDE_POLL_INTERVAL_MS });
-    const reportFreshness = createFreshnessReporter(TIDE_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(TIDE_POLL_INTERVAL_MS, status);
 
     const disposeEffect = effect(() => {
         const state = tideResource.state.get();
@@ -212,20 +224,24 @@ export function render(container: HTMLElement): () => void {
                 buildNextExtremeColumn('tide.nextLowLabel', data.nextLowTide.time, data.nextLowTide.value, now),
             );
 
-            body.append(topRow, buildCurveSection(data, now));
+            body.append(topRow);
 
+            // Sea state sits above the curve now (artboard 04): the three
+            // figures belong with the other numbers at the top of the page,
+            // and the curve reads better as the last thing on it.
             const seaState = buildSeaStateRow(data);
             if (seaState) body.append(seaState);
 
-            pageAttribution.set(data.attribution);
+            body.append(buildCurveSection(data, now));
+
+            status.attribution(data.attribution);
         }
     });
 
     return function dispose(): void {
         disposeEffect();
         tideResource.dispose();
-        pageAttribution.set(null);
-        pageFreshness.set(null);
+        status.release();
         wrapper.remove();
     };
 }

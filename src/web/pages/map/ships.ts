@@ -39,6 +39,7 @@ import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
 import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
+import { shipTypeKey } from './shipType.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
 
@@ -134,7 +135,15 @@ function buildShipPopup(ship: Ship, now: Date = new Date()): HTMLElement {
     root.append(course);
 
     const type = document.createElement('div');
-    type.textContent = ship.shipType === null ? t('map.shipUnknownType') : t('map.shipType', { type: ship.shipType });
+    // A named kind of vessel where the AIS code maps to one, the bare code
+    // where it doesn't (reserved/local-use values), and "unknown" when the
+    // transponder never reported one -- see `shipType.ts`.
+    const typeKey = shipTypeKey(ship.shipType);
+    if (typeKey !== null) {
+        type.textContent = t(typeKey);
+    } else {
+        type.textContent = ship.shipType === null ? t('map.shipUnknownType') : t('map.shipType', { type: ship.shipType });
+    }
     root.append(type);
 
     const age = document.createElement('div');
@@ -175,7 +184,15 @@ function buildClusterListPopup(members: readonly Ship[], onSelect: (mmsi: string
         meta.textContent = t('map.shipSpeed', { speed: formatNumber(ship.speedOverGround, t('unit.knots')) });
         row.append(meta);
 
-        row.addEventListener('click', () => {
+        row.addEventListener('click', (event) => {
+            // The click must not reach the map container above this popup.
+            // Leaflet closes the open popup on the map's own click
+            // (`closePopupOnClick`), so without this the popup vanishes at
+            // the very moment the row selects its ship -- the selection
+            // only became visible on reopening the cluster. Its shield on
+            // `.leaflet-popup-content-wrapper` does not cover a click whose
+            // target is a nested element like this button.
+            event.stopPropagation();
             onSelect(ship.mmsi);
         });
         list.append(row);
@@ -194,7 +211,8 @@ function buildClusterDetailPopup(ship: Ship, onBack: () => void): HTMLElement {
     back.type = 'button';
     back.className = 'ship-cluster-popup-back';
     back.textContent = t('map.shipClusterBack');
-    back.addEventListener('click', () => {
+    back.addEventListener('click', (event) => {
+        event.stopPropagation(); // same as the list rows: don't let the map close the popup under us
         onBack();
     });
     root.append(back);
@@ -428,6 +446,15 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // difference is what a viewer would otherwise see simply
                 // vanish -- see `LayerCounts.hiddenByAge`.
                 callbacks.reportCount(visible.length, latestShips.length - visible.length);
+                callbacks.reportItems(
+                    visible.map(({ descriptor }) => ({
+                        id: descriptor.id,
+                        label: shipLabel(descriptor.data),
+                        detail: t('map.shipSpeed', { speed: formatNumber(descriptor.data.speedOverGround, t('unit.knots')) }),
+                        lat: descriptor.lat,
+                        lng: descriptor.lng,
+                    })),
+                );
                 callbacks.reportAttribution(SHIPS_LAYER.attribution);
             }
 
@@ -438,6 +465,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 clusterBadges.update([]);
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             }
 
@@ -470,6 +498,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 clusterBadges.dispose();
                 trailLayer.dispose();
                 callbacks.reportCount(0, 0);
+                callbacks.reportItems([]);
                 callbacks.reportAttribution(undefined);
             };
         },

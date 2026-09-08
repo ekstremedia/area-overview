@@ -119,3 +119,33 @@
     gap: 52px;
     flex: none;
 }
+
+/* The curve's vertical scale. Absolutely positioned against
+   `.tide-curve-wrap` (which the curve SVG fills), so each label lines up
+   with the value it names however the curve is stretched. */
+.tide-curve-wrap {
+    position: relative;
+}
+
+.tide-curve-tick {
+    position: absolute;
+    left: 0;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--color-neutral-500);
+    pointer-events: none;
+}
+
+/* — the level grid behind the curve (artboard 04) —
+   Dashed for the helpful intermediate levels, solid for zero: the
+   sea-chart datum is a real reference line, the others are only there to
+   let you read a height off the shape. */
+.tide-curve-grid {
+    stroke: var(--color-divider);
+    stroke-dasharray: 2 6;
+}
+
+.tide-curve-grid--datum {
+    stroke: var(--color-muted);
+    stroke-dasharray: none;
+}

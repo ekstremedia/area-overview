@@ -95,6 +95,7 @@ function jsonResponse(body: unknown): Response {
 const oneAircraft = {
     configured: true,
     fetchedAt: '2026-09-05T12:00:00Z',
+    sources: ['adsbfi'],
     aircraft: [
         {
             icao: 'abc123',
@@ -126,7 +127,7 @@ describe('mountAircraftLayer', () => {
         // aircraft.pollSeconds, so this exercises the layer's own
         // independent floor with a value right at that boundary.
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution: vi.fn(), reportItems: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -147,18 +148,58 @@ describe('mountAircraftLayer', () => {
         const reportCount = vi.fn();
         const reportAttribution = vi.fn();
 
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution, reportItems: vi.fn() });
         expect(reportCount).not.toHaveBeenCalled();
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
         await vi.advanceTimersByTimeAsync(0);
 
         expect(reportCount).toHaveBeenLastCalledWith(1, 0);
-        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol');
+        // The response's own `sources` names the provider that actually
+        // served it, not the hard-coded fallback constant.
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.fi');
 
         dispose();
         expect(reportCount).toHaveBeenLastCalledWith(0, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith(undefined);
+    });
+
+    it('names both sources when the response reports OpenSky contributed too', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const bothSources = { ...oneAircraft, sources: ['adsbfi', 'opensky'] };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(bothSources)));
+        const map = fakeMap();
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution, reportItems: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.fi / OpenSky');
+
+        dispose();
+    });
+
+    it('falls back to the hard-coded attribution when the response carries no sources field', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const noSourcesField: Partial<typeof oneAircraft> = { ...oneAircraft };
+        delete noSourcesField.sources;
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(noSourcesField)));
+        const map = fakeMap();
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount: vi.fn(), reportAttribution, reportItems: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // An older server (or the BFF's own remembered-aircraft fallback)
+        // never sends `sources` at all -- this must read the same as a
+        // response that names nobody, not throw or blank the credit.
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol');
+
+        dispose();
     });
 
     it('hides on-ground aircraft when showOnGround is false, and shows them when true', async () => {
@@ -174,7 +215,7 @@ describe('mountAircraftLayer', () => {
         const reportCount = vi.fn();
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(), map, { reportCount, reportAttribution: vi.fn(), reportItems: vi.fn() });
         await vi.advanceTimersByTimeAsync(0);
         expect(reportCount).toHaveBeenLastCalledWith(0, 0); // filtered out
 
@@ -201,7 +242,11 @@ describe('mountAircraftLayer -- name labels', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         // (visible, hitArea) pair -- the tooltip lives on the hit area.
@@ -224,11 +269,44 @@ describe('mountAircraftLayer -- name labels', () => {
         const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
 
         mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
-        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, { reportCount: vi.fn(), reportAttribution: vi.fn() });
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
         await vi.advanceTimersByTimeAsync(0);
 
         const [, hitArea] = createdPolygons;
         expect(hitArea?.tooltip?.textContent).toBe('noc4l1');
+
+        dispose();
+    });
+
+    it('never offers an aircraft the map is hiding for age, so a tap cannot land on empty sky', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const stale = {
+            configured: true,
+            fetchedAt: '2026-09-05T12:00:00Z',
+            aircraft: [
+                { ...oneAircraft.aircraft[0], icao: 'fresh01', timestamp: '2026-09-05T11:59:00Z' },
+                // 40 minutes old against a 10-minute window: drawn by
+                // nothing, so it must not be listed either.
+                { ...oneAircraft.aircraft[0], icao: 'stale01', timestamp: '2026-09-05T11:20:00Z' },
+            ],
+        };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(stale)));
+        const reportItems = vi.fn();
+        const reportCount = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: true } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), fakeMap(), { reportCount, reportAttribution: vi.fn(), reportItems });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const listed = (reportItems.mock.calls.at(-1)?.[0] ?? []) as { id: string }[];
+        expect(listed.map((item) => item.id)).toEqual(['fresh01']);
+        // And the one held back is still accounted for in the count.
+        expect(reportCount).toHaveBeenLastCalledWith(1, 1);
 
         dispose();
     });

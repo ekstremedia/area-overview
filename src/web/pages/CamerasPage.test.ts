@@ -26,7 +26,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { render } = await import('./CamerasPage.js');
-const { pageLocalityOverride, pageAttribution, pageFreshness } = await import('../shell/page-status.js');
+const { pageAttribution, pageFreshness } = await import('../shell/page-status.js');
 
 describe('CamerasPage', () => {
     it('renders a card per camera, cold, with no prior navigation', () => {
@@ -47,25 +47,6 @@ describe('CamerasPage', () => {
         expect(container.querySelector<HTMLAnchorElement>('.camera-card-link')?.getAttribute('href')).toBe('#/cameras/sigerfjordveien_01');
 
         dispose();
-        vi.useRealTimers();
-    });
-
-    it('reports the live camera count in words to the masthead, and clears it on dispose', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
-
-        mockCamerasState.set({
-            status: 'ready',
-            data: { cameras: [camera(), camera({ camera_id: 'b' })], cached_at: '2026-09-05T12:00:00Z' },
-            fetchedAt: new Date('2026-09-05T12:00:00Z'),
-        });
-        const container = document.createElement('div');
-        const dispose = render(container);
-
-        expect(pageLocalityOverride.get()).toBe('To kameraer');
-
-        dispose();
-        expect(pageLocalityOverride.get()).toBeNull();
         vi.useRealTimers();
     });
 
@@ -131,7 +112,7 @@ describe('CamerasPage', () => {
         vi.useRealTimers();
     });
 
-    it('sets and clears page attribution and freshness on mount/unmount', () => {
+    it('reports freshness on mount and clears it on unmount, crediting nobody', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
 
@@ -143,7 +124,9 @@ describe('CamerasPage', () => {
         const container = document.createElement('div');
         const dispose = render(container);
 
-        expect(pageAttribution.get()).toBe('Bilder: nesthus.no');
+        // Nothing to credit: the images are Terje's own, so this page
+        // leaves the footer empty rather than crediting himself.
+        expect(pageAttribution.get()).toBeNull();
         expect(pageFreshness.get()).toEqual({ fetchedAt: new Date('2026-09-05T12:00:00Z'), intervalMs: 30_000 });
 
         dispose();

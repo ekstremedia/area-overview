@@ -101,15 +101,15 @@
     --color-tray-bg: #1c1b1a;
 
     /* Masthead. Sizes read from `design/artboards.html`'s masthead markup
-       (artboards 01-05), which is identical across pages. */
-    --masthead-brand-size: 26px;
-    --masthead-locality-size: 11px;
-    --masthead-clock-size: 26px;
-    --masthead-rule-thick: 3px;
-    --masthead-rule-thin: 1px;
+       (artboards 01-05), which is identical across pages. The 2026-09-07
+       design collapsed the three rows to one, so the wordmark, locality
+       and rule-pair sizes are gone; `--masthead-rule-thin` stays because
+       the footer and several page sections still draw that hairline. */
     --masthead-tab-row-height: 52px;
     --masthead-tab-size: 21px;
-    --masthead-status-size: 13px;
+    --masthead-status-size: 14px;
+    --masthead-date-size: 20px;
+    --masthead-rule-thin: 1px;
 
     /* Footer line. */
     --footer-size: 11px;

@@ -6,19 +6,30 @@
  * this is the one CSS file every settings section relies on, imported
  * once by `SettingsPage.ts`.
  */
+/* Two columns: the section list down the left, everything else beside it.
+   A wall display shows one section at a time and is navigated by hand, so
+   the list is a permanent column of 52px targets rather than a row of
+   tabs that has to compete with the section's own headings for width. */
 .settings-page {
-    padding: var(--space-6);
+    padding: var(--space-4) var(--space-6) var(--space-6);
+    display: grid;
+    grid-template-columns: 228px minmax(0, 1fr);
+    gap: var(--space-4);
+    min-height: 0;
+}
+
+.settings-main {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    min-width: 0;
     min-height: 0;
 }
 
 .settings-subnav {
     display: flex;
-    align-items: center;
-    gap: 28px;
-    font-size: 18px;
+    flex-direction: column;
+    font-size: 20px;
     color: var(--color-muted);
 }
 
@@ -27,15 +38,23 @@
     color: inherit;
     background: none;
     border: none;
-    min-height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    height: 52px;
+    padding-left: 14px;
+    text-align: left;
     cursor: pointer;
 }
 
+/* The active section is named in the app's heading face and marked with a
+   bar on its leading edge -- a rule, not a box, which is the only kind of
+   emphasis this design system draws. */
 .settings-subnav-tab--active {
     font-family: var(--font-heading);
     font-weight: var(--font-heading-weight);
-    color: var(--color-text);
-    box-shadow: inset 0 -3px 0 0 var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-text) 4%, transparent);
+    box-shadow: inset 3px 0 0 0 var(--color-accent);
 }
 
 .settings-logged-out-notice {
@@ -204,9 +223,35 @@
 }
 
 .camera-row-unplaced {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
     font-style: italic;
     font-size: 15px;
     color: var(--color-muted);
+}
+
+/* Outlined rather than filled: placing a camera is an ordinary edit, not
+   the page's primary action, and the design system draws emphasis with a
+   rule rather than a block of colour. */
+.camera-row-place {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-style: normal;
+    font-size: 17px;
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+    min-height: var(--tap-min);
+    padding: 0 var(--space-4);
+    cursor: pointer;
+}
+
+.camera-row-place:disabled {
+    color: var(--color-muted);
+    box-shadow: inset 0 0 0 1px var(--color-divider);
+    cursor: default;
 }
 
 .camera-row-undo {

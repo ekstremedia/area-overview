@@ -16,7 +16,6 @@ const ServerConfigSchema = z.object({
     upstreamBaseUrl: z.url().default('https://nesthus.no'),
     upstreamTimeoutMs: z.coerce.number().int().positive().default(8000),
     cacheTtlMs: z.coerce.number().int().positive().default(30000),
-    pointForecastTtlMs: z.coerce.number().int().positive().default(60000),
     /**
      * No default -- deliberately. The settings store is the only write
      * surface in this app and it will end up reachable from the public
@@ -44,7 +43,6 @@ const ServerConfigSchema = z.object({
      * rather than the single fixed key `cacheTtlMs` is used for. The
      * plan requires >= 10s in production (both default here); tests
      * shrink these to exercise the stale-while-revalidate path quickly,
-     * same pattern as `cacheTtlMs`/`pointForecastTtlMs`.
      */
     shipsCacheTtlMs: z.coerce.number().int().positive().default(10_000),
     aircraftCacheTtlMs: z.coerce.number().int().positive().default(10_000),
@@ -102,7 +100,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         upstreamBaseUrl: env.UPSTREAM_BASE_URL,
         upstreamTimeoutMs: env.UPSTREAM_TIMEOUT_MS,
         cacheTtlMs: env.CACHE_TTL_MS,
-        pointForecastTtlMs: env.POINT_FORECAST_TTL_MS,
         settingsPassword: env.SETTINGS_PASSWORD,
         settingsFile: env.SETTINGS_FILE,
         barentswatchClientId: env.BARENTSWATCH_CLIENT_ID,

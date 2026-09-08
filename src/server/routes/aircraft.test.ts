@@ -29,6 +29,39 @@ describe('GET /api/aircraft', () => {
         if (body.configured) {
             expect(body.aircraft.length).toBeGreaterThanOrEqual(1);
             expect(typeof body.fetchedAt).toBe('string');
+            // The footer credit is built from this field -- it must survive
+            // the whole HTTP round trip, not just `fetchAircraft`'s own return.
+            expect(body.sources).toEqual(['adsblol']);
+        }
+    });
+
+    it('serves remembered aircraft with no `sources` on a cold cache during an outage, since no live provider answered this response', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ adsbProvider: 'adsblol' });
+
+        // Warms the trail store with the fixture's one in-bbox aircraft
+        // (4ac9eb at 68.24N/16.70E -- the other is west of `VALID_BBOX`'s
+        // `maxLng` and gets filtered out).
+        const warm = await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` });
+        expect(warm.statusCode).toBe(200);
+
+        fetchMock.mockRejectedValue(new Error('network down'));
+
+        // A different bbox that still covers 4ac9eb's position but was
+        // never itself queried, so it has no cache entry of its own to
+        // fall back to stale -- this is the one path that reaches
+        // `trails.latestIn` rather than the (still-populated) response
+        // cache from the warm request above.
+        const coldButOverlapping = 'bbox=16.0,68.0,18.0,69.5';
+        const remembered = await app.inject({ method: 'GET', url: `/api/aircraft?${coldButOverlapping}` });
+
+        expect(remembered.statusCode).toBe(200);
+        const body = AircraftResponseSchema.parse(remembered.json());
+        expect(body.configured).toBe(true);
+        if (body.configured) {
+            expect(body.aircraft.length).toBeGreaterThanOrEqual(1);
+            expect(body.sources).toBeUndefined();
         }
     });
 

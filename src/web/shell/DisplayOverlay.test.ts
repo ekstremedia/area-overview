@@ -74,6 +74,54 @@ describe('mountDisplayOverlay', () => {
         dispose();
     });
 
+    it('mode dim: forces opacity 0.62 while active, a tap lifts it for 30s, then it re-darkens', () => {
+        const host = document.createElement('div');
+        const now = new Date();
+        const from = `${String(now.getHours()).padStart(2, '0')}:00`;
+        const to = `${String((now.getHours() + 1) % 24).padStart(2, '0')}:00`;
+        setSettings({ night: { enabled: true, from, to, mode: 'dim' } });
+        const dispose = mountDisplayOverlay(host);
+
+        expect(opacityOf(host)).toBe('0.62');
+
+        window.dispatchEvent(new Event('pointerdown'));
+        expect(opacityOf(host)).toBe('0');
+
+        vi.advanceTimersByTime(29_000);
+        expect(opacityOf(host)).toBe('0');
+
+        vi.advanceTimersByTime(1_000);
+        expect(opacityOf(host)).toBe('0.62');
+
+        dispose();
+    });
+
+    it('mode dark: a tap does not arm the lift timer for a later dim/off window', () => {
+        // `dark` draws no overlay (theme.ts owns the visual change
+        // instead), so there is nothing here for a tap to lift -- checked
+        // two ways: the overlay stays invisible across the tap, *and* a
+        // dark-mode tap must not silently arm `lifted`. If it did, a later
+        // switch to `dim` (say, the schedule's `dark` window ending and a
+        // `dim` one starting) would show the *lifted* opacity instead of
+        // the resting 0.62 for up to 30s -- the veil vanishing on its own
+        // with no tap to explain it.
+        const host = document.createElement('div');
+        const now = new Date();
+        const from = `${String(now.getHours()).padStart(2, '0')}:00`;
+        const to = `${String((now.getHours() + 1) % 24).padStart(2, '0')}:00`;
+        setSettings({ brightness: 20, night: { enabled: true, from, to, mode: 'dark' } });
+        const dispose = mountDisplayOverlay(host);
+
+        expect(opacityOf(host)).toBe('0');
+        window.dispatchEvent(new Event('pointerdown'));
+        expect(opacityOf(host)).toBe('0');
+
+        setSettings({ night: { enabled: true, from, to, mode: 'dim' } });
+        expect(opacityOf(host)).toBe('0.62');
+
+        dispose();
+    });
+
     it('mode off: forces opacity 1 while active, a tap lifts it for 30s, then it re-darkens', () => {
         const host = document.createElement('div');
         const now = new Date();

@@ -99,6 +99,12 @@
     margin-top: 6px;
 }
 
+/* "nå" is the label that says which bar you are standing on, so it is
+   lifted out of the muted pair that merely bound the window. */
+.aurora-kp-axis-now {
+    color: var(--color-text);
+}
+
 .aurora-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -133,4 +139,62 @@
     line-height: 1.45;
     color: var(--color-text);
     margin-top: 8px;
+}
+
+/* — the three solar-wind sparklines (artboard 03) —
+   Drawn in a fixed 170x30 space and stretched to the column's width, so
+   they stay in step with the figures above them at any size. Colour comes
+   from `currentColor` on each cell rather than being baked into the SVG,
+   which keeps the palette in one place. */
+.aurora-spark {
+    display: block;
+    width: 100%;
+    height: 22px;
+    margin-top: 6px;
+    overflow: visible;
+}
+
+.aurora-spark-zero {
+    stroke: var(--color-muted);
+}
+
+/* The reference for speed/density is the window's own midpoint, not a
+   meaningful zero -- dashed so it never reads as a measured value. */
+.aurora-spark-midline {
+    stroke: var(--color-divider);
+    stroke-dasharray: 2 5;
+}
+
+/* Follows the text colour rather than a baked-in paper white, so it stays
+   legible if the display is ever run in the light theme. */
+.aurora-spark-history {
+    color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+/* The stretch Bz has been southward, and the area under it: the same span
+   the caption below counts, so colour and words cannot disagree. */
+.aurora-spark-run {
+    color: var(--color-accent-2);
+}
+
+.aurora-spark-area {
+    fill: color-mix(in srgb, var(--color-accent-2) 22%, transparent);
+}
+
+.aurora-spark-line,
+.aurora-spark-dot {
+    color: var(--color-accent);
+}
+
+.aurora-spark-dot--run {
+    color: var(--color-accent-2);
+}
+
+/* Bz is the one solar-wind figure with a caption -- how long it has been
+   pointing south. Magenta because it is a statement about the aurora's
+   odds, the same role the Kp figures carry. */
+.aurora-bz-southward {
+    font-size: 13px;
+    color: var(--color-accent-2);
+    margin-top: 2px;
 }

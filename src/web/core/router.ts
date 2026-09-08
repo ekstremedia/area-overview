@@ -22,6 +22,29 @@ export function assertNever(value: never): never {
     throw new Error(`unreachable route: ${JSON.stringify(value)}`);
 }
 
+/**
+ * A camera id as a hash path segment, and back.
+ *
+ * `camera_id` is whatever the BFF's upstream calls the camera -- the
+ * schema puts no shape on it -- so a value containing `/`, `#` or a
+ * space would otherwise either split into two segments here or produce a
+ * hash the browser rewrites. `decodeURIComponent` throws on a malformed
+ * escape (a bare `%`), and a hash the visitor typed can be anything, so
+ * the decode falls back to the raw segment rather than letting the
+ * router throw.
+ */
+export function encodeCameraId(cameraId: string): string {
+    return encodeURIComponent(cameraId);
+}
+
+function decodeCameraId(segment: string): string {
+    try {
+        return decodeURIComponent(segment);
+    } catch {
+        return segment;
+    }
+}
+
 export function parseHash(hash: string): Route {
     const segments = hash
         .replace(/^#/, '')
@@ -41,7 +64,7 @@ export function parseHash(hash: string): Route {
         case 'settings':
             return { name: 'settings' };
         case 'cameras':
-            return second === undefined ? { name: 'cameras' } : { name: 'cameras', cameraId: second };
+            return second === undefined ? { name: 'cameras' } : { name: 'cameras', cameraId: decodeCameraId(second) };
         default:
             return DEFAULT_ROUTE;
     }
@@ -52,5 +75,24 @@ const routeSignal = signal<Route>(parseHash(location.hash));
 window.addEventListener('hashchange', () => {
     routeSignal.set(parseHash(location.hash));
 });
+
+/**
+ * Navigates from inside the app, publishing the new route immediately
+ * rather than waiting for the browser's own `hashchange` to come back
+ * round.
+ *
+ * The hash is still the source of truth (the listener above republishes
+ * an equal route a moment later, harmlessly); what this buys is that
+ * anything reading `currentRoute` right after the call -- the auto-cycle
+ * timer deciding which page comes next, chiefly -- sees the page that is
+ * actually being shown. Only the shell's own programmatic navigation
+ * needs this; a tab tap is a real user gesture and gets its `hashchange`
+ * either way.
+ */
+export function navigateToRoute(route: Route): void {
+    const hash = route.name === 'cameras' && route.cameraId !== undefined ? `#/cameras/${encodeCameraId(route.cameraId)}` : `#/${route.name}`;
+    location.hash = hash;
+    routeSignal.set(parseHash(hash));
+}
 
 export const currentRoute: ReadonlySignal<Route> = routeSignal;

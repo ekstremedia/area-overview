@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     ageMs,
     diffGlyphs,
+    planeLocalPoints,
+    rotatedPlanePoints,
     opacityForAge,
     rotatePoint,
     rotatedTrianglePoints,
@@ -143,5 +145,47 @@ describe('triangle geometry', () => {
         expect(left.y).toBeCloseTo(-7);
         expect(right.x).toBeCloseTo(-9.5);
         expect(right.y).toBeCloseTo(7);
+    });
+});
+
+describe('rotatedPlanePoints', () => {
+    it('draws a closed outline wider than it is deep, centred on the origin', () => {
+        const points = planeLocalPoints(24, 24);
+
+        // A plane silhouette, not a triangle: many more vertices, and the
+        // wings reach further across than the nose reaches forward.
+        expect(points.length).toBeGreaterThan(10);
+        const maxX = Math.max(...points.map((p) => Math.abs(p.x)));
+        const maxY = Math.max(...points.map((p) => Math.abs(p.y)));
+        expect(maxX).toBeCloseTo(12);
+        expect(maxY).toBeCloseTo(12);
+
+        // Symmetric about the fuselage, or it reads as a damaged aircraft.
+        for (const point of points) {
+            expect(points.some((other) => Math.abs(other.x + point.x) < 1e-9 && Math.abs(other.y - point.y) < 1e-9)).toBe(true);
+        }
+    });
+
+    it('points the nose along the heading', () => {
+        const nose = { x: 0, y: -12 }; // unrotated: straight up
+
+        const east = rotatedPlanePoints(24, 24, 90);
+        // Rotated 90 degrees clockwise, the nose points right (+x).
+        expect(east[0]?.x).toBeCloseTo(12);
+        expect(east[0]?.y).toBeCloseTo(0);
+
+        const north = rotatedPlanePoints(24, 24, 0);
+        expect(north[0]?.x).toBeCloseTo(nose.x);
+        expect(north[0]?.y).toBeCloseTo(nose.y);
+    });
+
+    it('scales with the bounding box, so the hit-target copy keeps the same shape', () => {
+        const small = planeLocalPoints(10, 10);
+        const large = planeLocalPoints(30, 30);
+
+        small.forEach((point, index) => {
+            expect(large[index]?.x).toBeCloseTo(point.x * 3);
+            expect(large[index]?.y).toBeCloseTo(point.y * 3);
+        });
     });
 });

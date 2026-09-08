@@ -29,7 +29,7 @@ import { saveIndicator } from '../../components/SaveIndicator.js';
 import type { AutosaveStatus } from '../../settings/autosave.js';
 import { camerasResource } from '../../camera-resource.js';
 import { effect, signal, type Signal } from '../../core/signal.js';
-import { t } from '../../i18n/index.js';
+import { formatTime, t } from '../../i18n/index.js';
 import type { SectionMount } from './sectionContext.js';
 
 const UNDO_WINDOW_MS = 6000;
@@ -42,11 +42,47 @@ export interface RowHandle {
     dispose: () => void;
 }
 
-function buildUnplacedDetail(): HTMLElement {
+/**
+ * An unplaced camera's row: the "no placement" note, plus the affordance
+ * that gives it one (artboard 07).
+ *
+ * Without this button a camera could only be placed by someone who
+ * already knew that editing the coordinates was possible at all -- but an
+ * unplaced row has no coordinate fields to edit, so there was nothing to
+ * discover. Placing seeds the shared home view's own centre, which puts
+ * the pin on screen where it can then be corrected, rather than asking
+ * for two numbers cold.
+ *
+ * The design draws a "Fjern" button here too; it is left out, since an
+ * unplaced camera has no placement to remove and the control would do
+ * nothing.
+ */
+function buildUnplacedDetail(loggedIn: boolean, onPlace: () => void): HTMLElement {
     const el = document.createElement('div');
     el.className = 'camera-row-unplaced';
-    el.textContent = t('settings.cameras.unplaced');
+
+    const note = document.createElement('span');
+    note.textContent = t('settings.cameras.unplaced');
+    el.append(note);
+
+    const place = document.createElement('button');
+    place.type = 'button';
+    place.className = 'camera-row-place';
+    place.textContent = t('settings.cameras.place');
+    place.disabled = !loggedIn;
+    place.addEventListener('click', onPlace);
+    el.append(place);
+
     return el;
+}
+
+/**
+ * The on-screen keyboard's caption for one coordinate field: which camera,
+ * which coordinate. Shared by the initial build and by `update()`, since a
+ * camera renamed upstream must not leave the tray naming the old one.
+ */
+function keyboardContextFor(cameraLabel: string, axis: 'lat' | 'lng'): string {
+    return `${cameraLabel} · ${t(axis === 'lat' ? 'settings.map.lat' : 'settings.map.lng')}`;
 }
 
 function buildPlacedDetail(
@@ -55,6 +91,8 @@ function buildPlacedDetail(
     loggedIn: boolean,
     write: (placement: Placement) => ReturnType<import('../../settings/sharedStore.js').SettingsStore['setPlacement']>,
     onRemove: () => void,
+    /** The camera's display name, used to say which camera the on-screen keyboard is editing. */
+    cameraLabel: string,
 ): { el: HTMLElement; latField: NumberFieldHandle; lngField: NumberFieldHandle } {
     const el = document.createElement('div');
     el.className = 'camera-row-fields';
@@ -91,6 +129,9 @@ function buildPlacedDetail(
     const latLabel = document.createElement('div');
     latLabel.className = 'settings-field-label';
     latLabel.textContent = t('settings.map.lat');
+    // Names this field on the on-screen keyboard's caption, so the tray
+    // says which camera and which coordinate it is editing.
+    latField.input.dataset.keyboardContext = keyboardContextFor(cameraLabel, 'lat');
     latBlock.append(latLabel, latField.el);
 
     const lngBlock = document.createElement('div');
@@ -98,6 +139,7 @@ function buildPlacedDetail(
     const lngLabel = document.createElement('div');
     lngLabel.className = 'settings-field-label';
     lngLabel.textContent = t('settings.map.lng');
+    lngField.input.dataset.keyboardContext = keyboardContextFor(cameraLabel, 'lng');
     lngBlock.append(lngLabel, lngField.el);
 
     const removeButton = document.createElement('button');
@@ -158,6 +200,9 @@ export function buildRow(
 
     root.append(header, meta, detailSlot);
 
+    // Tracked so the keyboard caption names the camera by its *current*
+    // name, not the one it had when this row was first built.
+    let latestName = camera.name;
     let fields: { latField: NumberFieldHandle; lngField: NumberFieldHandle } | undefined;
     let isPlaced = placement !== null;
     let removedPlacement: Placement | null = null;
@@ -179,9 +224,21 @@ export function buildRow(
     // the undo button with the plain "unplaced" text.
     let showingUndo = false;
 
+    // The label is assigned *before* the status is set, never after:
+    // `indicatorStatus.set` notifies synchronously, so the render it
+    // triggers reads `currentIdleLabel` on the spot. Assigning afterwards
+    // meant the indicator rendered the previous label and nothing was left
+    // to notify -- a camera whose placement arrived with the settings
+    // resource (so `update()` re-rendered the row rather than `buildRow`)
+    // kept saying "Uten plassering" beside its own filled-in coordinates.
     function setIndicatorIdleLabel(placed: boolean): void {
-        indicatorStatus.set({ kind: 'idle' });
         currentIdleLabel = placed ? t('settings.status.saved') : t('settings.cameras.unplaced');
+        indicatorStatus.set({ kind: 'idle' });
+    }
+
+    /** "Lagret 12:41" -- the artboard timestamps the save, so a glance says whether an edit actually landed. */
+    function setIndicatorSavedAt(at: Date): void {
+        currentIdleLabel = t('settings.status.savedAt', { time: formatTime(at) });
     }
     let currentIdleLabel = '';
 
@@ -194,6 +251,7 @@ export function buildRow(
 
             if (result.ok) {
                 indicatorStatus.set({ kind: 'saved' });
+                setIndicatorSavedAt(new Date());
                 setTimeout(() => {
                     if (token === writeToken) indicatorStatus.set({ kind: 'idle' });
                 }, 1500);
@@ -218,17 +276,29 @@ export function buildRow(
         fields = undefined;
         if (placement2 === null) {
             placementDraft = null;
-            detailSlot.append(buildUnplacedDetail());
+            detailSlot.append(
+                buildUnplacedDetail(loggedIn, () => {
+                    const { homeView } = store.settings.get();
+                    void write({ lat: homeView.lat, lng: homeView.lng });
+                }),
+            );
             setIndicatorIdleLabel(false);
             return;
         }
         placementDraft = { ...placement2 };
-        const built = buildPlacedDetail(camera.camera_id, placementDraft, loggedIn, write, () => {
-            removedPlacement = placement2;
-            showingUndo = true;
-            void store.setPlacement(camera.camera_id, null);
-            showUndo();
-        });
+        const built = buildPlacedDetail(
+            camera.camera_id,
+            placementDraft,
+            loggedIn,
+            write,
+            () => {
+                removedPlacement = placement2;
+                showingUndo = true;
+                void store.setPlacement(camera.camera_id, null);
+                showUndo();
+            },
+            latestName,
+        );
         fields = { latField: built.latField, lngField: built.lngField };
         detailSlot.append(built.el);
         setIndicatorIdleLabel(true);
@@ -267,7 +337,15 @@ export function buildRow(
 
     function update(nextCamera: Camera, nextPlacement: Placement | null, nextLoggedIn: boolean, nextEnabled: boolean): void {
         loggedIn = nextLoggedIn;
+        latestName = nextCamera.name;
         nameEl.textContent = nextCamera.name;
+        if (fields) {
+            // The caption was baked in at build time from the name as it
+            // then was; a rename arriving from the cameras resource has to
+            // reach the already-placed fields too.
+            fields.latField.input.dataset.keyboardContext = keyboardContextFor(latestName, 'lat');
+            fields.lngField.input.dataset.keyboardContext = keyboardContextFor(latestName, 'lng');
+        }
         meta.textContent = `${nextCamera.camera_id} · «${nextCamera.location}»`;
         enabledToggle.setState(nextEnabled, !loggedIn);
 

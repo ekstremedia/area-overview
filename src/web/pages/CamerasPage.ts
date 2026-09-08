@@ -6,9 +6,7 @@
  * `camera-resource.ts`'s doc comment), so this page never opens its own
  * duplicate poll.
  *
- * The masthead's locality caption for this route is the live camera count
- * in words (`cameraCount.ts`), reported via `pageLocalityOverride` --
- * this page has nothing to do with map *placement* (that's `markers.ts`'s
+ * This page has nothing to do with map *placement* (that's `markers.ts`'s
  * concern); "muted" here is purely about a stale/missing image, styled per
  * artboard 05's Spjutvika card.
  */
@@ -16,11 +14,11 @@ import type { Camera } from '../../shared/schemas/camera.js';
 import { imageWithAge } from '../components/ImageWithAge.js';
 import { errorBand } from '../components/ErrorBand.js';
 import { CAMERAS_POLL_INTERVAL_MS, camerasResource } from '../camera-resource.js';
+import { encodeCameraId } from '../core/router.js';
 import { effect } from '../core/signal.js';
 import { t } from '../i18n/index.js';
-import { pageAttribution, pageFreshness, pageLocalityOverride } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
-import { cameraCountLabel } from './cameras/cameraCount.js';
 import { enabledCameras } from './cameras/enabledCameras.js';
 import { settings } from '../settings-resource.js';
 import './cameras/cameras.css';
@@ -65,7 +63,7 @@ function buildCameraCard(camera: Camera, now: Date): HTMLElement {
 
     const link = document.createElement('a');
     link.className = 'camera-card-link';
-    link.href = `#/cameras/${camera.camera_id}`;
+    link.href = `#/cameras/${encodeCameraId(camera.camera_id)}`;
     link.textContent = t('cameras.fullscreenLink');
 
     row.append(info, link);
@@ -75,6 +73,8 @@ function buildCameraCard(camera: Camera, now: Date): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
+    const status = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'cameras-page';
 
@@ -84,7 +84,7 @@ export function render(container: HTMLElement): () => void {
     wrapper.append(errorSlot, grid);
     container.append(wrapper);
 
-    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS, status);
 
     const disposeGridEffect = effect(() => {
         const state = camerasResource.state.get();
@@ -94,8 +94,6 @@ export function render(container: HTMLElement): () => void {
         // Switched-off cameras are absent here rather than dimmed: the
         // point of the setting is to keep them off this page entirely.
         const cameras = enabledCameras(all, settings.get().disabledCameras);
-
-        pageLocalityOverride.set(cameraCountLabel(cameras.length));
 
         errorSlot.innerHTML = '';
         if (state.status === 'error') {
@@ -109,20 +107,13 @@ export function render(container: HTMLElement): () => void {
         }
     });
 
-    const disposeAttributionEffect = effect(() => {
-        pageAttribution.set(t('cameras.attributionText'));
-    });
-
     return function dispose(): void {
         disposeGridEffect();
-        disposeAttributionEffect();
-        pageLocalityOverride.set(null);
-        pageAttribution.set(null);
         // `reportFreshness` never reverts a once-set freshness back to
         // `null` by design (see `resourceStatus.ts`) -- unmounting this
         // page must still zero it out, so a later page never inherits a
         // stale "cameras" freshness value.
-        pageFreshness.set(null);
+        status.release();
         wrapper.remove();
     };
 }

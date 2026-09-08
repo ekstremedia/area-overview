@@ -148,81 +148,6 @@
 }
 
 /* — point forecast panel (artboard 01: bottom-right, right-aligned) — */
-.point-forecast-panel {
-    position: absolute;
-    right: var(--space-4);
-    bottom: 44px;
-    width: 268px;
-    text-align: right;
-    z-index: 500;
-    pointer-events: none;
-}
-.point-forecast-panel > * {
-    pointer-events: auto;
-}
-
-.point-forecast-label {
-    font-size: 11px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-}
-
-.point-forecast-temp {
-    font-family: var(--font-heading);
-    font-weight: var(--font-heading-weight);
-    font-size: var(--stat-size-sm);
-    line-height: 0.92;
-    letter-spacing: -0.04em;
-    margin-top: 6px;
-}
-
-.point-forecast-condition {
-    font-style: italic;
-    font-size: 21px;
-    color: var(--color-text);
-    margin-top: 4px;
-}
-
-.point-forecast-stats,
-.point-forecast-loading {
-    font-size: 14px;
-    color: var(--color-muted);
-    margin-top: 10px;
-}
-
-.point-forecast-error {
-    font-size: 14px;
-    color: var(--color-process-yellow);
-    margin-top: 10px;
-}
-
-.point-forecast-retry {
-    height: var(--tap-min);
-    padding: 0 var(--space-3);
-    margin-top: var(--space-2);
-    font-family: var(--font-heading);
-    font-weight: var(--font-heading-weight);
-    font-size: 15px;
-    color: var(--color-accent);
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-
-/* — "N cameras without placement" link (artboard 01: bottom-left, cyan) — */
-.map-unplaced-link {
-    position: absolute;
-    left: var(--space-4);
-    bottom: 48px;
-    font-size: 14px;
-    color: var(--color-accent);
-    z-index: 500;
-    height: var(--tap-min);
-    display: flex;
-    align-items: center;
-}
-
 /* — zoom control: Leaflet's own default is 26px/30px (touch), below this
    app's 44px tap-target minimum. `!important` guards against
    `leaflet.css` landing in the cascade after this file (see this file's
@@ -232,6 +157,21 @@
     width: var(--tap-min) !important;
     height: var(--tap-min) !important;
     line-height: var(--tap-min) !important;
+}
+
+/* The reset control sits in the same top-left stack as the zoom buttons
+   and matches their footprint, so the three read as one column of
+   controls rather than a stray button parked near them. */
+.map-reset-control {
+    margin-top: var(--space-2) !important;
+}
+
+.map-reset-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
 }
 
 /* — live-layer (ships/aircraft, Phase 7) popups: the same dark card

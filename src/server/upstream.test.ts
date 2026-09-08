@@ -9,7 +9,6 @@ const config: ServerConfig = {
     upstreamBaseUrl: 'https://upstream.example',
     upstreamTimeoutMs: 8000,
     cacheTtlMs: 30_000,
-    pointForecastTtlMs: 60_000,
     settingsPassword: 'test-password-at-least-16-chars',
     settingsFile: 'data/settings.json',
     barentswatchClientId: '',

@@ -16,7 +16,6 @@ function fakeConfig(): ServerConfig {
         upstreamBaseUrl: 'https://upstream.example',
         upstreamTimeoutMs: 1000,
         cacheTtlMs: 1000,
-        pointForecastTtlMs: 1000,
         settingsPassword: REAL_PASSWORD,
         settingsFile: 'data/settings.json',
         barentswatchClientId: '',

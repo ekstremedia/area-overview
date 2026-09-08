@@ -19,9 +19,9 @@ import { errorBand } from '../components/ErrorBand.js';
 import { statCard } from '../components/StatCard.js';
 import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
-import { formatNumber, formatRelative, formatShortDate, formatTime, formatWeekday, t, type ParamlessKey } from '../i18n/index.js';
+import { formatNumber, formatShortDate, formatTime, formatWeekday, t } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
-import { pageAttribution, pageFreshness } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { compassWord, humanizeSymbolCode } from '../weather-symbols.js';
 import './weather.css';
@@ -37,12 +37,22 @@ const FORECAST_HOURS_SHOWN = 12;
 // kiosk screen without either section needing to scroll.
 const FORECAST_DAYS_SHOWN = 5;
 
-const PERIOD_LABEL_KEYS: Record<'night' | 'morning' | 'afternoon' | 'evening', ParamlessKey> = {
-    night: 'weather.periodNight',
-    morning: 'weather.periodMorning',
-    afternoon: 'weather.periodAfternoon',
-    evening: 'weather.periodEvening',
-};
+/**
+ * The warmest temperature that still *displays* as "0°" -- anything
+ * below this rounds to zero or lower.
+ *
+ * The page's own legend beside the hourly strip reads "0° og under", so a
+ * reading shown as 0° belongs on the freezing side however it got there.
+ * Everything that colours a temperature, and the daily range bar's split
+ * point, goes through this one number, so a 0.4-degree low can never be
+ * lettered as freezing while the bar beneath it is drawn as mild.
+ */
+const FREEZING_DISPLAY_MAX = 0.5;
+
+/** True when `temperature` is shown as 0° or colder. */
+function displaysAsFreezing(temperature: number): boolean {
+    return temperature < FREEZING_DISPLAY_MAX;
+}
 
 async function fetchWeather(): Promise<Result<Weather>> {
     try {
@@ -95,7 +105,7 @@ function buildLeftColumn(weather: Weather): HTMLElement {
     const condition = document.createElement('div');
     condition.className = 'weather-condition';
     condition.textContent = capitalize(
-        t('map.pointForecastCondition', {
+        t('weather.condition', {
             condition: humanizeSymbolCode(weather.current.conditions.symbol_code),
             direction: compassWord(weather.current.wind.direction),
         }),
@@ -132,28 +142,20 @@ function buildLeftColumn(weather: Weather): HTMLElement {
     return left;
 }
 
+/**
+ * The summary reads as plain prose in the right-hand column -- no
+ * "Sammendrag" heading and no "generert N min siden" byline, per the
+ * 2026-09-07 design and Terje's explicit call to follow it here. It is his
+ * own display and he knows where the text comes from; on a wall panel the
+ * label was chrome around a paragraph that already explains itself.
+ */
 function buildSummarySlot(state: WeatherSummaryResponse | undefined): HTMLElement | null {
     if (!state || !isPopulatedSummary(state)) return null;
-
-    const slot = document.createElement('div');
-    slot.className = 'weather-summary';
-
-    const header = document.createElement('div');
-    header.className = 'weather-summary-header';
-    const label = document.createElement('div');
-    label.className = 'weather-summary-label';
-    label.textContent = t('weather.summaryLabel');
-    const age = document.createElement('div');
-    age.className = 'weather-summary-age';
-    age.textContent = t('weather.summaryGenerated', { age: formatRelative(new Date(state.generated_at)) });
-    header.append(label, age);
 
     const text = document.createElement('div');
     text.className = 'weather-summary-text';
     text.textContent = settings.get().language === 'nb' ? state.summary_no : state.summary_en;
-
-    slot.append(header, text);
-    return slot;
+    return text;
 }
 
 function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
@@ -167,10 +169,25 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     const start = firstUpcoming === -1 ? 0 : Math.min(firstUpcoming, Math.max(0, weather.forecast.hourly.length - FORECAST_HOURS_SHOWN));
     const shown = weather.forecast.hourly.slice(start, start + FORECAST_HOURS_SHOWN);
 
+    const header = document.createElement('div');
+    header.className = 'weather-forecast-header';
     const label = document.createElement('div');
     label.className = 'weather-forecast-label';
     label.textContent = t('weather.forecastLabel', { hours: shown.length });
-    strip.append(label);
+    // The strip colours each hour's temperature by which side of freezing
+    // it falls on, so the legend is what makes that readable rather than
+    // decorative.
+    const legend = document.createElement('div');
+    legend.className = 'weather-forecast-legend';
+    const above = document.createElement('span');
+    above.className = 'weather-temp-above-zero';
+    above.textContent = t('weather.legendAboveZero');
+    const below = document.createElement('span');
+    below.className = 'weather-temp-below-zero';
+    below.textContent = t('weather.legendBelowZero');
+    legend.append(above, below);
+    header.append(label, legend);
+    strip.append(header);
 
     const currentHour = now.getHours();
     let currentIndex = shown.findIndex((entry) => new Date(entry.time).getHours() === currentHour);
@@ -202,8 +219,11 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
         hourLabel.className = 'weather-forecast-hour';
         hourLabel.textContent = formatTime(new Date(entry.time)).slice(0, 2);
         const tempLabel = document.createElement('div');
-        tempLabel.className = 'weather-forecast-temp';
-        tempLabel.textContent = `${formatNumber(Math.round(entry.temperature))}°`;
+        const rounded = Math.round(entry.temperature);
+        // The figure shown and the colour it is given must agree: see
+        // `FREEZING_DISPLAY_MAX`.
+        tempLabel.className = `weather-forecast-temp ${displaysAsFreezing(entry.temperature) ? 'weather-temp-below-zero' : 'weather-temp-above-zero'}`;
+        tempLabel.textContent = `${formatNumber(rounded)}°`;
         meta.append(hourLabel, tempLabel);
         column.append(meta);
 
@@ -214,20 +234,24 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
     return strip;
 }
 
-function buildDailyDayColumn(entry: DailyForecastEntry): HTMLElement {
+function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureRange | null): HTMLElement {
     const column = document.createElement('div');
     column.className = 'weather-daily-day';
 
-    // Icon beside a stacked weekday/temps/periods block, not above it --
-    // same width-over-height trade as the hourly strip's columns (see
-    // weather.css's file-header comment).
+    // Icon beside the weekday/temps block, not above it -- the same
+    // width-over-height trade as the hourly strip's columns (see
+    // weather.css's file-header comment). The condition word and range bar
+    // then stack underneath this row.
+    const head = document.createElement('div');
+    head.className = 'weather-daily-day-head';
+
     if (entry.symbol_url) {
         const icon = document.createElement('img');
         icon.className = 'weather-daily-icon';
         icon.loading = 'lazy';
         icon.src = entry.symbol_url;
         icon.alt = entry.symbol_code ? humanizeSymbolCode(entry.symbol_code) : '';
-        column.append(icon);
+        head.append(icon);
     }
 
     const meta = document.createElement('div');
@@ -255,35 +279,114 @@ function buildDailyDayColumn(entry: DailyForecastEntry): HTMLElement {
         }
         if (typeof entry.temperature_min === 'number') {
             const low = document.createElement('span');
-            low.className = 'weather-daily-low';
-            low.textContent = `${formatNumber(Math.round(entry.temperature_min))}°`;
+            const roundedLow = Math.round(entry.temperature_min);
+            // Reuse the hourly strip's below-zero class/colour (see
+            // buildForecastStrip) instead of a second freezing scheme --
+            // 0° itself reads as "0°", not frost, so only a genuinely
+            // negative low gets the cyan accent (see the compound override
+            // in weather.css: `.weather-daily-low` alone would otherwise
+            // win the cascade on source order and stay grey).
+            // Same boundary as the hourly strip and the range bar below,
+            // so the three never disagree about a 0°: see
+            // `FREEZING_DISPLAY_MAX`.
+            low.className = displaysAsFreezing(entry.temperature_min) ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
+            low.textContent = `${formatNumber(roundedLow)}°`;
             temps.append(low);
         }
         meta.append(temps);
     }
 
-    if (entry.periods) {
-        const { periods } = entry;
-        const periodsRow = document.createElement('div');
-        periodsRow.className = 'weather-daily-periods';
-        (['night', 'morning', 'afternoon', 'evening'] as const).forEach((key) => {
-            const period = periods[key];
-            if (!period.symbol_url) return;
-            const icon = document.createElement('img');
-            icon.className = 'weather-daily-period-icon';
-            icon.loading = 'lazy';
-            icon.src = period.symbol_url;
-            icon.alt = t('weather.periodCondition', {
-                period: t(PERIOD_LABEL_KEYS[key]),
-                condition: period.symbol_code ? humanizeSymbolCode(period.symbol_code) : '',
-            });
-            periodsRow.append(icon);
-        });
-        meta.append(periodsRow);
+    head.append(meta);
+    column.append(head);
+
+    // The condition in words under the figures -- the icon says it too, but
+    // only if you already know the icon set, and this line is what makes
+    // the day scannable from across the room.
+    if (entry.symbol_code) {
+        const condition = document.createElement('div');
+        condition.className = 'weather-daily-condition';
+        condition.textContent = humanizeSymbolCode(entry.symbol_code);
+        column.append(condition);
     }
 
-    column.append(meta);
+    const bar = buildDailyRangeBar(entry, range);
+    if (bar) column.append(bar);
+
     return column;
+}
+
+/** The coldest and warmest figures across the days on screen -- the scale every day's range bar is drawn against. */
+interface DailyTemperatureRange {
+    min: number;
+    max: number;
+}
+
+function dailyTemperatureRange(entries: readonly DailyForecastEntry[]): DailyTemperatureRange | null {
+    const values: number[] = [];
+    for (const entry of entries) {
+        if (typeof entry.temperature_min === 'number') values.push(entry.temperature_min);
+        if (typeof entry.temperature_max === 'number') values.push(entry.temperature_max);
+    }
+    if (values.length === 0) return null;
+    return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+/**
+ * A day's temperature span drawn against the whole week's span, so five
+ * days can be compared at a glance -- a warm day sits right, a cold one
+ * left, and a changeable day is wide.
+ *
+ * Returns `null` rather than an empty track when the day has no figures
+ * to place, and falls back to a full-width bar when every day on screen
+ * shares one temperature (a zero-width scale would otherwise divide by
+ * zero and place nothing).
+ */
+function buildDailyRangeBar(entry: DailyForecastEntry, range: DailyTemperatureRange | null): HTMLElement | null {
+    if (!range) return null;
+    const low = typeof entry.temperature_min === 'number' ? entry.temperature_min : entry.temperature_max;
+    const high = typeof entry.temperature_max === 'number' ? entry.temperature_max : entry.temperature_min;
+    if (typeof low !== 'number' || typeof high !== 'number') return null;
+
+    const span = range.max - range.min;
+    const startPercent = span === 0 ? 0 : ((low - range.min) / span) * 100;
+    const widthPercent = span === 0 ? 100 : Math.max(((high - low) / span) * 100, 4); // a floor so a flat day is still visible
+    const clampedWidthPercent = Math.min(widthPercent, 100 - startPercent);
+
+    const track = document.createElement('div');
+    track.className = 'weather-daily-range';
+
+    // A day whose own low/high straddle the freezing boundary draws as two
+    // adjacent segments -- cyan below, magenta above -- split by the
+    // proportion of THIS day's span (not the whole week's) that is on the
+    // cold side; that is what reproduces the design's own numbers (see
+    // WeatherPage.test.ts). The boundary is `FREEZING_DISPLAY_MAX`, not a
+    // bare 0, so the bar and the figures printed beside it agree about
+    // which side a 0.4-degree reading is on.
+    if (displaysAsFreezing(low) && !displaysAsFreezing(high)) {
+        const belowZeroRatio = (FREEZING_DISPLAY_MAX - low) / (high - low);
+        const belowWidthPercent = clampedWidthPercent * belowZeroRatio;
+        const aboveWidthPercent = clampedWidthPercent - belowWidthPercent;
+
+        const belowFill = document.createElement('div');
+        belowFill.className = 'weather-daily-range-fill weather-daily-range-fill--below-zero';
+        belowFill.style.left = `${String(startPercent)}%`;
+        belowFill.style.width = `${String(belowWidthPercent)}%`;
+
+        const aboveFill = document.createElement('div');
+        aboveFill.className = 'weather-daily-range-fill weather-daily-range-fill--above-zero';
+        aboveFill.style.left = `${String(startPercent + belowWidthPercent)}%`;
+        aboveFill.style.width = `${String(aboveWidthPercent)}%`;
+
+        track.append(belowFill, aboveFill);
+    } else {
+        const fill = document.createElement('div');
+        fill.className = `weather-daily-range-fill ${displaysAsFreezing(low) ? 'weather-daily-range-fill--below-zero' : 'weather-daily-range-fill--above-zero'}`;
+        fill.style.left = `${String(startPercent)}%`;
+        fill.style.width = `${String(clampedWidthPercent)}%`;
+        track.append(fill);
+    }
+
+    return track;
 }
 
 function buildDailyForecast(weather: Weather): HTMLElement {
@@ -299,8 +402,9 @@ function buildDailyForecast(weather: Weather): HTMLElement {
 
     const list = document.createElement('div');
     list.className = 'weather-daily-list';
+    const range = dailyTemperatureRange(shown);
     shown.forEach((entry) => {
-        list.append(buildDailyDayColumn(entry));
+        list.append(buildDailyDayColumn(entry, range));
     });
     section.append(list);
 
@@ -308,6 +412,8 @@ function buildDailyForecast(weather: Weather): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
+    const status = claimPageStatus();
+
     const wrapper = document.createElement('div');
     wrapper.className = 'weather-page';
 
@@ -335,7 +441,7 @@ export function render(container: HTMLElement): () => void {
     const weatherResource = resource(fetchWeather, { intervalMs: WEATHER_POLL_INTERVAL_MS });
     const summaryResource = resource(fetchWeatherSummary, { intervalMs: SUMMARY_POLL_INTERVAL_MS });
 
-    const reportFreshness = createFreshnessReporter(WEATHER_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(WEATHER_POLL_INTERVAL_MS, status);
 
     const disposeWeatherEffect = effect(() => {
         const state = weatherResource.state.get();
@@ -368,7 +474,7 @@ export function render(container: HTMLElement): () => void {
     });
 
     const disposeAttributionEffect = effect(() => {
-        pageAttribution.set(t('weather.attributionText'));
+        status.attribution(t('weather.attributionText'));
     });
 
     return function dispose(): void {
@@ -377,8 +483,7 @@ export function render(container: HTMLElement): () => void {
         disposeAttributionEffect();
         weatherResource.dispose();
         summaryResource.dispose();
-        pageAttribution.set(null);
-        pageFreshness.set(null);
+        status.release();
         wrapper.remove();
     };
 }

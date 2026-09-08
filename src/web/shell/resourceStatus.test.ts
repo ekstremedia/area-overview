@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createFreshnessReporter } from './resourceStatus.js';
-import { pageFreshness } from './page-status.js';
+import { claimPageStatus, pageFreshness } from './page-status.js';
 
 describe('createFreshnessReporter', () => {
     it('reports null until the first successful fetch, then the fetch time thereafter -- even across a later error', () => {
-        const report = createFreshnessReporter(30_000);
+        // A page's own claim, exactly as `render()` takes one.
+        const status = claimPageStatus();
+        const report = createFreshnessReporter(30_000, status);
 
         report({ status: 'idle' });
         expect(pageFreshness.get()).toBeNull();
@@ -19,6 +21,6 @@ describe('createFreshnessReporter', () => {
         report({ status: 'error', error: new Error('boom') });
         expect(pageFreshness.get()).toEqual({ fetchedAt, intervalMs: 30_000 }); // still the last good fetch, not cleared
 
-        pageFreshness.set(null);
+        status.release();
     });
 });

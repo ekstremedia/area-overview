@@ -21,11 +21,11 @@
  * with OpenSky credentials should verify against a real response.
  */
 import { z } from 'zod';
-import { AircraftSchema, type Aircraft } from '../../shared/schemas/aircraft.js';
+import { AircraftSchema, type Aircraft, type AdsbSource } from '../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../shared/result.js';
 import type { Bbox } from '../layers/bbox.js';
 
-export type AdsbProvider = 'adsblol' | 'airplaneslive' | 'adsbfi' | 'opensky';
+export type AdsbProvider = AdsbSource;
 
 const KNOTS_PER_MPS = 1.94384;
 const KM_PER_DEGREE_LAT = 111;
@@ -54,9 +54,22 @@ const RawV2AircraftSchema = z.object({
 
 export type RawV2Aircraft = z.infer<typeof RawV2AircraftSchema>;
 
-const RawV2ResponseSchema = z.object({
-    ac: z.array(RawV2AircraftSchema),
-});
+/**
+ * The three v2-style providers agree on the *aircraft* shape but not on
+ * the key holding them: adsb.lol and airplanes.live use `ac`, adsb.fi
+ * uses `aircraft`. Accepting either is what makes them actually
+ * interchangeable -- before this, switching `ADSB_PROVIDER` to `adsbfi`
+ * parsed every response as a schema failure and the layer went silently
+ * empty. Both keys are optional so a provider that returns neither (an
+ * empty sky, which adsb.fi expresses by omitting the key) reads as zero
+ * aircraft rather than a malformed payload.
+ */
+const RawV2ResponseSchema = z
+    .object({
+        ac: z.array(RawV2AircraftSchema).optional(),
+        aircraft: z.array(RawV2AircraftSchema).optional(),
+    })
+    .transform((body) => ({ ac: body.ac ?? body.aircraft ?? [] }));
 
 const V2_PROVIDER_URLS: Record<'adsblol' | 'airplaneslive' | 'adsbfi', (lat: number, lon: number, nm: number) => string> = {
     adsblol: (lat, lon, nm) => `https://api.adsb.lol/v2/lat/${String(lat)}/lon/${String(lon)}/dist/${String(nm)}`,
@@ -376,11 +389,206 @@ export interface FetchAircraftOptions {
     fetchImpl?: typeof fetch;
 }
 
+/**
+ * How long an OpenSky answer is reused before asking again, and how much
+ * bigger than the caller's viewport each request is made.
+ *
+ * OpenSky is quota-metered (~4000 requests a day on a registered account)
+ * while the ADS-B aggregators are not, and this app asks from two places
+ * at once: the browser polls its viewport every 10s and the trail poller
+ * sweeps a fixed area every 30s, with every pan producing another
+ * rectangle. Left ungoverned that is tens of thousands of calls a day.
+ *
+ * So the gate is a single account-wide slot rather than a per-viewport
+ * cache: the quota belongs to the account, not to whichever rectangle
+ * happens to be asking, and only one shared limiter can actually hold the
+ * total down. One request every 45s is ~1900 a day, comfortably inside
+ * the allowance no matter how many boxes are in play.
+ *
+ * Each request covers the asked-for area plus `OPENSKY_MARGIN_DEGREES` on
+ * every side, so an ordinary pan still lands inside what was already
+ * fetched and is answered without spending another call.
+ */
+const OPENSKY_MIN_INTERVAL_MS = 45_000;
+const OPENSKY_MARGIN_DEGREES = 0.6;
+
+/**
+ * The one OpenSky answer in hand, and the area it actually covers.
+ *
+ * Kept as a single slot, not a map keyed by viewport: a cached answer is
+ * only usable for a request it geographically *contains*, so keying by
+ * rectangle would both alias boxes together (two different viewports
+ * rounding to one key) and multiply the request rate. Containment is
+ * checked explicitly on every read instead.
+ */
+interface OpenSkySnapshot {
+    /** The area actually queried -- a cached answer is only valid for requests inside this. */
+    bbox: Bbox;
+    aircraft: Aircraft[];
+    fetchedAtMs: number;
+}
+
+let openSkySnapshot: OpenSkySnapshot | null = null;
+let openSkyLastRequestMs = 0;
+/** Single-flight: two callers arriving together share one request rather than spending two of the quota. */
+let openSkyInFlight: Promise<OpenSkySnapshot | null> | null = null;
+
+/** Test-only reset, so one test's snapshot and gate can never leak into the next. */
+export function __resetOpenSkyStateForTests(): void {
+    openSkySnapshot = null;
+    openSkyLastRequestMs = 0;
+    openSkyInFlight = null;
+}
+
+function containsBbox(outer: Bbox, inner: Bbox): boolean {
+    return outer.minLat <= inner.minLat && outer.minLng <= inner.minLng && outer.maxLat >= inner.maxLat && outer.maxLng >= inner.maxLng;
+}
+
+/** Clamped to real coordinates, since a margin near the poles or the antimeridian would otherwise produce a box OpenSky rejects. */
+function withMargin(bbox: Bbox): Bbox {
+    return {
+        minLat: Math.max(-90, bbox.minLat - OPENSKY_MARGIN_DEGREES),
+        maxLat: Math.min(90, bbox.maxLat + OPENSKY_MARGIN_DEGREES),
+        minLng: Math.max(-180, bbox.minLng - OPENSKY_MARGIN_DEGREES),
+        maxLng: Math.min(180, bbox.maxLng + OPENSKY_MARGIN_DEGREES),
+    };
+}
+
+/** A snapshot covers a wider area than the caller asked about, so what it hands back is always narrowed to the requested rectangle. */
+function aircraftWithin(aircraft: readonly Aircraft[], bbox: Bbox): Aircraft[] {
+    return aircraft.filter((one) => one.lat >= bbox.minLat && one.lat <= bbox.maxLat && one.lng >= bbox.minLng && one.lng <= bbox.maxLng);
+}
+
+/**
+ * The OpenSky aircraft inside `bbox`, refreshing at most once per
+ * `OPENSKY_MIN_INTERVAL_MS` across the whole process.
+ *
+ * Returns whatever it can: a fresh answer, a stale one that still covers
+ * the area, or `null`. It never throws and never reports failure upward --
+ * this is a second opinion, and the caller's primary result must survive
+ * OpenSky being down, throttled or simply not yet asked.
+ */
+async function openSkyAircraftWithin(
+    bbox: Bbox,
+    credentials: OpenSkyCredentials,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch,
+    nowMs: number,
+): Promise<Aircraft[] | null> {
+    const usable = openSkySnapshot && containsBbox(openSkySnapshot.bbox, bbox) ? openSkySnapshot : null;
+    const fresh = usable !== null && nowMs - usable.fetchedAtMs < OPENSKY_MIN_INTERVAL_MS;
+    if (fresh) return aircraftWithin(usable.aircraft, bbox);
+
+    // The gate is checked against the last *request*, not the last
+    // success: a failing OpenSky must not be retried every 10s.
+    const gateOpen = nowMs - openSkyLastRequestMs >= OPENSKY_MIN_INTERVAL_MS;
+    if (!gateOpen) {
+        // Stale but covering the area beats nothing while the gate is shut.
+        return usable ? aircraftWithin(usable.aircraft, bbox) : null;
+    }
+
+    openSkyLastRequestMs = nowMs;
+    const query = withMargin(bbox);
+    openSkyInFlight ??= (async (): Promise<OpenSkySnapshot | null> => {
+        const result = await fetchOpenSky(query, credentials, upstreamTimeoutMs, fetchImpl);
+        if (!result.ok) return null;
+        return { bbox: query, aircraft: result.value, fetchedAtMs: nowMs };
+    })();
+
+    let snapshot: OpenSkySnapshot | null;
+    try {
+        snapshot = await openSkyInFlight;
+    } catch {
+        snapshot = null;
+    } finally {
+        openSkyInFlight = null;
+    }
+
+    if (snapshot) {
+        openSkySnapshot = snapshot;
+        return aircraftWithin(snapshot.aircraft, bbox);
+    }
+    // The refresh failed: fall back to the stale answer if it still covers
+    // the area, which is exactly the case the caller needs when its own
+    // primary provider has failed too.
+    return usable ? aircraftWithin(usable.aircraft, bbox) : null;
+}
+
+/**
+ * Merges a secondary source into the primary's results, keyed by ICAO
+ * address. Where both networks have an aircraft the fresher fix wins;
+ * where only one does, it is added.
+ *
+ * This exists because the networks genuinely differ: measured over
+ * Sortland, adsb.fi and adsb.lol both had only a single airliner 45km
+ * away while OpenSky had a Widerøe flight at 9,500ft directly overhead.
+ * Neither is a superset of the other, so the union is the only honest
+ * answer to "what is up there".
+ *
+ * `secondaryContributed` says whether any of the returned aircraft came
+ * from the secondary network, which is what the footer's credit line
+ * turns on: a secondary that answered, but whose every aircraft lost to
+ * a fresher primary fix, contributed nothing to what is on screen and
+ * must not be named as a source of it.
+ */
+export function mergeAircraft(primary: readonly Aircraft[], secondary: readonly Aircraft[]): { aircraft: Aircraft[]; secondaryContributed: boolean } {
+    const byIcao = new Map<string, { aircraft: Aircraft; fromSecondary: boolean }>();
+    for (const [index, aircraft] of [...primary, ...secondary].entries()) {
+        const fromSecondary = index >= primary.length;
+        const existing = byIcao.get(aircraft.icao);
+        if (!existing || Date.parse(aircraft.timestamp) > Date.parse(existing.aircraft.timestamp)) {
+            byIcao.set(aircraft.icao, { aircraft, fromSecondary });
+        }
+    }
+    const entries = [...byIcao.values()];
+    return {
+        aircraft: entries.map((entry) => entry.aircraft),
+        secondaryContributed: entries.some((entry) => entry.fromSecondary),
+    };
+}
+
+export interface FetchAircraftResult {
+    aircraft: Aircraft[];
+    /**
+     * The provider(s) whose data is actually present in `aircraft` --
+     * used for the map footer's attribution credit. `options.provider` is
+     * only ever a *configuration* ("what to ask"); this is the answer to
+     * "what actually answered", which is what the credit must name. In
+     * particular `'opensky'` is included only when its own fetch (fresh
+     * or a still-covering stale snapshot) produced at least one aircraft
+     * that fed into the result -- not merely because credentials are set.
+     */
+    sources: AdsbSource[];
+}
+
 /** Dispatches to the configured ADS-B provider and returns aircraft mapped onto the shared `Aircraft` shape, already filtered to `bbox`. */
-export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<Aircraft[]>> {
+export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<FetchAircraftResult>> {
     const fetchImpl = options.fetchImpl ?? fetch;
     if (options.provider === 'opensky') {
-        return fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
+        const result = await fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
+        return result.ok ? ok({ aircraft: result.value, sources: ['opensky'] }) : result;
     }
-    return fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
+
+    const primary = await fetchV2(options.provider, bbox, options.upstreamTimeoutMs, fetchImpl);
+
+    // OpenSky only augments when credentials are configured: anonymous
+    // access is capped near 400 requests a day, far too little to be worth
+    // spending on a second opinion.
+    const credentials = options.openSkyCredentials;
+    if (!credentials) return primary.ok ? ok({ aircraft: primary.value, sources: [options.provider] }) : primary;
+
+    const secondary = await openSkyAircraftWithin(bbox, credentials, options.upstreamTimeoutMs, fetchImpl, Date.now());
+
+    if (!primary.ok) {
+        // The primary is down. Anything OpenSky has -- including a stale
+        // snapshot -- beats failing the request outright.
+        return secondary && secondary.length > 0 ? ok({ aircraft: secondary, sources: ['opensky'] }) : primary;
+    }
+
+    // Not "OpenSky answered" but "OpenSky is in the answer": every one of
+    // its aircraft can lose the merge to a fresher primary fix, in which
+    // case nothing on screen came from it.
+    const merged = secondary ? mergeAircraft(primary.value, secondary) : { aircraft: primary.value, secondaryContributed: false };
+    const sources: AdsbSource[] = merged.secondaryContributed ? [options.provider, 'opensky'] : [options.provider];
+    return ok({ aircraft: merged.aircraft, sources });
 }

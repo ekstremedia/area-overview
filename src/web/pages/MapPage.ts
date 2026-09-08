@@ -13,21 +13,22 @@
  * bypass that registry (`map/markers.ts` is hand-wired directly, per
  * Terje's explicit choice).
  */
-import type * as Leaflet from 'leaflet';
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
 import { MapConfigResponseSchema } from '../../shared/schemas/map-config.js';
 import { deviceSettings } from '../device-settings.js';
+import { settings as sharedSettings } from '../settings-resource.js';
 import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { nightSchedule } from '../shell/night-schedule.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import './map/map.css';
 import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
-import { startHomeViewSync } from './map/homeView.js';
-import { createCameraMarkerLayer, markerData } from './map/markers.js';
+import { applyHomeView, startHomeViewSync } from './map/homeView.js';
+import { createCameraMarkerLayer } from './map/markers.js';
 import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
-import { createPointForecastController, mountPointForecastPanel } from './map/pointForecast.js';
+import { addMapResetControl } from './map/resetControl.js';
 
 /**
  * Timeout (ms) for fetching the CARTO basemap key. This is a local
@@ -60,23 +61,6 @@ async function fetchCartoApiKey(signal: AbortSignal): Promise<string> {
     }
 }
 
-/**
- * `true` when `target` is (or is inside) an open Leaflet popup -- Leaflet's
- * own `L.DomEvent.disableClickPropagation` shield on
- * `.leaflet-popup-content-wrapper` is supposed to make this unnecessary,
- * but a real pointer/mouse event sequence landing on popup content (e.g.
- * `ships.ts`'s cluster list rows) proved that shield doesn't reliably stop
- * the map's own 'click' from also firing for that same click -- see the
- * `onMapClick` doc comment in `render()` below for the full story. Exported
- * so the regression this guards against can be unit-tested directly: a
- * bare synthetic `.click()` in happy-dom does *not* reproduce the leak
- * (Leaflet's own shield does stop it there), so asserting on this function
- * is the effective way to catch it, not a simulated DOM event sequence.
- */
-export function isInsideLeafletPopup(target: EventTarget | null): boolean {
-    return target instanceof Element && target.closest('.leaflet-popup') !== null;
-}
-
 /** Mirrors `shell/theme.ts`'s `resolveBaseTheme` -- kept local rather than importing from there, since that module's `matchMedia` listener is owned by `startThemeApplication`'s own lifecycle (started once, for the app's lifetime), not something this page's mount/unmount should share or re-trigger. */
 function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean): 'dark' | 'light' {
     if (theme === 'system') return prefersLight ? 'light' : 'dark';
@@ -84,6 +68,10 @@ function resolveBaseTheme(theme: DeviceSettings['theme'], prefersLight: boolean)
 }
 
 export function render(container: HTMLElement): () => void {
+    // The live layers below publish the counts/attribution the masthead and
+    // footer read; this is what takes those slots back when the map page
+    // goes away (see `claimPageStatus`).
+    const status = claimPageStatus();
     let disposed = false;
     // Read through a function, not the bare `disposed` variable, below: it
     // can flip to `true` from `dispose()` while suspended on the `await
@@ -186,6 +174,17 @@ export function render(container: HTMLElement): () => void {
         // reactively re-applied on an unrelated settings poll. —
         const disposeHomeViewSync = startHomeViewSync(map);
 
+        // ...and on demand, for whoever just panned the display to Spain.
+        const disposeResetControl = addMapResetControl(L, map, {
+            label: t('map.resetView'),
+            onReset: () => {
+                // The shared, server-persisted home view -- the same one
+                // `startHomeViewSync` applies on mount and idle-reset, not
+                // a device-local copy.
+                applyHomeView(map, sharedSettings.get().homeView);
+            },
+        });
+
         // — camera markers, updated in place across polls. —
         const markerLayer = createCameraMarkerLayer(L, map, (camera) =>
             buildPopupContent(camera, {
@@ -197,58 +196,18 @@ export function render(container: HTMLElement): () => void {
 
         // — live layers (ships, aircraft): canvas-rendered, heading-rotated
         // glyphs, polled per the current viewport. See `map/layers.ts`. —
-        const disposeLiveLayers = mountLiveLayers(L, map);
+        const disposeLiveLayers = mountLiveLayers(L, map, status);
 
-        // — "N cameras without placement" link, bottom-left. —
-        const unplacedLink = document.createElement('a');
-        unplacedLink.className = 'map-unplaced-link';
-        unplacedLink.href = '#/settings';
-        wrapper.append(unplacedLink);
-        const disposeUnplacedEffect = effect(() => {
-            const { unplaced } = markerData.get();
-            if (unplaced.length === 0) {
-                unplacedLink.style.display = 'none';
-                return;
-            }
-            unplacedLink.style.display = '';
-            unplacedLink.textContent = t('map.unplacedLink', { count: unplaced.length });
-        });
-
-        // — tap-empty-map point forecast. Leaflet doesn't fire the map's own
-        // 'click' for a marker click that *opens* a popup (`Marker`'s
-        // `_openPopup` calls `DomEvent.stop` on the originating event), but
-        // that only covers the click that opens a popup -- a click on
-        // content *inside* an already-open popup (e.g. `ships.ts`'s cluster
-        // list rows, or its "back to list" button) is a separate click
-        // event on a separate DOM subtree (`.leaflet-popup-content`), never
-        // touched by `_openPopup`'s stop call. Leaflet's `Popup` class is
-        // supposed to shield its own content from map clicks
-        // (`L.DomEvent.disableClickPropagation` on
-        // `.leaflet-popup-content-wrapper`), but real pointer/mouse event
-        // sequences (not a bare synthetic `.click()`) proved that shield
-        // doesn't reliably stop this handler from firing for a click that
-        // lands on popup content, closing the popup and updating the
-        // forecast panel as an unwanted side effect. Guard explicitly by
-        // ignoring any click whose target is inside `.leaflet-popup`. —
-        const forecastController = createPointForecastController();
-        const disposeForecastPanel = mountPointForecastPanel(wrapper, forecastController.state, (lat, lng) => {
-            forecastController.requestForecast(lat, lng);
-        });
-        const onMapClick = (event: Leaflet.LeafletMouseEvent): void => {
-            if (isInsideLeafletPopup(event.originalEvent.target)) return;
-            forecastController.requestForecast(event.latlng.lat, event.latlng.lng);
-        };
-        map.on('click', onMapClick);
+        // The "N cameras without placement" link is gone with the
+        // 2026-09-07 design: it nagged permanently about a job that is
+        // done once, in settings, and it sat over the map for the rest of
+        // the display's life.
 
         cleanupInner = (): void => {
             activeMapInstance.set(null);
-            map.off('click', onMapClick);
-            disposeForecastPanel();
-            forecastController.dispose();
-            disposeUnplacedEffect();
-            unplacedLink.remove();
             disposeLiveLayers();
             markerLayer.dispose();
+            disposeResetControl();
             disposeHomeViewSync();
             disposeThemeEffect();
             mql.removeEventListener('change', onMqlChange);
@@ -261,6 +220,7 @@ export function render(container: HTMLElement): () => void {
         disposed = true;
         mapConfigAbortController.abort();
         cleanupInner?.();
+        status.release();
         preconnectLink.remove();
         wrapper.remove();
     };
