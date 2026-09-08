@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../../../shared/fixtures/tide.json' with { type: 'json' };
 import { TideSchema } from '../../../shared/schemas/tide.js';
-import { tideCurve, tideCurveMarkers, tideCurveTicks } from './curve.js';
+import { tideCurve, tideCurveTicks } from './curve.js';
 
 const tide = TideSchema.parse(fixture);
 
@@ -124,73 +124,6 @@ describe('tideCurveTicks', () => {
     it('returns nothing to label when there is no range or no series at all', () => {
         expect(tideCurveTicks([], [])).toEqual([]);
         expect(tideCurveTicks([{ time: '2026-09-07T00:00:00Z', value: 50, type: 'prediction' }], [])).toEqual([]);
-    });
-});
-
-describe('tideCurveMarkers', () => {
-    const series = [
-        { time: '2026-09-07T00:00:00Z', value: 20, type: 'prediction' },
-        { time: '2026-09-07T06:00:00Z', value: 200, type: 'prediction' },
-        { time: '2026-09-07T12:00:00Z', value: 20, type: 'prediction' },
-    ];
-    const extremes = [
-        { time: '2026-09-07T06:00:00Z', value: 212, type: 'high' as const },
-        { time: '2026-09-07T12:00:00Z', value: -12, type: 'low' as const },
-    ];
-
-    it('marks each extreme and the current level on the curve', () => {
-        const markers = tideCurveMarkers(series, extremes, new Date('2026-09-07T03:00:00Z'));
-
-        expect(markers.map((marker) => marker.kind)).toEqual(['high', 'low', 'now']);
-        expect(markers[0]?.label).toEqual({ value: 212, time: new Date('2026-09-07T06:00:00Z') });
-        // "Now" is named by the axis under the curve, so its dot carries no
-        // label of its own.
-        expect(markers[2]?.label).toBeUndefined();
-    });
-
-    it('puts the high tide higher up the chart than the low tide', () => {
-        const markers = tideCurveMarkers(series, extremes, new Date('2026-09-07T03:00:00Z'));
-        const high = markers.find((marker) => marker.kind === 'high');
-        const low = markers.find((marker) => marker.kind === 'low');
-
-        // y grows downward, so the high tide has the smaller percentage.
-        expect(high?.topPercent).toBeLessThan(low?.topPercent ?? 0);
-    });
-
-    it('interpolates the now-dot onto the curve between two samples', () => {
-        // Halfway between the 00:00 (20cm) and 06:00 (200cm) samples, so the
-        // dot must sit between the two heights -- pinning it to the nearer
-        // sample would leave it visibly off the line it is meant to be on.
-        const markers = tideCurveMarkers(series, [], new Date('2026-09-07T03:00:00Z'));
-        const now = markers.find((marker) => marker.kind === 'now');
-        const at = (value: number): number => {
-            const one = tideCurveMarkers(
-                [{ time: '2026-09-07T03:00:00Z', value, type: 'prediction' }, ...series],
-                [],
-                new Date('2026-09-07T03:00:00Z'),
-            );
-            return one.find((marker) => marker.kind === 'now')?.topPercent ?? 0;
-        };
-
-        expect(now?.topPercent).toBeGreaterThan(at(200));
-        expect(now?.topPercent).toBeLessThan(at(20));
-    });
-
-    it('drops an extreme that falls outside the drawn window', () => {
-        // The scale clamps out-of-range times onto the edge, which would
-        // stamp a "high tide" label onto a piece of curve that is not its own.
-        const outside = [{ time: '2026-09-08T18:00:00Z', value: 212, type: 'high' as const }];
-
-        expect(tideCurveMarkers(series, outside, new Date('2026-09-07T03:00:00Z'))).toHaveLength(1);
-    });
-
-    it('returns no now-marker when the clock is outside the series', () => {
-        const markers = tideCurveMarkers(series, [], new Date('2026-09-06T00:00:00Z'));
-        expect(markers).toEqual([]);
-    });
-
-    it('returns nothing at all for an empty series', () => {
-        expect(tideCurveMarkers([], extremes, new Date('2026-09-07T03:00:00Z'))).toEqual([]);
     });
 });
 

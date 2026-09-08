@@ -176,8 +176,6 @@ export const nb = {
     'aurora.noaaAlert': 'NOAA-varsel · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
 
-    'tide.extremeLabel': '{value} · {time}',
-
     'tide.levelNowLabel': 'Nivå nå',
     'tide.trendRising': '↑ stiger, {deviation} over prediksjon',
     'tide.trendFalling': '↓ synker, {deviation} under prediksjon',

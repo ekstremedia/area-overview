@@ -164,8 +164,6 @@ export const en: Record<keyof typeof nb, string> = {
     'aurora.noaaAlert': 'NOAA alert · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
 
-    'tide.extremeLabel': '{value} · {time}',
-
     'tide.levelNowLabel': 'Level now',
     'tide.trendRising': '↑ rising, {deviation} above prediction',
     'tide.trendFalling': '↓ falling, {deviation} below prediction',
