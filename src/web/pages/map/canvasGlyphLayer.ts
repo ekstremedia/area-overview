@@ -30,6 +30,7 @@
  * recreated, so an open popup survives a data refresh untouched.
  */
 import type * as Leaflet from 'leaflet';
+import { sharedCanvasRenderer } from './canvasRenderer.js';
 import { diffGlyphs, rotatedPlanePoints, rotatedTrianglePoints, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 
 export interface CanvasGlyphLayerOptions<T> {
@@ -108,7 +109,10 @@ function cornersToLatLngs<T>(
 }
 
 export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options: CanvasGlyphLayerOptions<T>): CanvasGlyphLayer<T> {
-    const renderer = L.canvas({ padding: 0.5 });
+    // Shared with every other path layer on this map, trails included --
+    // see `canvasRenderer.ts` for why a renderer of its own would make
+    // these glyphs unclickable.
+    const renderer = sharedCanvasRenderer(L, map);
     const layerGroup = L.layerGroup().addTo(map);
     const entries = new Map<string, GlyphEntry>();
     const descriptorsById = new Map<string, GlyphDescriptor<T>>();

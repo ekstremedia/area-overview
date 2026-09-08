@@ -24,6 +24,7 @@
  * is needed here.
  */
 import type * as Leaflet from 'leaflet';
+import { sharedCanvasRenderer } from './canvasRenderer.js';
 import type { GlyphDescriptor } from './glyphs.js';
 import type { TrailPoint as ServerTrailPoint } from '../../../shared/schemas/trail.js';
 import { ageTrailPoints, appendTrailPoint, trailSegments, type TrailPoint } from './trails.js';
@@ -102,7 +103,10 @@ export interface TrailLayerOptions<T> {
 }
 
 export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options: TrailLayerOptions<T>): TrailLayer<T> {
-    const renderer = L.canvas({ padding: 0.5 });
+    // The same canvas the glyphs draw into: a canvas of its own would
+    // cover them and take the taps meant for them, however
+    // non-interactive its own segments are (see `canvasRenderer.ts`).
+    const renderer = sharedCanvasRenderer(L, map);
     const layerGroup = L.layerGroup().addTo(map);
     const entries = new Map<string, TrailEntry<T>>();
 

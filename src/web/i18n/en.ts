@@ -140,6 +140,7 @@ export const en: Record<keyof typeof nb, string> = {
     'weather.legendAboveZero': 'above 0°',
     'weather.legendBelowZero': '0° and below',
     'weather.dailyLabel': 'Yr · next {days} days',
+    'weather.dailyRangeLegend': 'the bar is the day’s range · scale {min}°–{max}°',
     'weather.periodNight': 'Night',
     'weather.periodMorning': 'Morning',
     'weather.periodAfternoon': 'Afternoon',

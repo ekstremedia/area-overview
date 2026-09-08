@@ -398,11 +398,28 @@ function buildDailyForecast(weather: Weather): HTMLElement {
     const label = document.createElement('div');
     label.className = 'weather-daily-label';
     label.textContent = t('weather.dailyLabel', { days: shown.length });
-    section.append(label);
 
     const list = document.createElement('div');
     list.className = 'weather-daily-list';
     const range = dailyTemperatureRange(shown);
+
+    // The bars are a scale, and a scale nobody can read is decoration:
+    // without this line the coloured stripe under each day is a mystery
+    // (Terje's, in as many words). Naming the two ends of the week's own
+    // span is what turns it back into a measurement.
+    const header = document.createElement('div');
+    header.className = 'weather-daily-header';
+    header.append(label);
+    if (range) {
+        const legend = document.createElement('div');
+        legend.className = 'weather-daily-legend';
+        legend.textContent = t('weather.dailyRangeLegend', {
+            min: formatNumber(Math.round(range.min)),
+            max: formatNumber(Math.round(range.max)),
+        });
+        header.append(legend);
+    }
+    section.append(header);
     shown.forEach((entry) => {
         list.append(buildDailyDayColumn(entry, range));
     });

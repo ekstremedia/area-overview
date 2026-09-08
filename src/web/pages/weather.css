@@ -188,6 +188,22 @@
     color: var(--color-accent);
 }
 
+/* Section label left, the scale the bars are drawn against right --
+   same shape as `.weather-forecast-header` above, for the same reason:
+   the legend belongs beside the thing it explains, not under it. */
+.weather-daily-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.weather-daily-legend {
+    font-size: 13px;
+    color: var(--color-neutral-400);
+    white-space: nowrap;
+}
+
 .weather-forecast-label,
 .weather-daily-label {
     font-size: clamp(11px, 0.9vw, 14px);
@@ -253,9 +269,16 @@
     line-height: 1.2;
 }
 
-.weather-forecast-column--current .weather-forecast-hour,
-.weather-forecast-column--current .weather-forecast-temp {
+/* The hour, and only the hour. Cyan is what this page uses for "below
+   freezing" (see `.weather-temp-below-zero`, and the legend that spells
+   it out beside the strip), so painting the current hour's *temperature*
+   cyan lettered a mild 13° in the freezing colour. The hour number
+   carries the "now" mark instead, and every temperature in the row keeps
+   meaning what the legend says it means. */
+.weather-forecast-column--current .weather-forecast-hour {
     color: var(--color-accent);
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
 }
 
 .weather-daily {
