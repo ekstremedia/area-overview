@@ -26,7 +26,6 @@ import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
 import { applyHomeView, startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer } from './map/markers.js';
-import { mountLiveLayers } from './map/layers.js';
 import { buildPopupContent } from './map/popup.js';
 import { addMapResetControl } from './map/resetControl.js';
 
@@ -196,6 +195,17 @@ export function render(container: HTMLElement): () => void {
 
         // — live layers (ships, aircraft): canvas-rendered, heading-rotated
         // glyphs, polled per the current viewport. See `map/layers.ts`. —
+        //
+        // Imported here rather than at the top of the file for the same
+        // reason Leaflet itself is: none of it can do anything without a
+        // Leaflet map, so none of it belongs in the bundle every page
+        // pays for. It is a big subtree -- both live layers, the glyph and
+        // trail renderers, clustering, dead reckoning -- and it was the
+        // single largest thing in the initial chunk that only one page
+        // could ever use. Awaited after Leaflet, which the line above has
+        // already fetched, so this is a warm module in practice.
+        const { mountLiveLayers } = await import('./map/layers.js');
+        if (isDisposed()) return; // navigated away while the layer code loaded
         const disposeLiveLayers = mountLiveLayers(L, map, status);
 
         // The "N cameras without placement" link is gone with the

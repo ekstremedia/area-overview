@@ -115,6 +115,16 @@ export interface CanvasGlyphLayerOptions<T> {
 export interface CanvasGlyphLayer<T> {
     /** Applies the latest full item list -- ages/filters, diffs by id, and updates polygons in place. */
     update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void;
+    /**
+     * Takes every glyph off the map at once, coast or no coast.
+     *
+     * For the cases where there is nothing to keep drawing: the layer
+     * switched off, or the BFF answering that it is not configured. An
+     * empty `update([])` would coast through those, leaving a plane on
+     * screen for half a minute after the map stopped having a reason to
+     * believe in it.
+     */
+    clear(): void;
     /** Count of glyphs currently rendered (post age-filter) -- for the masthead's live-layer counts. */
     count(): number;
     dispose(): void;
@@ -388,7 +398,13 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             applyLabel(entry, descriptor);
         }
 
-        const coastMs = options.coastMs ?? 0;
+        // What the feed itself no longer mentions -- which is not the same
+        // set as `diff.toRemove`, since that also holds glyphs the age
+        // filter just dropped. Those have not gone quiet; they have been
+        // quiet for `maxAgeMinutes`, and the whole point of that filter is
+        // to stop drawing them. Only a genuine gap in the feed coasts.
+        const reported = new Set(items.map((item) => item.id));
+
         for (const id of diff.toRemove) {
             const entry = entries.get(id);
             const descriptor = descriptorsById.get(id);
@@ -397,11 +413,11 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             // out. `descriptorsById` keeps it, so it comes back through
             // this same branch on every poll it stays missing -- and
             // through `toUpdate`, at full opacity, the moment it returns.
-            if (entry && descriptor && nowMs - entry.lastSeenMs < coastMs) {
+            if (!reported.has(id) && entry && descriptor && nowMs - entry.lastSeenMs < (options.coastMs ?? 0)) {
                 entry.visible.setStyle(styleFor(descriptor, COAST_OPACITY));
-                continue;
+            } else {
+                removeEntry(id);
             }
-            removeEntry(id);
         }
 
         // Opacity (and, independently, the label) can change between polls
@@ -421,6 +437,10 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
 
     return {
         update,
+        clear(): void {
+            for (const id of [...entries.keys()]) removeEntry(id);
+            visibleCount = 0;
+        },
         count: () => visibleCount,
         dispose(): void {
             if (motionTimer !== undefined) clearInterval(motionTimer);

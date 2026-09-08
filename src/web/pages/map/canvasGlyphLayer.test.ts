@@ -502,6 +502,41 @@ describe('createCanvasGlyphLayer coastMs', () => {
         layer.dispose();
     });
 
+    it('does not coast a glyph the age filter dropped', () => {
+        // A contact that has been quiet for `maxAgeMinutes` has not gone
+        // *missing* -- the age filter exists to stop drawing it, and
+        // coasting it for another half a minute would undo that.
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ coastMs: 30_000 }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        // Still in the feed, but its fix is now older than the filter allows.
+        layer.update([glyph()], 30, new Date('2026-09-05T12:31:00Z'));
+
+        expect(layer.count()).toBe(0);
+        layer.dispose();
+    });
+
+    it('clears everything at once when the layer is switched off, coast or not', () => {
+        // `clear()` is for "there is nothing to draw and no reason to
+        // believe otherwise" -- a layer switched off, or a BFF answering
+        // that it is not configured.
+        const created: FakePolygon[] = [];
+        const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions({ coastMs: 30_000 }));
+
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+        layer.clear();
+
+        expect(layer.count()).toBe(0);
+
+        // And it really is gone: the next poll builds a new polygon for it
+        // rather than finding the coasted one still there.
+        layer.update([glyph()], 30, new Date('2026-09-05T12:00:10Z'));
+        expect(created).toHaveLength(4);
+
+        layer.dispose();
+    });
+
     it('drops a missing glyph immediately when no coast is configured, as ships do', () => {
         const created: FakePolygon[] = [];
         const layer = createCanvasGlyphLayer(fakeLeaflet(created), fakeMap(), baseOptions());

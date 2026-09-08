@@ -43,7 +43,6 @@ const AIRCRAFT_HEIGHT_PX = 24;
  * for good) and the map should stop claiming otherwise.
  */
 const COAST_MS = 30_000;
-
 const HIT_RADIUS_PX = 22; // half of a 44px tap diameter
 
 const METERS_PER_FOOT = 0.3048;
@@ -172,7 +171,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
 
             function clear(): void {
-                canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
+                canvasLayer.clear();
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
                 callbacks.reportItems([]);
