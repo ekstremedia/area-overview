@@ -65,6 +65,81 @@
     box-shadow: inset 0 -3px 0 0 var(--color-accent);
 }
 
+/* — the slideshow control —
+   Play/pause with the countdown to the next page under it. Two `auto`
+   margins (here and on `.masthead-status`) split the row's free space, so
+   this sits between the tabs and the status without being positioned over
+   either when the row gets tight. */
+.masthead-cycle {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+}
+
+.masthead-cycle-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap-min);
+    height: 30px;
+    padding: 0;
+    font: inherit;
+    color: var(--color-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* Paused is a state the display is *in*, not a passing action: the accent
+   says so at a glance from across the room. */
+.masthead-cycle--paused .masthead-cycle-button {
+    color: var(--color-accent);
+}
+
+.masthead-cycle-track {
+    width: 56px;
+    height: 2px;
+    background: color-mix(in srgb, var(--color-text) 16%, transparent);
+    overflow: hidden;
+}
+
+/* The countdown itself: one CSS animation, its duration set from the
+   interval and restarted by `Masthead.ts` re-inserting this element on
+   each fresh one. A pause freezes it where it stands rather than emptying
+   it, which is the honest picture -- the timer is held, not reset. */
+.masthead-cycle-bar {
+    height: 100%;
+    background: var(--color-accent);
+    transform-origin: left center;
+    animation: masthead-cycle-progress linear forwards;
+    animation-duration: 0s;
+}
+
+.masthead-cycle--paused .masthead-cycle-bar {
+    animation-play-state: paused;
+    background: var(--color-muted);
+}
+
+@keyframes masthead-cycle-progress {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* No creeping bar for anyone who has asked motion to stop; the button
+       still says whether the slideshow is running. */
+    .masthead-cycle-bar {
+        animation: none;
+    }
+}
+
 .masthead-status {
     margin-left: auto;
     display: flex;
