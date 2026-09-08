@@ -265,6 +265,7 @@ describe('mountMasthead', () => {
     it('shows the slideshow control only while auto-cycle is switched on', () => {
         // A dead play button on a wall display is worse than no button:
         // nothing to pause, and no countdown to draw.
+        autoCycleArmed.set({ armedAt: 1_000, intervalSeconds: 30 });
         setSettings({ autoCycle: { enabled: false, intervalSeconds: 30, pages: [] } });
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
@@ -274,12 +275,19 @@ describe('mountMasthead', () => {
         setSettings({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] } });
         expect(container.querySelector<HTMLElement>('.masthead-cycle')?.hidden).toBe(false);
 
+        // Switched on, but with nowhere to cycle to: `startAutoCycle` arms
+        // nothing, and a button that cannot make anything happen is worse
+        // than no button.
+        autoCycleArmed.set(null);
+        expect(container.querySelector<HTMLElement>('.masthead-cycle')?.hidden).toBe(true);
+
         dispose();
     });
 
     it('pauses and resumes the slideshow, saying which it will do next', () => {
         setSettings({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] } });
         autoCyclePaused.set(false);
+        autoCycleArmed.set({ armedAt: 1_000, intervalSeconds: 30 });
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
 
@@ -297,6 +305,7 @@ describe('mountMasthead', () => {
         expect(container.querySelector('.masthead-cycle--paused')).toBeNull();
 
         autoCyclePaused.set(false);
+        autoCycleArmed.set(null);
         dispose();
     });
 

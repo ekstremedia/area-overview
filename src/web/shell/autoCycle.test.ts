@@ -230,6 +230,29 @@ describe('startAutoCycle', () => {
         expect(autoCycleArmed.get()).toBeNull();
     });
 
+    it('arms nothing when there is nowhere to cycle to, and arms as soon as there is', () => {
+        // One eligible page: `nextCycleRoute` has no answer, so a timer
+        // would fire into nothing and the masthead would draw a countdown
+        // towards a page change that cannot happen.
+        const settingsSignal = signal(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] }, enabledPages: ['map'] }));
+        const onCycle = vi.fn();
+        const dispose = startAutoCycle({ settings: settingsSignal, route: signal<{ name: 'map' }>({ name: 'map' }), onCycle });
+
+        expect(autoCycleArmed.get()).toBeNull();
+        vi.advanceTimersByTime(120_000);
+        expect(onCycle).not.toHaveBeenCalled();
+
+        // A second page is enabled: now there is somewhere to go, and the
+        // timer has to start even though `enabledPages` alone never
+        // re-arms it.
+        settingsSignal.set(SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }));
+        expect(autoCycleArmed.get()?.intervalSeconds).toBe(30);
+        vi.advanceTimersByTime(30_000);
+        expect(onCycle).toHaveBeenCalledWith('weather');
+
+        dispose();
+    });
+
     it('arms nothing at all while auto-cycle is switched off', () => {
         const settingsSignal = signal(
             SettingsSchema.parse({ autoCycle: { enabled: false, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }),

@@ -186,8 +186,13 @@ function autoCycleControl(): { el: HTMLElement; update: () => void; dispose: () 
         const armed = autoCycleArmed.get();
         const enabled = settings.get().autoCycle.enabled;
 
-        el.hidden = !enabled;
-        if (!enabled) return;
+        // Shown only when there is really a slideshow to control: switched
+        // on, and either counting down or held by this very button. With
+        // one eligible page nothing is armed, and a play button that
+        // cannot make anything happen is worse than none.
+        const shown = enabled && (armed !== null || paused);
+        el.hidden = !shown;
+        if (!shown) return;
 
         button.replaceChildren(playPauseIcon(paused));
         button.setAttribute('aria-label', t(paused ? 'masthead.autoCyclePlay' : 'masthead.autoCyclePause'));

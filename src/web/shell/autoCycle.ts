@@ -98,9 +98,16 @@ export interface StartAutoCycleOptions {
 }
 
 /** A cheap structural key for the fields that govern re-arming -- see the `lastArmedKey` doc below. The route is part of it because the interval is measured from the page currently showing: see `startAutoCycle`. */
-function armKey(settings: Settings, route: Route, paused: boolean): string {
+function armKey(settings: Settings, route: Route, paused: boolean, canCycle: boolean): string {
     const page = route.name === 'cameras' && route.cameraId !== undefined ? `cameras/${route.cameraId}` : route.name;
-    return `${String(settings.autoCycle.enabled)}:${String(settings.autoCycle.intervalSeconds)}:${settings.autoCycle.pages.join(',')}:${page}:${String(paused)}`;
+    return [
+        String(settings.autoCycle.enabled),
+        String(settings.autoCycle.intervalSeconds),
+        settings.autoCycle.pages.join(','),
+        page,
+        String(paused),
+        String(canCycle),
+    ].join(':');
 }
 
 export function startAutoCycle(options: StartAutoCycleOptions): () => void {
@@ -137,10 +144,14 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
         if (next !== null) onCycle(next);
     }
 
-    function arm(settings: Settings): void {
+    function arm(settings: Settings, canCycle: boolean): void {
         clear();
-        if (!settings.autoCycle.enabled) {
-            autoCycleArmed.set(null); // switched off: there is no countdown to draw
+        // Switched off, or nowhere to go (one eligible page, or none):
+        // there is no countdown to draw, and a bar filling towards a page
+        // change that cannot happen is a lie the masthead would tell every
+        // interval, forever.
+        if (!settings.autoCycle.enabled || !canCycle) {
+            autoCycleArmed.set(null);
             return;
         }
         // Paused keeps the last armed interval standing on purpose -- see
@@ -153,10 +164,15 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
 
     const disposeEffect = effect(() => {
         const settings = settingsSignal.get();
-        const key = armKey(settings, routeSignal.get(), autoCyclePaused.get());
+        const route = routeSignal.get();
+        // `enabledPages` still doesn't re-arm on its own -- but whether a
+        // cycle is possible at all does, since that is the difference
+        // between a timer and no timer.
+        const canCycle = nextCycleRoute(route.name, settings) !== null;
+        const key = armKey(settings, route, autoCyclePaused.get(), canCycle);
         if (key !== lastArmedKey) {
             lastArmedKey = key;
-            arm(settings);
+            arm(settings, canCycle);
         }
     });
 
