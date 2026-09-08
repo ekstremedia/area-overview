@@ -14,7 +14,7 @@ import { statCard } from '../components/StatCard.js';
 import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
 import { formatNumber, formatRelative, formatTime, t, type ParamlessKey } from '../i18n/index.js';
-import { claimPageStatus, pageAttribution } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { tideCurve, tideCurveTicks } from './tide/curve.js';
 import './tide/tide.css';
@@ -187,7 +187,7 @@ function buildSeaStateRow(tide: Tide): HTMLElement | null {
 }
 
 export function render(container: HTMLElement): () => void {
-    const releaseStatus = claimPageStatus();
+    const status = claimPageStatus();
 
     const wrapper = document.createElement('div');
     wrapper.className = 'tide-page';
@@ -199,7 +199,7 @@ export function render(container: HTMLElement): () => void {
     container.append(wrapper);
 
     const tideResource = resource(fetchTide, { intervalMs: TIDE_POLL_INTERVAL_MS });
-    const reportFreshness = createFreshnessReporter(TIDE_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(TIDE_POLL_INTERVAL_MS, status);
 
     const disposeEffect = effect(() => {
         const state = tideResource.state.get();
@@ -234,14 +234,14 @@ export function render(container: HTMLElement): () => void {
 
             body.append(buildCurveSection(data, now));
 
-            pageAttribution.set(data.attribution);
+            status.attribution(data.attribution);
         }
     });
 
     return function dispose(): void {
         disposeEffect();
         tideResource.dispose();
-        releaseStatus();
+        status.release();
         wrapper.remove();
     };
 }

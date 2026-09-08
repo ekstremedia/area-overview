@@ -21,7 +21,7 @@ import { resource } from '../core/resource.js';
 import { effect } from '../core/signal.js';
 import { formatNumber, formatShortDate, formatTime, formatWeekday, t } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
-import { claimPageStatus, pageAttribution } from '../shell/page-status.js';
+import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { compassWord, humanizeSymbolCode } from '../weather-symbols.js';
 import './weather.css';
@@ -397,7 +397,7 @@ function buildDailyForecast(weather: Weather): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
-    const releaseStatus = claimPageStatus();
+    const status = claimPageStatus();
 
     const wrapper = document.createElement('div');
     wrapper.className = 'weather-page';
@@ -426,7 +426,7 @@ export function render(container: HTMLElement): () => void {
     const weatherResource = resource(fetchWeather, { intervalMs: WEATHER_POLL_INTERVAL_MS });
     const summaryResource = resource(fetchWeatherSummary, { intervalMs: SUMMARY_POLL_INTERVAL_MS });
 
-    const reportFreshness = createFreshnessReporter(WEATHER_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(WEATHER_POLL_INTERVAL_MS, status);
 
     const disposeWeatherEffect = effect(() => {
         const state = weatherResource.state.get();
@@ -459,7 +459,7 @@ export function render(container: HTMLElement): () => void {
     });
 
     const disposeAttributionEffect = effect(() => {
-        pageAttribution.set(t('weather.attributionText'));
+        status.attribution(t('weather.attributionText'));
     });
 
     return function dispose(): void {
@@ -468,7 +468,7 @@ export function render(container: HTMLElement): () => void {
         disposeAttributionEffect();
         weatherResource.dispose();
         summaryResource.dispose();
-        releaseStatus();
+        status.release();
         wrapper.remove();
     };
 }

@@ -14,47 +14,125 @@
 import { signal, type Signal } from '../core/signal.js';
 import type { Freshness } from './staleness.js';
 
-export const pageFreshness: Signal<Freshness | null> = signal(null);
-
-export const pageAttribution: Signal<string | null> = signal(null);
-
-/** Bumped by every `claimPageStatus()`; a claim clears the slots on release only while it still holds the newest number. */
+/** Bumped by every `claimPageStatus()`. A slot remembers which claim last wrote it, which is what tells a releasing page whose value it is looking at. */
 let statusGeneration = 0;
 
+interface StatusSlot<T> {
+    signal: Signal<T | null>;
+    /** A write from `claim`. Ignored once a later page has claimed: during a slide the outgoing page is still polling, and its answers are no longer the ones on screen. */
+    write: (claim: number, value: T | null) => void;
+    /** Clears the slot for a releasing claim, unless a later-mounted page has since written its own value here. */
+    releaseFor: (claim: number) => void;
+}
+
 /**
- * Claims the shared status slots for one mounted page, and returns the
- * function that gives them back.
+ * One shared slot: an ordinary signal for readers, plus the bookkeeping
+ * that says which claim's value it currently holds.
+ *
+ * `signal.set` stays writable -- tests set these up directly, and the
+ * masthead/footer only ever read -- but a page writes through its claim,
+ * which is what makes the two rules above enforceable.
+ */
+function statusSlot<T>(): StatusSlot<T> {
+    const inner = signal<T | null>(null);
+    let writtenAt = 0;
+
+    function set(next: T | null): void {
+        writtenAt = statusGeneration;
+        inner.set(next);
+    }
+
+    return {
+        signal: {
+            get: (): T | null => inner.get(),
+            set,
+            update: (fn): void => {
+                set(fn(inner.get()));
+            },
+        },
+        write: (claim, value): void => {
+            if (claim !== statusGeneration) return; // a later page is the live one now
+            set(value);
+        },
+        releaseFor: (claim): void => {
+            if (writtenAt > claim) return; // a later page owns this slot now
+            writtenAt = 0;
+            inner.set(null);
+        },
+    };
+}
+
+const freshnessSlot = statusSlot<Freshness>();
+const attributionSlot = statusSlot<string>();
+const layerCountsSlot = statusSlot<LayerCounts>();
+const layerListingSlot = statusSlot<LiveLayerListing>();
+const accountStatusSlot = statusSlot<AccountStatus>();
+
+const ALL_SLOTS = [freshnessSlot, attributionSlot, layerCountsSlot, layerListingSlot, accountStatusSlot];
+
+export const pageFreshness: Signal<Freshness | null> = freshnessSlot.signal;
+
+export const pageAttribution: Signal<string | null> = attributionSlot.signal;
+
+/** One mounted page's handle on the shared status slots. Every page holds exactly one, from `render()` to its dispose. */
+export interface PageStatus {
+    /** The page's data freshness, for the masthead's stale banner. */
+    freshness: (value: Freshness | null) => void;
+    /** The footer's credit line. Licence-required for most of this app's upstreams, so it must never name the wrong source. */
+    attribution: (value: string | null) => void;
+    /** The masthead's live ship/aircraft counts (map only). */
+    layerCounts: (value: LayerCounts | null) => void;
+    /** What those counts open when tapped (map only). */
+    layerListing: (value: LiveLayerListing | null) => void;
+    /** The masthead's login line (settings only). */
+    accountStatus: (value: AccountStatus | null) => void;
+    /** Gives the slots back on dispose. */
+    release: () => void;
+}
+
+/**
+ * Claims the shared status slots for one mounted page.
  *
  * The shell mounts the incoming page while the outgoing one is still on
  * screen (`AppShell.ts`'s slide), so for a few hundred milliseconds two
- * pages are alive at once and the outgoing one is disposed *after* the
- * incoming one has already published its own attribution and freshness.
- * A page that cleared these slots unconditionally on dispose would
- * therefore wipe its successor's: the footer's attribution line went
- * blank at the end of every transition -- visibly, since the footer loses
- * a line and the page above it grows to fill the gap.
+ * pages are alive at once, each with its own polling. Two rules fall out
+ * of that, and both were bugs before they were rules:
  *
- * So the release is conditional: clearing only happens while this claim
- * is still the newest one. A page mounted and disposed on its own (every
- * unit test, and any navigation that isn't a slide) clears exactly as
- * before.
- *
- * Not a guard on *writes*, only on the clear-on-unmount: an outgoing
- * page's own poll landing inside that same window can still publish over
- * its successor's line, which self-corrects on the incoming page's next
- * poll. The unconditional clear could not self-correct, because nothing
- * would write again until then.
+ * - Only the newest claim may write. The map page kept reporting vessel
+ *   counts through the slide, so the masthead was still showing "22 skip"
+ *   on the cameras page, with no map behind it and nothing left to
+ *   correct the figure.
+ * - A release clears a slot only if no newer page has written to it. The
+ *   outgoing page is disposed *after* the incoming one has published, so
+ *   an unconditional clear wiped its successor's: the footer's credit
+ *   line went blank the instant every transition finished, and the page
+ *   above it visibly grew into the freed line. Per slot, not
+ *   all-or-nothing -- the cameras page publishes no attribution at all,
+ *   and must still arrive to an empty footer rather than inherit the
+ *   aurora page's.
  */
-export function claimPageStatus(): () => void {
+export function claimPageStatus(): PageStatus {
     statusGeneration += 1;
     const claimed = statusGeneration;
-    return function release(): void {
-        if (statusGeneration !== claimed) return; // another page has taken the slots over; they are its business now
-        pageFreshness.set(null);
-        pageAttribution.set(null);
-        liveLayerCounts.set(null);
-        liveLayerListing.set(null);
-        pageAccountStatus.set(null);
+    return {
+        freshness: (value) => {
+            freshnessSlot.write(claimed, value);
+        },
+        attribution: (value) => {
+            attributionSlot.write(claimed, value);
+        },
+        layerCounts: (value) => {
+            layerCountsSlot.write(claimed, value);
+        },
+        layerListing: (value) => {
+            layerListingSlot.write(claimed, value);
+        },
+        accountStatus: (value) => {
+            accountStatusSlot.write(claimed, value);
+        },
+        release: () => {
+            for (const slot of ALL_SLOTS) slot.releaseFor(claimed);
+        },
     };
 }
 
@@ -77,7 +155,7 @@ export interface LayerCounts {
     hiddenByAge: number;
 }
 
-export const liveLayerCounts: Signal<LayerCounts | null> = signal(null);
+export const liveLayerCounts: Signal<LayerCounts | null> = layerCountsSlot.signal;
 
 /**
  * One entry in the masthead's tap-through list of what is currently on
@@ -111,7 +189,7 @@ export interface LiveLayerListing {
  * What the masthead's counts open when tapped. `null` on every page but
  * the map, which is also what keeps the counts inert there.
  */
-export const liveLayerListing: Signal<LiveLayerListing | null> = signal(null);
+export const liveLayerListing: Signal<LiveLayerListing | null> = layerListingSlot.signal;
 
 /**
  * The settings page's login/logout status line, rendered in the
@@ -126,4 +204,4 @@ export interface AccountStatus {
     onLogout: () => void;
 }
 
-export const pageAccountStatus: Signal<AccountStatus | null> = signal(null);
+export const pageAccountStatus: Signal<AccountStatus | null> = accountStatusSlot.signal;

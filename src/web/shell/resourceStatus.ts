@@ -7,7 +7,7 @@
  * that one piece of state so every page doesn't reimplement it.
  */
 import type { ResourceState } from '../core/resource.js';
-import { pageFreshness } from './page-status.js';
+import type { PageStatus } from './page-status.js';
 
 /**
  * Returns a `report` function a page calls with its resource's current
@@ -17,10 +17,10 @@ import { pageFreshness } from './page-status.js';
  * check keeps working while a page is showing stale data after a failed
  * poll.
  */
-export function createFreshnessReporter(intervalMs: number): (state: ResourceState<unknown>) => void {
+export function createFreshnessReporter(intervalMs: number, status: PageStatus): (state: ResourceState<unknown>) => void {
     let lastFetchedAt: Date | undefined;
     return function report(state: ResourceState<unknown>): void {
         if (state.status === 'ready') lastFetchedAt = state.fetchedAt;
-        pageFreshness.set(lastFetchedAt ? { fetchedAt: lastFetchedAt, intervalMs } : null);
+        status.freshness(lastFetchedAt ? { fetchedAt: lastFetchedAt, intervalMs } : null);
     };
 }

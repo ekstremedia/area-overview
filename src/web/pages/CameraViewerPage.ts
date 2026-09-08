@@ -29,7 +29,7 @@ function findCamera(cameras: readonly Camera[], cameraId: string): Camera | unde
 }
 
 export function render(container: HTMLElement, cameraId: string): () => void {
-    const releaseStatus = claimPageStatus();
+    const status = claimPageStatus();
 
     const root = document.createElement('div');
     root.className = 'camera-viewer';
@@ -44,7 +44,7 @@ export function render(container: HTMLElement, cameraId: string): () => void {
         location.hash = '#/cameras';
     });
 
-    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS, status);
 
     const disposeEffect = effect(() => {
         const state = camerasResource.state.get();
@@ -116,7 +116,7 @@ export function render(container: HTMLElement, cameraId: string): () => void {
 
     return function dispose(): void {
         disposeEffect();
-        releaseStatus();
+        status.release();
         root.remove();
     };
 }

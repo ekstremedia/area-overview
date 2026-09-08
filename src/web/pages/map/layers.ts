@@ -11,7 +11,7 @@
  * `MapPage.ts`/`markers.ts` per Terje's explicit choice.
  */
 import type * as Leaflet from 'leaflet';
-import { liveLayerCounts, liveLayerListing, pageAttribution, type LayerCounts, type LiveLayerItem } from '../../shell/page-status.js';
+import type { LayerCounts, LiveLayerItem, PageStatus } from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
 import { mountShipsLayer } from './ships.js';
 
@@ -34,7 +34,7 @@ type LayerId = keyof LayerCounts;
  * while the outgoing one is still on screen, so a slot cleared here on
  * dispose would wipe the *next* page's freshly-published line.
  */
-export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void {
+export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: PageStatus): () => void {
     // Tearing a layer down makes it report one last time -- zero vessels,
     // no attribution -- and by then the shared slots may already belong to
     // the page sliding in behind this one. Publishing that final nothing
@@ -57,10 +57,10 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
 
     function publishListing(): void {
         if (disposed) return;
-        liveLayerListing.set({
+        status.layerListing({
             ships: items.get('ships') ?? [],
             aircraft: items.get('aircraft') ?? [],
-            focus: (item) => {
+            focus: (item: LiveLayerItem) => {
                 map.setView([item.lat, item.lng], Math.max(map.getZoom(), FOCUS_ZOOM));
             },
         });
@@ -77,7 +77,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
         counts[id] = count;
         hiddenByAge.set(id, hidden);
         counts.hiddenByAge = [...hiddenByAge.values()].reduce((total, value) => total + value, 0);
-        liveLayerCounts.set({ ...counts });
+        status.layerCounts({ ...counts });
     }
 
     function reportAttribution(id: LayerId, text: string | undefined): void {
@@ -87,10 +87,10 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map): () => void
         } else {
             attributions.set(id, text);
         }
-        pageAttribution.set(attributions.size === 0 ? null : [...attributions.values()].join(' · '));
+        status.attribution(attributions.size === 0 ? null : [...attributions.values()].join(' · '));
     }
 
-    liveLayerCounts.set({ ...counts });
+    status.layerCounts({ ...counts });
     publishListing();
 
     const disposeShips = registerMapLayer(map, (m) =>

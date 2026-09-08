@@ -72,7 +72,7 @@ function buildCameraCard(camera: Camera, now: Date): HTMLElement {
 }
 
 export function render(container: HTMLElement): () => void {
-    const releaseStatus = claimPageStatus();
+    const status = claimPageStatus();
 
     const wrapper = document.createElement('div');
     wrapper.className = 'cameras-page';
@@ -83,7 +83,7 @@ export function render(container: HTMLElement): () => void {
     wrapper.append(errorSlot, grid);
     container.append(wrapper);
 
-    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS);
+    const reportFreshness = createFreshnessReporter(CAMERAS_POLL_INTERVAL_MS, status);
 
     const disposeGridEffect = effect(() => {
         const state = camerasResource.state.get();
@@ -112,7 +112,7 @@ export function render(container: HTMLElement): () => void {
         // `null` by design (see `resourceStatus.ts`) -- unmounting this
         // page must still zero it out, so a later page never inherits a
         // stale "cameras" freshness value.
-        releaseStatus();
+        status.release();
         wrapper.remove();
     };
 }

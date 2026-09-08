@@ -237,9 +237,15 @@
     }
 }
 
-/* — footer — */
+/* — footer —
+   The row keeps its height whether or not the page on screen has an
+   attribution to credit (the cameras page has none: they are Terje's own
+   cameras). Without that floor, arriving there shortened the footer by a
+   line and the page above grew into the gap, exactly as the slide
+   finished -- a jump that read as the layout settling late. */
 .footer-line {
     flex: none;
+    min-height: calc(1.5em + var(--space-2) + var(--space-3));
     padding: var(--space-2) clamp(var(--space-3), 4vw, 28px) var(--space-3);
     display: flex;
     justify-content: space-between;

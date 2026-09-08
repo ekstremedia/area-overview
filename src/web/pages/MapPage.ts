@@ -71,7 +71,7 @@ export function render(container: HTMLElement): () => void {
     // The live layers below publish the counts/attribution the masthead and
     // footer read; this is what takes those slots back when the map page
     // goes away (see `claimPageStatus`).
-    const releaseStatus = claimPageStatus();
+    const status = claimPageStatus();
     let disposed = false;
     // Read through a function, not the bare `disposed` variable, below: it
     // can flip to `true` from `dispose()` while suspended on the `await
@@ -196,7 +196,7 @@ export function render(container: HTMLElement): () => void {
 
         // — live layers (ships, aircraft): canvas-rendered, heading-rotated
         // glyphs, polled per the current viewport. See `map/layers.ts`. —
-        const disposeLiveLayers = mountLiveLayers(L, map);
+        const disposeLiveLayers = mountLiveLayers(L, map, status);
 
         // The "N cameras without placement" link is gone with the
         // 2026-09-07 design: it nagged permanently about a job that is
@@ -220,7 +220,7 @@ export function render(container: HTMLElement): () => void {
         disposed = true;
         mapConfigAbortController.abort();
         cleanupInner?.();
-        releaseStatus();
+        status.release();
         preconnectLink.remove();
         wrapper.remove();
     };
