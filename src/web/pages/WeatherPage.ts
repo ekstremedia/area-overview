@@ -37,6 +37,23 @@ const FORECAST_HOURS_SHOWN = 12;
 // kiosk screen without either section needing to scroll.
 const FORECAST_DAYS_SHOWN = 5;
 
+/**
+ * The warmest temperature that still *displays* as "0°" -- anything
+ * below this rounds to zero or lower.
+ *
+ * The page's own legend beside the hourly strip reads "0° og under", so a
+ * reading shown as 0° belongs on the freezing side however it got there.
+ * Everything that colours a temperature, and the daily range bar's split
+ * point, goes through this one number, so a 0.4-degree low can never be
+ * lettered as freezing while the bar beneath it is drawn as mild.
+ */
+const FREEZING_DISPLAY_MAX = 0.5;
+
+/** True when `temperature` is shown as 0° or colder. */
+function displaysAsFreezing(temperature: number): boolean {
+    return temperature < FREEZING_DISPLAY_MAX;
+}
+
 async function fetchWeather(): Promise<Result<Weather>> {
     try {
         const response = await fetch('/api/weather');
@@ -203,10 +220,9 @@ function buildForecastStrip(weather: Weather, now: Date): HTMLElement {
         hourLabel.textContent = formatTime(new Date(entry.time)).slice(0, 2);
         const tempLabel = document.createElement('div');
         const rounded = Math.round(entry.temperature);
-        // Rounded, not raw: the figure shown and the colour it is given
-        // must agree, or a 0.4-degree hour reads as "0°" in the
-        // below-zero colour.
-        tempLabel.className = `weather-forecast-temp ${rounded > 0 ? 'weather-temp-above-zero' : 'weather-temp-below-zero'}`;
+        // The figure shown and the colour it is given must agree: see
+        // `FREEZING_DISPLAY_MAX`.
+        tempLabel.className = `weather-forecast-temp ${displaysAsFreezing(entry.temperature) ? 'weather-temp-below-zero' : 'weather-temp-above-zero'}`;
         tempLabel.textContent = `${formatNumber(rounded)}°`;
         meta.append(hourLabel, tempLabel);
         column.append(meta);
@@ -270,10 +286,10 @@ function buildDailyDayColumn(entry: DailyForecastEntry, range: DailyTemperatureR
             // negative low gets the cyan accent (see the compound override
             // in weather.css: `.weather-daily-low` alone would otherwise
             // win the cascade on source order and stay grey).
-            // `<= 0`, matching the legend beside the hourly strip, which
-            // reads "0° og under" -- the two rows must agree about which
-            // side of zero a rounded 0° falls on.
-            low.className = roundedLow <= 0 ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
+            // Same boundary as the hourly strip and the range bar below,
+            // so the three never disagree about a 0°: see
+            // `FREEZING_DISPLAY_MAX`.
+            low.className = displaysAsFreezing(entry.temperature_min) ? 'weather-daily-low weather-temp-below-zero' : 'weather-daily-low';
             low.textContent = `${formatNumber(roundedLow)}°`;
             temps.append(low);
         }
@@ -339,16 +355,15 @@ function buildDailyRangeBar(entry: DailyForecastEntry, range: DailyTemperatureRa
     const track = document.createElement('div');
     track.className = 'weather-daily-range';
 
-    // A day whose own low/high straddle 0°C draws as two adjacent segments
-    // -- cyan below, magenta above -- split by the proportion of THIS day's
-    // span (not the whole week's) that's sub-zero; that is what reproduces
-    // the design's own numbers (see WeatherPage.test.ts). `high >= 0`, not
-    // `> 0`: 0° is never the freezing side (same convention as the daily
-    // low text above and the hourly strip's buildForecastStrip), so a day
-    // that only touches 0° at its warmest still counts as crossing rather
-    // than "entirely below zero".
-    if (low < 0 && high >= 0) {
-        const belowZeroRatio = (0 - low) / (high - low);
+    // A day whose own low/high straddle the freezing boundary draws as two
+    // adjacent segments -- cyan below, magenta above -- split by the
+    // proportion of THIS day's span (not the whole week's) that is on the
+    // cold side; that is what reproduces the design's own numbers (see
+    // WeatherPage.test.ts). The boundary is `FREEZING_DISPLAY_MAX`, not a
+    // bare 0, so the bar and the figures printed beside it agree about
+    // which side a 0.4-degree reading is on.
+    if (displaysAsFreezing(low) && !displaysAsFreezing(high)) {
+        const belowZeroRatio = (FREEZING_DISPLAY_MAX - low) / (high - low);
         const belowWidthPercent = clampedWidthPercent * belowZeroRatio;
         const aboveWidthPercent = clampedWidthPercent - belowWidthPercent;
 
@@ -365,7 +380,7 @@ function buildDailyRangeBar(entry: DailyForecastEntry, range: DailyTemperatureRa
         track.append(belowFill, aboveFill);
     } else {
         const fill = document.createElement('div');
-        fill.className = `weather-daily-range-fill ${low < 0 ? 'weather-daily-range-fill--below-zero' : 'weather-daily-range-fill--above-zero'}`;
+        fill.className = `weather-daily-range-fill ${displaysAsFreezing(low) ? 'weather-daily-range-fill--below-zero' : 'weather-daily-range-fill--above-zero'}`;
         fill.style.left = `${String(startPercent)}%`;
         fill.style.width = `${String(clampedWidthPercent)}%`;
         track.append(fill);

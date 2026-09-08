@@ -90,7 +90,10 @@ function curveValues(series: readonly TimeseriesEntry[], extremes: readonly Extr
  *
  * The step is chosen so the axis gets a handful of labels whatever the
  * day's range: a spring tide spanning 250cm gets 100s, a neap barely
- * moving gets 20s.
+ * moving gets 20s. The candidates run all the way down to 1cm because
+ * the smallest step that still gives two labels is the point -- stopping
+ * at 10 left a range like 101-102cm with no gridline and no scale at
+ * all, a curve floating in an empty box.
  */
 export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: readonly ExtremeEntry[]): { value: number; topPercent: number }[] {
     if (series.length === 0) return [];
@@ -100,7 +103,7 @@ export function tideCurveTicks(series: readonly TimeseriesEntry[], extremes: rea
     const span = max - min;
     if (span <= 0) return [];
 
-    const step = [200, 100, 50, 20, 10].find((candidate) => span / candidate >= 2) ?? 10;
+    const step = [200, 100, 50, 20, 10, 5, 2, 1].find((candidate) => span / candidate >= 2) ?? 1;
     const scale = makeValueScale(min, max);
 
     const ticks: { value: number; topPercent: number }[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertNever, currentRoute, parseHash, type Route } from './router.js';
+import { assertNever, currentRoute, encodeCameraId, parseHash, type Route } from './router.js';
 
 describe('parseHash', () => {
     it('parses the empty/root hash as the map route', () => {
@@ -24,6 +24,21 @@ describe('parseHash', () => {
 
     it('parses a cameras hash with an id into cameraId', () => {
         expect(parseHash('#/cameras/front')).toEqual({ name: 'cameras', cameraId: 'front' });
+    });
+
+    it('round-trips a camera id that is not URL-safe', () => {
+        // `camera_id` is whatever the upstream calls the camera, and the
+        // schema puts no shape on it. An unescaped `/` would split into a
+        // second path segment and the id would arrive truncated.
+        const cameraId = 'nord/vest kamera';
+        expect(parseHash(`#/cameras/${encodeCameraId(cameraId)}`)).toEqual({ name: 'cameras', cameraId });
+    });
+
+    it('keeps a malformed escape as-is rather than throwing on it', () => {
+        // Anyone can type a hash. `decodeURIComponent('%')` throws, and a
+        // router that throws takes the whole app down with it.
+        expect(() => parseHash('#/cameras/%')).not.toThrow();
+        expect(parseHash('#/cameras/%')).toEqual({ name: 'cameras', cameraId: '%' });
     });
 
     it('resolves an unknown/malformed hash to the map route without throwing', () => {

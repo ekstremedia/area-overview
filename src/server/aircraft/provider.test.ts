@@ -367,27 +367,32 @@ describe('mergeAircraft', () => {
         // 45km away, OpenSky had a Widerøe flight overhead. Both belong.
         const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], [aircraft('bbb', '2026-09-07T16:00:00Z')]);
 
-        expect(merged.map((a) => a.icao).sort()).toEqual(['aaa', 'bbb']);
+        expect(merged.aircraft.map((a) => a.icao).sort()).toEqual(['aaa', 'bbb']);
+        expect(merged.secondaryContributed).toBe(true);
     });
 
     it('keeps the fresher fix when both networks have the same aircraft', () => {
         const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z', 68.1)], [aircraft('aaa', '2026-09-07T16:00:30Z', 68.9)]);
 
-        expect(merged).toHaveLength(1);
-        expect(merged[0]?.lat).toBe(68.9);
+        expect(merged.aircraft).toHaveLength(1);
+        expect(merged.aircraft[0]?.lat).toBe(68.9);
+        expect(merged.secondaryContributed).toBe(true);
     });
 
     it('keeps the primary when it is the fresher of the two', () => {
         const merged = mergeAircraft([aircraft('aaa', '2026-09-07T16:00:30Z', 68.9)], [aircraft('aaa', '2026-09-07T16:00:00Z', 68.1)]);
 
-        expect(merged).toHaveLength(1);
-        expect(merged[0]?.lat).toBe(68.9);
+        expect(merged.aircraft).toHaveLength(1);
+        expect(merged.aircraft[0]?.lat).toBe(68.9);
+        // Nothing of the secondary's survived, so it is not a source of
+        // what the map is showing.
+        expect(merged.secondaryContributed).toBe(false);
     });
 
     it('handles either side being empty', () => {
-        expect(mergeAircraft([], [])).toEqual([]);
-        expect(mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], [])).toHaveLength(1);
-        expect(mergeAircraft([], [aircraft('bbb', '2026-09-07T16:00:00Z')])).toHaveLength(1);
+        expect(mergeAircraft([], [])).toEqual({ aircraft: [], secondaryContributed: false });
+        expect(mergeAircraft([aircraft('aaa', '2026-09-07T16:00:00Z')], []).aircraft).toHaveLength(1);
+        expect(mergeAircraft([], [aircraft('bbb', '2026-09-07T16:00:00Z')]).aircraft).toHaveLength(1);
     });
 });
 
@@ -540,6 +545,37 @@ describe('OpenSky augmentation', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) expect(result.value.sources).toEqual(['adsbfi', 'opensky']);
+    });
+
+    it('does not name OpenSky when every aircraft it returned lost to a fresher primary fix', async () => {
+        // OpenSky answering is not the same as OpenSky being in the answer:
+        // a duplicate that loses the merge contributes nothing to what is on
+        // screen, and crediting it would name a source of data nobody is
+        // looking at.
+        const fetchMock = vi.fn((url: string) => {
+            if (url.includes('token')) return Promise.resolve(tokenResponse());
+            // Stamped 1788790000 (2026-09-08T09:26:40Z) by `state()`.
+            if (url.includes('opensky')) return Promise.resolve(statesResponse(state('aaa111', 68.7, 15.5)));
+            // The same aircraft from the primary, seen just now -- the v2
+            // mapper timestamps from `seen_pos` against the current clock,
+            // so this is years fresher than OpenSky's fixed sample.
+            return Promise.resolve(
+                jsonResponse({ ac: [{ hex: 'aaa111', flight: 'WIF123 ', lat: 68.7, lon: 15.5, alt_baro: 3000, gs: 200, track: 90, seen_pos: 1 }] }),
+            );
+        });
+
+        const result = await fetchAircraft(boxA, {
+            provider: 'adsbfi',
+            openSkyCredentials: CREDS,
+            upstreamTimeoutMs: 5000,
+            fetchImpl: fetchMock as unknown as typeof fetch,
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value.aircraft).toHaveLength(1);
+            expect(result.value.sources).toEqual(['adsbfi']);
+        }
     });
 
     it('does not name OpenSky when it has nothing to add', async () => {

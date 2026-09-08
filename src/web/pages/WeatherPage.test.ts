@@ -364,7 +364,8 @@ describe('WeatherPage', () => {
 
         // Overall week range across the (modified) fixture: min -2 (this
         // day), max 13.5 (2026-09-09) -- span 15.5. This day's own span is
-        // -2..8 (10 wide), of which 2/10 is below zero.
+        // -2..8 (10 wide), of which -2..0.5 is the part that displays as 0°
+        // or colder (`FREEZING_DISPLAY_MAX`), i.e. 2.5/10.
         const belowLeft = Number.parseFloat(belowFill?.style.left ?? '');
         const belowWidth = Number.parseFloat(belowFill?.style.width ?? '');
         const aboveLeft = Number.parseFloat(aboveFill?.style.left ?? '');
@@ -372,9 +373,37 @@ describe('WeatherPage', () => {
         const totalWidth = ((8 - -2) / 15.5) * 100;
 
         expect(belowLeft).toBeCloseTo(0, 5);
-        expect(belowWidth).toBeCloseTo(totalWidth * 0.2, 5);
+        expect(belowWidth).toBeCloseTo(totalWidth * 0.25, 5);
         expect(aboveLeft).toBeCloseTo(belowWidth, 5);
-        expect(aboveWidth).toBeCloseTo(totalWidth * 0.8, 5);
+        expect(aboveWidth).toBeCloseTo(totalWidth * 0.75, 5);
+
+        dispose();
+    });
+
+    it('colours the bar on the same side of zero as the figure printed beside it', async () => {
+        // A low of 0.4 is lettered "0°", and the page's own legend reads
+        // "0° og under" -- so the bar must show a cold segment there too,
+        // rather than drawing the day as entirely mild.
+        const dailyJustAboveZero = {
+            ...weatherFixture,
+            forecast: {
+                ...weatherFixture.forecast,
+                daily: [{ ...weatherFixture.forecast.daily[0], temperature_min: 0.4, temperature_max: 8 }, ...weatherFixture.forecast.daily.slice(1)],
+            },
+        };
+        mockFetch(dailyJustAboveZero, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+        });
+
+        const firstDay = container.querySelectorAll('.weather-daily-day')[0];
+        const low = firstDay?.querySelector('.weather-daily-low');
+        expect(low?.textContent).toBe('0°');
+        expect(low?.classList.contains('weather-temp-below-zero')).toBe(true);
+        expect(firstDay?.querySelector('.weather-daily-range-fill--below-zero')).not.toBeNull();
 
         dispose();
     });

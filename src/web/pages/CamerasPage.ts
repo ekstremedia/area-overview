@@ -14,6 +14,7 @@ import type { Camera } from '../../shared/schemas/camera.js';
 import { imageWithAge } from '../components/ImageWithAge.js';
 import { errorBand } from '../components/ErrorBand.js';
 import { CAMERAS_POLL_INTERVAL_MS, camerasResource } from '../camera-resource.js';
+import { encodeCameraId } from '../core/router.js';
 import { effect } from '../core/signal.js';
 import { t } from '../i18n/index.js';
 import { claimPageStatus } from '../shell/page-status.js';
@@ -62,7 +63,7 @@ function buildCameraCard(camera: Camera, now: Date): HTMLElement {
 
     const link = document.createElement('a');
     link.className = 'camera-card-link';
-    link.href = `#/cameras/${camera.camera_id}`;
+    link.href = `#/cameras/${encodeCameraId(camera.camera_id)}`;
     link.textContent = t('cameras.fullscreenLink');
 
     row.append(info, link);

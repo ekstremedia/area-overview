@@ -95,6 +95,23 @@ describe('tideCurveTicks', () => {
         expect(tideCurveTicks(flat, []).length).toBeGreaterThan(1);
     });
 
+    it('still labels a range narrower than the smallest round step', () => {
+        // A 1cm range used to fall through to a 10cm step, whose first
+        // multiple sat above the whole range -- no labels, no gridlines,
+        // a curve floating in an empty box.
+        const barelyMoving = [
+            { time: '2026-09-07T00:00:00Z', value: 101, type: 'prediction' },
+            { time: '2026-09-07T06:00:00Z', value: 102, type: 'prediction' },
+        ];
+
+        const ticks = tideCurveTicks(barelyMoving, []);
+        expect(ticks.length).toBeGreaterThan(0);
+        for (const tick of ticks) {
+            expect(tick.value).toBeGreaterThanOrEqual(101);
+            expect(tick.value).toBeLessThanOrEqual(102);
+        }
+    });
+
     it('scales against observations too, so a storm surge does not push the labels off the curve', () => {
         // The gauge read 60cm above anything predicted. `tideCurve` widens
         // its own scale to fit that, so ticks that ignored observations

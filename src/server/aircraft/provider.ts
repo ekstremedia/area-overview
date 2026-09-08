@@ -524,16 +524,27 @@ async function openSkyAircraftWithin(
  * away while OpenSky had a Widerøe flight at 9,500ft directly overhead.
  * Neither is a superset of the other, so the union is the only honest
  * answer to "what is up there".
+ *
+ * `secondaryContributed` says whether any of the returned aircraft came
+ * from the secondary network, which is what the footer's credit line
+ * turns on: a secondary that answered, but whose every aircraft lost to
+ * a fresher primary fix, contributed nothing to what is on screen and
+ * must not be named as a source of it.
  */
-export function mergeAircraft(primary: readonly Aircraft[], secondary: readonly Aircraft[]): Aircraft[] {
-    const byIcao = new Map<string, Aircraft>();
-    for (const aircraft of [...primary, ...secondary]) {
+export function mergeAircraft(primary: readonly Aircraft[], secondary: readonly Aircraft[]): { aircraft: Aircraft[]; secondaryContributed: boolean } {
+    const byIcao = new Map<string, { aircraft: Aircraft; fromSecondary: boolean }>();
+    for (const [index, aircraft] of [...primary, ...secondary].entries()) {
+        const fromSecondary = index >= primary.length;
         const existing = byIcao.get(aircraft.icao);
-        if (!existing || Date.parse(aircraft.timestamp) > Date.parse(existing.timestamp)) {
-            byIcao.set(aircraft.icao, aircraft);
+        if (!existing || Date.parse(aircraft.timestamp) > Date.parse(existing.aircraft.timestamp)) {
+            byIcao.set(aircraft.icao, { aircraft, fromSecondary });
         }
     }
-    return [...byIcao.values()];
+    const entries = [...byIcao.values()];
+    return {
+        aircraft: entries.map((entry) => entry.aircraft),
+        secondaryContributed: entries.some((entry) => entry.fromSecondary),
+    };
 }
 
 export interface FetchAircraftResult {
@@ -574,8 +585,10 @@ export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): 
         return secondary && secondary.length > 0 ? ok({ aircraft: secondary, sources: ['opensky'] }) : primary;
     }
 
-    const openSkyContributed = secondary !== null && secondary.length > 0;
-    const aircraft = secondary ? mergeAircraft(primary.value, secondary) : primary.value;
-    const sources: AdsbSource[] = openSkyContributed ? [options.provider, 'opensky'] : [options.provider];
-    return ok({ aircraft, sources });
+    // Not "OpenSky answered" but "OpenSky is in the answer": every one of
+    // its aircraft can lose the merge to a fresher primary fix, in which
+    // case nothing on screen came from it.
+    const merged = secondary ? mergeAircraft(primary.value, secondary) : { aircraft: primary.value, secondaryContributed: false };
+    const sources: AdsbSource[] = merged.secondaryContributed ? [options.provider, 'opensky'] : [options.provider];
+    return ok({ aircraft: merged.aircraft, sources });
 }
