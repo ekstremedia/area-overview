@@ -53,4 +53,23 @@ window.addEventListener('hashchange', () => {
     routeSignal.set(parseHash(location.hash));
 });
 
+/**
+ * Navigates from inside the app, publishing the new route immediately
+ * rather than waiting for the browser's own `hashchange` to come back
+ * round.
+ *
+ * The hash is still the source of truth (the listener above republishes
+ * an equal route a moment later, harmlessly); what this buys is that
+ * anything reading `currentRoute` right after the call -- the auto-cycle
+ * timer deciding which page comes next, chiefly -- sees the page that is
+ * actually being shown. Only the shell's own programmatic navigation
+ * needs this; a tab tap is a real user gesture and gets its `hashchange`
+ * either way.
+ */
+export function navigateToRoute(route: Route): void {
+    const hash = route.name === 'cameras' && route.cameraId !== undefined ? `#/cameras/${route.cameraId}` : `#/${route.name}`;
+    location.hash = hash;
+    routeSignal.set(parseHash(hash));
+}
+
 export const currentRoute: ReadonlySignal<Route> = routeSignal;
