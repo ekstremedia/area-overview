@@ -7,6 +7,7 @@ vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
 const { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
+const { autoCycleArmed, autoCyclePaused } = await import('./autoCycle.js');
 
 function navigate(hash: string): void {
     location.hash = hash;
@@ -258,6 +259,65 @@ describe('mountMasthead', () => {
         expect(container.querySelector<HTMLElement>('.masthead-live-panel')?.hidden).toBe(true);
 
         liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('shows the slideshow control only while auto-cycle is switched on', () => {
+        // A dead play button on a wall display is worse than no button:
+        // nothing to pause, and no countdown to draw.
+        setSettings({ autoCycle: { enabled: false, intervalSeconds: 30, pages: [] } });
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        expect(container.querySelector<HTMLElement>('.masthead-cycle')?.hidden).toBe(true);
+
+        setSettings({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] } });
+        expect(container.querySelector<HTMLElement>('.masthead-cycle')?.hidden).toBe(false);
+
+        dispose();
+    });
+
+    it('pauses and resumes the slideshow, saying which it will do next', () => {
+        setSettings({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] } });
+        autoCyclePaused.set(false);
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const button = container.querySelector<HTMLButtonElement>('.masthead-cycle-button');
+        expect(button?.getAttribute('aria-label')).toBe('Pause automatisk bla');
+
+        button?.click();
+        expect(autoCyclePaused.get()).toBe(true);
+        // The label offers the way out, not a description of the state.
+        expect(button?.getAttribute('aria-label')).toBe('Start automatisk bla');
+        expect(container.querySelector('.masthead-cycle--paused')).not.toBeNull();
+
+        button?.click();
+        expect(autoCyclePaused.get()).toBe(false);
+        expect(container.querySelector('.masthead-cycle--paused')).toBeNull();
+
+        autoCyclePaused.set(false);
+        dispose();
+    });
+
+    it('draws the countdown over the interval it is actually counting', () => {
+        setSettings({ autoCycle: { enabled: true, intervalSeconds: 45, pages: [] } });
+        autoCyclePaused.set(false);
+        autoCycleArmed.set({ armedAt: 1_000, intervalSeconds: 45 });
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const bar = container.querySelector<HTMLElement>('.masthead-cycle-bar');
+        expect(bar?.style.animationDuration).toBe('45s');
+
+        // A fresh interval has to restart the animation, which only happens
+        // when the element itself is re-inserted.
+        const first = bar;
+        autoCycleArmed.set({ armedAt: 2_000, intervalSeconds: 45 });
+        expect(container.querySelector('.masthead-cycle-bar')).toBe(first); // the same element...
+        expect(first?.parentElement?.className).toBe('masthead-cycle-track'); // ...re-attached, not replaced
+
+        autoCycleArmed.set(null);
         dispose();
     });
 });

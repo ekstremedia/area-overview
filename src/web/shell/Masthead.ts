@@ -22,6 +22,7 @@ import { formatDayMonth, formatTime, formatWeekdayLong, t } from '../i18n/index.
 import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
+import { autoCycleArmed, autoCyclePaused } from './autoCycle.js';
 import { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
@@ -108,6 +109,112 @@ function countPart(className: string, onActivate?: () => void): { el: HTMLElemen
     };
 }
 
+/**
+ * The play/pause glyph, drawn rather than lettered so it reads at a
+ * glance from across the room and needs no font that carries the symbol.
+ * Filled, not stroked: two bars and a triangle are shapes, not lines.
+ */
+function playPauseIcon(paused: boolean): SVGSVGElement {
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNs, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    if (paused) {
+        // Paused: offer the way out, which is play.
+        const play = document.createElementNS(svgNs, 'path');
+        play.setAttribute('d', 'M7 4.5 19 12 7 19.5Z');
+        svg.append(play);
+        return svg;
+    }
+
+    for (const x of ['6.5', '13.5']) {
+        const bar = document.createElementNS(svgNs, 'rect');
+        bar.setAttribute('x', x);
+        bar.setAttribute('y', '4.5');
+        bar.setAttribute('width', '4');
+        bar.setAttribute('height', '15');
+        bar.setAttribute('rx', '0.6');
+        svg.append(bar);
+    }
+    return svg;
+}
+
+/**
+ * The slideshow control: a play/pause button with the countdown to the
+ * next page under it.
+ *
+ * The bar is a CSS animation rather than a timer of its own -- the shell
+ * already runs one clock too many, and the browser can tween a width
+ * without waking any JavaScript. It restarts by being re-inserted
+ * whenever `autoCycleArmed` reports a fresh interval, which is every page
+ * change (auto or manual, since a manual navigation re-arms the timer)
+ * and every settings change that alters the interval.
+ *
+ * Hidden entirely when auto-cycle is switched off in settings: there is
+ * no countdown to show and nothing for the button to pause, and a dead
+ * control on a wall display is worse than no control.
+ */
+function autoCycleControl(): { el: HTMLElement; update: () => void; dispose: () => void } {
+    const el = document.createElement('div');
+    el.className = 'masthead-cycle';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'masthead-cycle-button';
+
+    const track = document.createElement('div');
+    track.className = 'masthead-cycle-track';
+    const bar = document.createElement('div');
+    bar.className = 'masthead-cycle-bar';
+    track.append(bar);
+
+    el.append(button, track);
+
+    button.addEventListener('click', () => {
+        autoCyclePaused.set(!autoCyclePaused.get());
+    });
+
+    let renderedArmedAt: number | null = null;
+
+    function update(): void {
+        const paused = autoCyclePaused.get();
+        const armed = autoCycleArmed.get();
+        const enabled = settings.get().autoCycle.enabled;
+
+        el.hidden = !enabled;
+        if (!enabled) return;
+
+        button.replaceChildren(playPauseIcon(paused));
+        button.setAttribute('aria-label', t(paused ? 'masthead.autoCyclePlay' : 'masthead.autoCyclePause'));
+        button.title = button.getAttribute('aria-label') ?? '';
+        el.classList.toggle('masthead-cycle--paused', paused);
+
+        if (!armed) {
+            bar.style.removeProperty('animation-duration');
+            renderedArmedAt = null;
+            return;
+        }
+
+        bar.style.animationDuration = `${String(armed.intervalSeconds)}s`;
+        // A CSS animation only restarts when the element does: re-inserting
+        // the bar is what makes the countdown begin again on a new
+        // interval, rather than carrying on from wherever the last one had
+        // got to.
+        if (armed.armedAt !== renderedArmedAt) {
+            renderedArmedAt = armed.armedAt;
+            bar.remove();
+            track.append(bar);
+        }
+    }
+
+    return { el, update, dispose: () => undefined };
+}
+
 export function mountMasthead(container: HTMLElement): () => void {
     container.className = 'masthead chrome';
 
@@ -121,6 +228,12 @@ export function mountMasthead(container: HTMLElement): () => void {
         return { page, link };
     });
     for (const { link } of tabLinks) row.append(link);
+
+    // Between the tabs and the status: two `auto` margins split the free
+    // space, so it sits in the middle of the row without being absolutely
+    // positioned over either neighbour when the row gets tight.
+    const cycle = autoCycleControl();
+    row.append(cycle.el);
 
     const status = document.createElement('div');
     status.className = 'masthead-status';
@@ -319,6 +432,14 @@ export function mountMasthead(container: HTMLElement): () => void {
             accountLogoutButton.style.display = '';
             accountStatusText.textContent = account.text;
             accountLogoutButton.textContent = account.logoutLabel;
+        }),
+    );
+
+    // The slideshow control follows the pause state, the armed interval and
+    // the settings that govern whether it is shown at all.
+    disposers.push(
+        effect(() => {
+            cycle.update();
         }),
     );
 

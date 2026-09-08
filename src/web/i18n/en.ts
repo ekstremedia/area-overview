@@ -32,6 +32,8 @@ export const en: Record<keyof typeof nb, string> = {
     'masthead.hiddenUnit': 'hidden',
     'masthead.livePanelEmpty': 'Nothing in sight',
     'masthead.settings': 'Settings',
+    'masthead.autoCyclePause': 'Pause the slideshow',
+    'masthead.autoCyclePlay': 'Resume the slideshow',
     'masthead.layerCounts': '{ships} ships · {aircraft} aircraft',
     'masthead.layerCountsHidden': '{ships} ships · {aircraft} aircraft · {hidden} hidden',
 

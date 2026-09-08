@@ -37,6 +37,8 @@ export const nb = {
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
+    'masthead.autoCyclePause': 'Pause automatisk bla',
+    'masthead.autoCyclePlay': 'Start automatisk bla',
     'masthead.layerCounts': '{ships} skip · {aircraft} fly',
     // Shown instead of the plain line when the age filter is holding
     // something back, so a vessel disappearing is accounted for rather

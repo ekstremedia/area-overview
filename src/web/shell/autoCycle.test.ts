@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js';
 import { signal } from '../core/signal.js';
-import { nextCycleRoute, startAutoCycle } from './autoCycle.js';
+import { autoCycleArmed, autoCyclePaused, nextCycleRoute, startAutoCycle } from './autoCycle.js';
 
 function settingsWith(overrides: Partial<Settings['autoCycle']> = {}, enabledPages?: Settings['enabledPages']): Settings {
     return SettingsSchema.parse({
@@ -181,5 +181,63 @@ describe('startAutoCycle', () => {
         vi.advanceTimersByTime(60_000);
 
         expect(onCycle).not.toHaveBeenCalled();
+    });
+
+    it('stops cycling while paused, and gives the page a full interval again on resume', () => {
+        // The masthead's play/pause. Pausing has to actually hold the page
+        // -- and resuming has to start a fresh interval, not drop the
+        // visitor onto the next page a second later because the old one
+        // was nearly up.
+        const settingsSignal = signal(
+            SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }),
+        );
+        const routeSignal = signal<{ name: 'map' }>({ name: 'map' });
+        const onCycle = vi.fn();
+        const dispose = startAutoCycle({ settings: settingsSignal, route: routeSignal, onCycle });
+
+        vi.advanceTimersByTime(29_000);
+        autoCyclePaused.set(true);
+        vi.advanceTimersByTime(120_000);
+        expect(onCycle).not.toHaveBeenCalled();
+
+        autoCyclePaused.set(false);
+        vi.advanceTimersByTime(29_000);
+        expect(onCycle).not.toHaveBeenCalled(); // a full interval from the resume, not the last second of the old one
+        vi.advanceTimersByTime(2_000);
+        expect(onCycle).toHaveBeenCalledTimes(1);
+
+        autoCyclePaused.set(false);
+        dispose();
+    });
+
+    it('publishes the interval it has armed, for the masthead to count down', () => {
+        const settingsSignal = signal(
+            SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }),
+        );
+        const routeSignal = signal<{ name: 'map' } | { name: 'weather' }>({ name: 'map' });
+        const dispose = startAutoCycle({ settings: settingsSignal, route: routeSignal, onCycle: vi.fn() });
+
+        const armed = autoCycleArmed.get();
+        expect(armed?.intervalSeconds).toBe(30);
+
+        // A page change re-arms, which is what restarts the bar.
+        vi.advanceTimersByTime(5_000);
+        routeSignal.set({ name: 'weather' });
+        expect(autoCycleArmed.get()?.armedAt).toBeGreaterThan(armed?.armedAt ?? 0);
+
+        // Nothing armed once the timer is gone.
+        dispose();
+        expect(autoCycleArmed.get()).toBeNull();
+    });
+
+    it('arms nothing at all while auto-cycle is switched off', () => {
+        const settingsSignal = signal(
+            SettingsSchema.parse({ autoCycle: { enabled: false, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }),
+        );
+        const dispose = startAutoCycle({ settings: settingsSignal, route: signal<{ name: 'map' }>({ name: 'map' }), onCycle: vi.fn() });
+
+        expect(autoCycleArmed.get()).toBeNull();
+
+        dispose();
     });
 });

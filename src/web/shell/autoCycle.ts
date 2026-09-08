@@ -19,7 +19,7 @@
 import type { PageId, Settings } from '../../shared/schemas/settings.js';
 import type { Route } from '../core/router.js';
 import { currentRoute } from '../core/router.js';
-import { effect, type ReadonlySignal } from '../core/signal.js';
+import { effect, signal, type ReadonlySignal, type Signal } from '../core/signal.js';
 import { settings as sharedSettings } from '../settings-resource.js';
 
 /**
@@ -64,6 +64,30 @@ export function nextCycleRoute(current: Route['name'], settings: Settings): Rout
     return eligible[nextIndex] ?? null; // unreachable given the length check above; satisfies noUncheckedIndexedAccess
 }
 
+/**
+ * Whether the visitor has paused the slideshow, from the masthead's
+ * play/pause control.
+ *
+ * Deliberately session-only, not a setting: `autoCycle.enabled` is a
+ * configuration decision that needs a login to change and belongs to the
+ * kiosk, while this is "hold on, I am reading this" -- and a wall display
+ * nobody has touched in an hour should be cycling again, not still frozen
+ * on whatever page someone paused before lunch. A reload resumes.
+ */
+export const autoCyclePaused: Signal<boolean> = signal(false);
+
+/**
+ * The interval currently counting down: when it started, and how long it
+ * runs. What the masthead's progress bar draws.
+ *
+ * `null` when nothing is armed at all (auto-cycle switched off, or fewer
+ * than two eligible pages). A *pause* deliberately leaves the last value
+ * standing rather than clearing it, so the bar freezes where it got to
+ * instead of emptying; resuming arms a fresh interval and the bar
+ * restarts from nothing, which is what actually happens.
+ */
+export const autoCycleArmed: Signal<{ armedAt: number; intervalSeconds: number } | null> = signal(null);
+
 export interface StartAutoCycleOptions {
     /** Reactive source of `autoCycle`/`enabledPages`. Defaults to the shared settings resource; tests inject their own. */
     settings?: ReadonlySignal<Settings>;
@@ -74,9 +98,9 @@ export interface StartAutoCycleOptions {
 }
 
 /** A cheap structural key for the fields that govern re-arming -- see the `lastArmedKey` doc below. The route is part of it because the interval is measured from the page currently showing: see `startAutoCycle`. */
-function armKey(settings: Settings, route: Route): string {
+function armKey(settings: Settings, route: Route, paused: boolean): string {
     const page = route.name === 'cameras' && route.cameraId !== undefined ? `cameras/${route.cameraId}` : route.name;
-    return `${String(settings.autoCycle.enabled)}:${String(settings.autoCycle.intervalSeconds)}:${settings.autoCycle.pages.join(',')}:${page}`;
+    return `${String(settings.autoCycle.enabled)}:${String(settings.autoCycle.intervalSeconds)}:${settings.autoCycle.pages.join(',')}:${page}:${String(paused)}`;
 }
 
 export function startAutoCycle(options: StartAutoCycleOptions): () => void {
@@ -115,13 +139,21 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
 
     function arm(settings: Settings): void {
         clear();
-        if (!settings.autoCycle.enabled) return; // disabled: no timer at all.
+        if (!settings.autoCycle.enabled) {
+            autoCycleArmed.set(null); // switched off: there is no countdown to draw
+            return;
+        }
+        // Paused keeps the last armed interval standing on purpose -- see
+        // `autoCycleArmed` -- so the masthead's bar freezes rather than
+        // emptying.
+        if (autoCyclePaused.get()) return;
         timer = setInterval(fire, settings.autoCycle.intervalSeconds * 1000);
+        autoCycleArmed.set({ armedAt: Date.now(), intervalSeconds: settings.autoCycle.intervalSeconds });
     }
 
     const disposeEffect = effect(() => {
         const settings = settingsSignal.get();
-        const key = armKey(settings, routeSignal.get());
+        const key = armKey(settings, routeSignal.get(), autoCyclePaused.get());
         if (key !== lastArmedKey) {
             lastArmedKey = key;
             arm(settings);
@@ -131,5 +163,6 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
     return function dispose(): void {
         disposeEffect();
         clear();
+        autoCycleArmed.set(null);
     };
 }
