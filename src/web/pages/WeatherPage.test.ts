@@ -380,6 +380,27 @@ describe('WeatherPage', () => {
         dispose();
     });
 
+    it('names the scale the range bars are drawn against', async () => {
+        // Without it the coloured stripe under each day is decoration:
+        // there is nothing on screen to say what its length or position
+        // measures.
+        mockFetch(weatherFixture, weatherSummaryFixture);
+        const container = document.createElement('div');
+        const dispose = render(container);
+
+        await vi.waitFor(() => {
+            expect(container.querySelectorAll('.weather-daily-range-fill')).not.toHaveLength(0);
+        });
+
+        const legend = container.querySelector('.weather-daily-legend');
+        expect(legend).not.toBeNull();
+        // The two ends of the week's own span, which is what the track
+        // behind each bar represents.
+        expect(legend?.textContent).toMatch(/\d+°/);
+
+        dispose();
+    });
+
     it('colours the bar on the same side of zero as the figure printed beside it', async () => {
         // A low of 0.4 is lettered "0°", and the page's own legend reads
         // "0° og under" -- so the bar must show a cold segment there too,

@@ -152,6 +152,7 @@ export const nb = {
     'weather.legendAboveZero': 'over 0°',
     'weather.legendBelowZero': '0° og under',
     'weather.dailyLabel': 'Yr · neste {days} dager',
+    'weather.dailyRangeLegend': 'søylen viser døgnets spenn · skala {min}°–{max}°',
     'weather.periodNight': 'Natt',
     'weather.periodMorning': 'Morgen',
     'weather.periodAfternoon': 'Ettermiddag',
