@@ -467,7 +467,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
             function clear(): void {
                 latestShips = [];
                 latestConfigured = false;
-                canvasLayer.update([], settings.get().ships.maxAgeMinutes, new Date());
+                canvasLayer.clear();
                 clusterBadges.update([]);
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);

@@ -88,11 +88,43 @@ export interface CanvasGlyphLayerOptions<T> {
      * put it, as it always did.
      */
     velocityFor?: (data: T) => Velocity | null;
+    /**
+     * How long to keep drawing a glyph that has dropped out of the feed,
+     * still gliding along its last known course (`velocityFor`), before
+     * giving up on it.
+     *
+     * Aircraft blink out: low over Vesterålen, neither ADS-B network holds
+     * a contact reliably, so a plane crossing the map disappears for a
+     * poll or two and comes back a few kilometres on. Removing it the
+     * instant one answer omits it makes the map flicker between "there is
+     * a plane" and "there is nothing", which reads as a fault rather than
+     * as thin coverage.
+     *
+     * Only ever a prediction, and drawn as one: a coasting glyph is dimmed
+     * (`COAST_OPACITY`), and `motion.ts` still refuses to project a
+     * position more than `MAX_PROJECTION_MS` past the fix it is based on,
+     * so a long coast holds the last measured position rather than
+     * inventing an ever-further one.
+     *
+     * Omitted (ships), a glyph disappears the moment it is absent from a
+     * poll, exactly as before.
+     */
+    coastMs?: number;
 }
 
 export interface CanvasGlyphLayer<T> {
     /** Applies the latest full item list -- ages/filters, diffs by id, and updates polygons in place. */
     update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void;
+    /**
+     * Takes every glyph off the map at once, coast or no coast.
+     *
+     * For the cases where there is nothing to keep drawing: the layer
+     * switched off, or the BFF answering that it is not configured. An
+     * empty `update([])` would coast through those, leaving a plane on
+     * screen for half a minute after the map stopped having a reason to
+     * believe in it.
+     */
+    clear(): void;
     /** Count of glyphs currently rendered (post age-filter) -- for the masthead's live-layer counts. */
     count(): number;
     dispose(): void;
@@ -103,6 +135,8 @@ interface GlyphEntry {
     hitArea: Leaflet.Polygon;
     /** The currently-bound tooltip text, or `null` when none is bound -- lets `applyLabel` tell "no label" from "same label" from "changed label" without asking Leaflet. */
     label: string | null;
+    /** When this glyph was last actually in a poll's answer -- what `coastMs` is measured from. */
+    lastSeenMs: number;
 }
 
 /** `hitRadiusPx` is a target half-*diameter* for the tap area; the hit triangle is the same shape as the visible glyph, scaled up to reach it. */
@@ -136,6 +170,9 @@ function cornersToLatLngs<T>(
  * sixty.
  */
 const MOTION_FRAME_MS = 120;
+
+/** What a coasting glyph is drawn at, against a reported one's 1: enough to see, clearly less than certain. */
+const COAST_OPACITY = 0.45;
 
 export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options: CanvasGlyphLayerOptions<T>): CanvasGlyphLayer<T> {
     // Shared with every other path layer on this map, trails included --
@@ -296,7 +333,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         });
         visible.addTo(layerGroup);
         hitArea.addTo(layerGroup);
-        const entry: GlyphEntry = { visible, hitArea, label: null };
+        const entry: GlyphEntry = { visible, hitArea, label: null, lastSeenMs: Date.now() };
         applyLabel(entry, at); // anchors the label itself when it binds one
         return entry;
     }
@@ -335,6 +372,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
               }, MOTION_FRAME_MS);
 
     function update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void {
+        const nowMs = now.getTime();
         const visible = visibleGlyphs(items, maxAgeMinutes, now);
         const opacityById = new Map(visible.map((v) => [v.descriptor.id, v.opacity]));
         const diff = diffGlyphs(
@@ -360,7 +398,27 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             applyLabel(entry, descriptor);
         }
 
-        for (const id of diff.toRemove) removeEntry(id);
+        // What the feed itself no longer mentions -- which is not the same
+        // set as `diff.toRemove`, since that also holds glyphs the age
+        // filter just dropped. Those have not gone quiet; they have been
+        // quiet for `maxAgeMinutes`, and the whole point of that filter is
+        // to stop drawing them. Only a genuine gap in the feed coasts.
+        const reported = new Set(items.map((item) => item.id));
+
+        for (const id of diff.toRemove) {
+            const entry = entries.get(id);
+            const descriptor = descriptorsById.get(id);
+            // Absent from this answer, but not necessarily gone: keep
+            // drawing it, dimmed and still gliding, until the coast runs
+            // out. `descriptorsById` keeps it, so it comes back through
+            // this same branch on every poll it stays missing -- and
+            // through `toUpdate`, at full opacity, the moment it returns.
+            if (!reported.has(id) && entry && descriptor && nowMs - entry.lastSeenMs < (options.coastMs ?? 0)) {
+                entry.visible.setStyle(styleFor(descriptor, COAST_OPACITY));
+            } else {
+                removeEntry(id);
+            }
+        }
 
         // Opacity (and, independently, the label) can change between polls
         // purely from a status change, even with no position/heading/
@@ -369,6 +427,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         for (const { descriptor, opacity } of visible) {
             const entry = entries.get(descriptor.id);
             if (!entry) continue;
+            entry.lastSeenMs = nowMs;
             entry.visible.setStyle(styleFor(descriptor, opacity));
             applyLabel(entry, descriptor);
         }
@@ -378,6 +437,10 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
 
     return {
         update,
+        clear(): void {
+            for (const id of [...entries.keys()]) removeEntry(id);
+            visibleCount = 0;
+        },
         count: () => visibleCount,
         dispose(): void {
             if (motionTimer !== undefined) clearInterval(motionTimer);

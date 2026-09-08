@@ -29,6 +29,20 @@ import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCall
 
 const AIRCRAFT_WIDTH_PX = 18;
 const AIRCRAFT_HEIGHT_PX = 24;
+/**
+ * How long a plane that has dropped out of the feed keeps being drawn,
+ * gliding on its last known course.
+ *
+ * Coverage down low around Vesterålen is thin -- neither ADS-B network
+ * holds a contact reliably, and OpenSky's own snapshot only refreshes
+ * every 45 seconds -- so an aircraft crossing the map vanishes for a poll
+ * or two and returns a few kilometres on. At a 10-second poll this rides
+ * out about three consecutive misses, which is what stops the map
+ * flickering between "there is a plane" and "there is nothing". Beyond
+ * it, the aircraft really has gone (landed, left the box, or out of range
+ * for good) and the map should stop claiming otherwise.
+ */
+const COAST_MS = 30_000;
 const HIT_RADIUS_PX = 22; // half of a 44px tap diameter
 
 const METERS_PER_FOOT = 0.3048;
@@ -148,6 +162,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 // `groundSpeedKt` the speed to match it. An aircraft
                 // sitting on a stand reports 0 and so does not move.
                 velocityFor: (aircraft) => ({ speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track }),
+                coastMs: COAST_MS,
             });
 
             const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR, trailFor: (item) => item.trail });
@@ -156,7 +171,7 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
 
             function clear(): void {
-                canvasLayer.update([], settings.get().aircraft.maxAgeMinutes, new Date());
+                canvasLayer.clear();
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
                 callbacks.reportItems([]);
