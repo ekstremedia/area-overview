@@ -32,6 +32,7 @@
 import type * as Leaflet from 'leaflet';
 import { sharedCanvasRenderer } from './canvasRenderer.js';
 import { diffGlyphs, rotatedPlanePoints, rotatedTrianglePoints, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import { projectPosition, type Velocity } from './motion.js';
 
 export interface CanvasGlyphLayerOptions<T> {
     /** A literal colour string -- see `liveLayerColors.ts`'s doc comment for why this can't be a CSS custom property. */
@@ -70,6 +71,23 @@ export interface CanvasGlyphLayerOptions<T> {
      * timestamp, which `diffGlyphs` wouldn't otherwise flag as an update.
      */
     labelFor?: (data: T) => string | null;
+    /**
+     * How fast, and which way, this thing is actually travelling -- its
+     * speed and course over ground, or `null` when the broadcast says
+     * nothing usable. Given one, the layer dead-reckons the glyph forward
+     * between polls (`motion.ts`) instead of leaving it parked on its last
+     * fix until the next one lands, which read as a broken map rather than
+     * a slow one: everything sat still for ten seconds and then jumped.
+     *
+     * Course, not heading: a ship's bow can point somewhere its track does
+     * not (a ferry crabbing across a current), and it is the track that
+     * says where it will be. The glyph still *points* along
+     * `descriptor.heading`.
+     *
+     * Omitted entirely, the layer draws every glyph exactly where its fix
+     * put it, as it always did.
+     */
+    velocityFor?: (data: T) => Velocity | null;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -107,6 +125,17 @@ function cornersToLatLngs<T>(
         shape === 'plane' ? rotatedPlanePoints(widthPx, heightPx, descriptor.heading) : rotatedTrianglePoints(widthPx, heightPx, descriptor.heading);
     return corners.map((corner) => map.unproject(L.point(centerPixel.x + corner.x, centerPixel.y + corner.y), zoom));
 }
+
+/**
+ * How often a dead-reckoned glyph is redrawn.
+ *
+ * A compromise, and the kiosk is what it is picked for: at 8 frames a
+ * second an airliner moves well under a pixel per frame at the map's
+ * usual zoom, so the motion reads as gliding rather than stepping, while
+ * a Raspberry Pi redraws the whole canvas eight times a second instead of
+ * sixty.
+ */
+const MOTION_FRAME_MS = 120;
 
 export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options: CanvasGlyphLayerOptions<T>): CanvasGlyphLayer<T> {
     // Shared with every other path layer on this map, trails included --
@@ -201,10 +230,28 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         entry.hitArea.getTooltip()?.setLatLng(L.latLng(descriptor.lat, descriptor.lng));
     }
 
+    /**
+     * Where this glyph has got to since the fix it was last reported at
+     * -- the same descriptor with its position dead-reckoned forward (see
+     * `motion.ts`). Without a `velocityFor`, or for anything that isn't
+     * moving, this is the descriptor itself, and every drawing path below
+     * behaves exactly as it did before there was any motion at all.
+     */
+    function projected(descriptor: GlyphDescriptor<T>): GlyphDescriptor<T> {
+        if (!options.velocityFor) return descriptor;
+        const fixMs = Date.parse(descriptor.timestamp);
+        if (Number.isNaN(fixMs)) return descriptor;
+
+        const at = projectPosition({ lat: descriptor.lat, lng: descriptor.lng }, options.velocityFor(descriptor.data), Date.now() - fixMs);
+        if (at.lat === descriptor.lat && at.lng === descriptor.lng) return descriptor;
+        return { ...descriptor, lat: at.lat, lng: at.lng };
+    }
+
     function applyLatLngs(descriptor: GlyphDescriptor<T>, entry: GlyphEntry): void {
-        entry.visible.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx, shape));
-        entry.hitArea.setLatLngs(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape));
-        anchorLabel(descriptor, entry);
+        const at = projected(descriptor);
+        entry.visible.setLatLngs(cornersToLatLngs(L, map, at, options.widthPx, options.heightPx, shape));
+        entry.hitArea.setLatLngs(cornersToLatLngs(L, map, at, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape));
+        anchorLabel(at, entry);
     }
 
     /**
@@ -223,7 +270,11 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
      */
     function createEntry(descriptor: GlyphDescriptor<T>): GlyphEntry {
         const color = options.colorFor?.(descriptor.data) ?? options.color;
-        const visible = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx, options.heightPx, shape), {
+        // Positioned where the vessel is *now*, not where its fix was
+        // taken: a glyph arriving from a 40-second-old fix would otherwise
+        // appear behind itself and then jump forward on the first frame.
+        const at = projected(descriptor);
+        const visible = L.polygon(cornersToLatLngs(L, map, at, options.widthPx, options.heightPx, shape), {
             renderer,
             color,
             fillColor: color,
@@ -232,7 +283,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             weight: 1,
             interactive: false,
         });
-        const hitArea = L.polygon(cornersToLatLngs(L, map, descriptor, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape), {
+        const hitArea = L.polygon(cornersToLatLngs(L, map, at, options.widthPx * hitMultiplier, options.heightPx * hitMultiplier, shape), {
             renderer,
             fillOpacity: 0,
             opacity: 0,
@@ -246,7 +297,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         visible.addTo(layerGroup);
         hitArea.addTo(layerGroup);
         const entry: GlyphEntry = { visible, hitArea, label: null };
-        applyLabel(entry, descriptor); // anchors the label itself when it binds one
+        applyLabel(entry, at); // anchors the label itself when it binds one
         return entry;
     }
 
@@ -259,13 +310,29 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         descriptorsById.delete(id);
     }
 
-    function onZoomEnd(): void {
+    function redrawAll(): void {
         for (const [id, descriptor] of descriptorsById) {
             const entry = entries.get(id);
             if (entry) applyLatLngs(descriptor, entry);
         }
     }
+
+    function onZoomEnd(): void {
+        redrawAll();
+    }
     map.on('zoomend', onZoomEnd);
+
+    // The glyphs move between polls, not only on them. Skipped while the
+    // tab is hidden: nothing is on screen to glide, and a kiosk left on a
+    // background tab should not be redrawing a canvas eight times a
+    // second for nobody.
+    const motionTimer =
+        options.velocityFor === undefined
+            ? undefined
+            : setInterval(() => {
+                  if (document.hidden) return;
+                  redrawAll();
+              }, MOTION_FRAME_MS);
 
     function update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void {
         const visible = visibleGlyphs(items, maxAgeMinutes, now);
@@ -313,6 +380,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         update,
         count: () => visibleCount,
         dispose(): void {
+            if (motionTimer !== undefined) clearInterval(motionTimer);
             map.off('zoomend', onZoomEnd);
             map.removeLayer(layerGroup);
             entries.clear();

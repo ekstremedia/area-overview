@@ -112,8 +112,10 @@ function fakeLeaflet(createdPolygons: FakePolygon[]): typeof Leaflet {
 function fakeMap(): Leaflet.Map {
     return {
         getZoom: () => 10,
-        project: () => ({ x: 0, y: 0 }),
-        unproject: () => ({ lat: 0, lng: 0 }),
+        // Enough of a projection to see a glyph move: a fixed scale, and
+        // an inverse that gets back to the coordinates it came from.
+        project: (latLng: { lat: number; lng: number }) => ({ x: latLng.lng * 1000, y: -latLng.lat * 1000 }),
+        unproject: (point: { x: number; y: number }) => ({ lat: -point.y / 1000, lng: point.x / 1000 }),
         on: () => undefined,
         off: () => undefined,
         removeLayer: () => undefined,
@@ -352,5 +354,90 @@ describe('createCanvasGlyphLayer labelFor', () => {
 
         const [, hitArea] = created;
         expect(hitArea?.tooltip).toBeUndefined();
+    });
+});
+
+describe('createCanvasGlyphLayer velocityFor', () => {
+    /** The northernmost corner of a glyph's polygon -- enough to tell whether the whole thing moved. */
+    function northOf(polygon: FakePolygon | undefined): number {
+        const latLngs = (polygon?.latLngs ?? []) as { lat: number }[];
+        return Math.max(...latLngs.map((corner) => corner.lat));
+    }
+
+    it('dead-reckons a moving glyph forward between polls', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        try {
+            const created: FakePolygon[] = [];
+            const layer = createCanvasGlyphLayer(
+                fakeLeaflet(created),
+                fakeMap(),
+                // 600 knots due north: fast enough that a few seconds is a
+                // visible distance rather than a rounding difference.
+                baseOptions({ velocityFor: () => ({ speedKt: 600, courseDeg: 0 }) }),
+            );
+
+            layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+            const atFix = northOf(created[0]);
+
+            // No new poll -- only time passing, and the layer's own frames.
+            vi.advanceTimersByTime(10_000);
+            const later = northOf(created[0]);
+
+            expect(later).toBeGreaterThan(atFix);
+            // 600kt for 10s is 1.67nm, about 0.028° of latitude.
+            expect(later - atFix).toBeCloseTo(0.028, 3);
+
+            layer.dispose();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('leaves a stationary glyph exactly where its fix put it', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        try {
+            const created: FakePolygon[] = [];
+            const layer = createCanvasGlyphLayer(
+                fakeLeaflet(created),
+                fakeMap(),
+                baseOptions({ velocityFor: () => ({ speedKt: 0, courseDeg: 90 }) }),
+            );
+
+            layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+            const atFix = northOf(created[0]);
+
+            vi.advanceTimersByTime(30_000);
+
+            expect(northOf(created[0])).toBe(atFix);
+
+            layer.dispose();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('stops redrawing once disposed, so a torn-down layer leaves no timer behind', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        try {
+            const created: FakePolygon[] = [];
+            const layer = createCanvasGlyphLayer(
+                fakeLeaflet(created),
+                fakeMap(),
+                baseOptions({ velocityFor: () => ({ speedKt: 600, courseDeg: 0 }) }),
+            );
+
+            layer.update([glyph()], 30, new Date('2026-09-05T12:00:00Z'));
+            layer.dispose();
+            const atDispose = northOf(created[0]);
+
+            vi.advanceTimersByTime(60_000);
+
+            expect(northOf(created[0])).toBe(atDispose);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

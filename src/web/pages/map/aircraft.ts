@@ -144,6 +144,10 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 buildPopup: (aircraft) => buildAircraftPopup(aircraft),
                 isDistinct: isOnGround,
                 labelFor: (aircraft) => aircraftLabel(aircraft),
+                // ADS-B's `track` is course over ground already, and
+                // `groundSpeedKt` the speed to match it. An aircraft
+                // sitting on a stand reports 0 and so does not move.
+                velocityFor: (aircraft) => ({ speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track }),
             });
 
             const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR, trailFor: (item) => item.trail });

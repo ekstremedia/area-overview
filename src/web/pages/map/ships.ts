@@ -388,6 +388,12 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // to avoid cluttering the map with moored/anchored/fishing
                 // vessels' names.
                 labelFor: (ship) => (ship.navigationalStatus === NAVIGATIONAL_STATUS_UNDERWAY_USING_ENGINE ? shipLabel(ship) : null),
+                // Course over ground, not `heading`: the bow can point
+                // somewhere the vessel is not going (a ferry crabbing
+                // across a current, a boat swinging at anchor), and it is
+                // the track that says where it will be a few seconds from
+                // now. A moored ship reports 0 knots and so does not move.
+                velocityFor: (ship) => ({ speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround }),
             });
             const clusterBadges = createClusterBadgeLayer(L, map);
             // Fed every visible ship below, clustered or not -- see
