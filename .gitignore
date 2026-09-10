@@ -11,3 +11,7 @@ data/
 node_modules/
 dist/
 *.log
+
+# Agent instructions and local agent state: not part of the public repo.
+CLAUDE.md
+.claude/
