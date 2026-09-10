@@ -1,59 +1,84 @@
 # area-overview
 
-A reactive vanilla-TypeScript (no framework) live map plus weather, aurora,
-tide and camera pages, backed by a small Node/TypeScript backend-for-frontend
-(BFF) that proxies a Laravel API. Built as a TypeScript learning vehicle.
-Eventually deployed as a Docker Compose stack at `area.nesthus.no`.
+A kiosk dashboard for one stretch of coast: a live map of the ships and
+aircraft passing through it, plus weather, aurora, tide and webcam pages
+that cycle on their own on a wall display.
+
+The frontend is vanilla TypeScript -- no framework, its own small reactive
+primitives -- built with Vite, with Leaflet for the map. Behind it sits a
+Node/TypeScript backend-for-frontend on Fastify, which is what talks to the
+upstreams (AIS, ADS-B, weather, tide, aurora, cameras), holds the API
+credentials, caches the responses and validates every payload with Zod
+before the browser sees it.
 
 See `docs/ARCHITECTURE.md` for how the pieces fit together, `docs/ROADMAP.md`
 for the phase plan, and `docs/adr/` for the reasoning behind the main design
 decisions.
 
-## Development
+## Requirements
+
+- Node 22 or newer, and npm.
+- Optional upstream credentials, all set in `.env`. Without them the app
+  runs and those pages simply report that they are not configured:
+    - `BARENTSWATCH_CLIENT_ID` / `_SECRET` -- AIS ship positions.
+    - `OPENSKY_CLIENT_ID` / `_SECRET` -- aircraft, if `ADSB_PROVIDER=opensky`;
+      the default `adsblol` needs no credentials.
+    - `CARTO_API_KEY` -- unwatermarked dark basemap tiles.
+- `SETTINGS_PASSWORD` (at least 16 characters) is required to open the
+  in-app settings page.
+
+## Setup
 
 ```bash
 npm ci
-cp .env.example .env   # fill in local values
-npm run dev             # runs the BFF and the Vite dev server together
+cp .env.example .env   # then fill in the values
 ```
 
-## Building
+`.env` is never committed. Every key in `.env.example` is documented there.
+
+## Running
 
 ```bash
-npm run build
+npm run dev     # the BFF and the Vite dev server together
+```
+
+The BFF listens on `127.0.0.1:8141` (`PORT`/`HOST` in `.env`) and Vite
+proxies `/api` to it. It must never bind `0.0.0.0`: expose it through a
+reverse proxy instead.
+
+```bash
+npm run build   # frontend via Vite, server via tsc, both into dist/
+npm start       # serve the built app from the BFF
 ```
 
 ## Checks
 
 ```bash
-npm run typecheck
-npm run lint
-npm run format:check
-npm run test
-npm run check   # all of the above
+npm run check   # typecheck, lint, format:check, test
 ```
+
+Each stage is also available on its own (`npm run typecheck`, `lint`,
+`format:check`, `test`, plus `test:watch`, `lint:fix`, `format`).
 
 ## Deployment
 
-Runs as a single-service Docker Compose stack, published behind a reverse
-proxy at `area.nesthus.no`.
-
-`.env` must exist before the stack can start -- create it with `make init`
-(copies `.env.example` to `.env` if one doesn't already exist yet), then
-fill in the values yourself, in particular `SETTINGS_PASSWORD` (required,
-at least 16 characters). `.env` is never committed and never overwritten by
-`make init` once it exists.
+The app ships as a single-service Docker Compose stack: one image containing
+the built frontend and the BFF that serves it, published on `127.0.0.1:8141`
+for a reverse proxy to terminate TLS in front of.
 
 ```bash
-make init            # create .env (first time only), then edit it
+make init                    # create .env if absent, then fill it in
 docker compose up -d --build
 ```
 
-This builds the image (frontend via Vite, server compiled with `tsc`),
-starts the `app` container bound to `127.0.0.1:8141` only, and persists the
-settings store under `./data/`. See the `Makefile` for the rest of the
-day-to-day targets (`up`, `down`, `restart`, `deploy`, `logs`, `shell`,
-`check`).
+Settings persist in `./data/`. `make check` verifies the published port is
+loopback-only and the container is healthy; `make deploy` pulls, rebuilds and
+brings the stack up. The `Makefile` has the rest (`build`, `up`, `down`,
+`restart`, `logs`, `shell`).
 
-The one-time hostname and certificate setup that only a human with DNS/
-certbot access can do is in `deploy/manual-steps.md`.
+Hostname, DNS and certificate setup -- the parts that need a human -- are in
+`deploy/manual-steps.md`.
+
+## Licence
+
+MIT.
