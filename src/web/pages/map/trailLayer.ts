@@ -27,6 +27,7 @@ import type * as Leaflet from 'leaflet';
 import { sharedCanvasRenderer } from './canvasRenderer.js';
 import type { GlyphDescriptor } from './glyphs.js';
 import type { TrailPoint as ServerTrailPoint } from '../../../shared/schemas/trail.js';
+import { MOTION_FRAME_MS, projectPosition, type Velocity } from './motion.js';
 import { ageTrailPoints, appendTrailPoint, trailSegments, type TrailPoint } from './trails.js';
 
 /**
@@ -62,10 +63,22 @@ const TRAIL_WEIGHT_PX = 2.5;
 
 interface TrailEntry<T> {
     points: TrailPoint[];
-    /** The glyph's latest payload, kept only so `colorFor` can be consulted at redraw time. */
+    /** The glyph's latest payload, kept only so `colorFor`/`velocityFor` can be consulted at redraw time. */
     data: T;
     /** The rendered segments, kept so they can be removed before redrawing. */
     lines: Leaflet.Polyline[];
+    /**
+     * The latest position actually reported, and when. Kept separately
+     * from `points` because the two genuinely differ: a fix `points`
+     * declined (a repeat, or one already older than the trail window) is
+     * still where the glyph is being drawn, and so is still where the
+     * head below has to be projected from.
+     */
+    fix: TrailPoint;
+    /** The one segment from the newest history point to where the glyph has glided to since -- the tail's leading end, moved in place on the motion timer rather than rebuilt. */
+    head: Leaflet.Polyline | undefined;
+    /** The colour `head` was last drawn in, so the style is only reapplied when it actually changed. */
+    headColor: string | undefined;
     lastSeen: number;
 }
 
@@ -90,6 +103,22 @@ export interface TrailLayerOptions<T> {
     /** A literal colour string -- see `liveLayerColors.ts` for why this can't be a CSS custom property. */
     color: string;
     /**
+     * The same speed-and-course accessor the glyph layer is given, and it
+     * must be the same one: between polls the glyph dead-reckons forward
+     * (`motion.ts`) while the history here only grows when a fix lands, so
+     * without this the tail stayed nailed to the last fix and the glyph
+     * sailed away from its own tail -- a gap that reopened after every
+     * poll and was worst for the fastest things on the map.
+     *
+     * Given it, the newest history point is joined to wherever the glyph
+     * has glided to, redrawn on the same timer at the same rate, so the
+     * tail stays attached and keeps growing between fixes.
+     *
+     * Omitted, the trail is drawn from reported positions alone, exactly
+     * as it was before there was any motion at all.
+     */
+    velocityFor?: (data: T) => Velocity | null;
+    /**
      * Per-glyph colour override, so a tail matches the glyph it trails
      * from (ships colour by navigational status; aircraft pass nothing and
      * keep the flat `color`). Consulted on each redraw -- which happens
@@ -110,14 +139,82 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
     const layerGroup = L.layerGroup().addTo(map);
     const entries = new Map<string, TrailEntry<T>>();
 
+    function colorOf(entry: TrailEntry<T>): string {
+        return options.colorFor?.(entry.data) ?? options.color;
+    }
+
     function clearLines(entry: TrailEntry<T>): void {
         for (const line of entry.lines) layerGroup.removeLayer(line);
         entry.lines = [];
     }
 
+    function removeHead(entry: TrailEntry<T>): void {
+        if (entry.head) layerGroup.removeLayer(entry.head);
+        entry.head = undefined;
+        entry.headColor = undefined;
+    }
+
+    /**
+     * Where the glyph this tail belongs to is being drawn right now: its
+     * last fix dead-reckoned forward by however long ago that fix was, the
+     * identical calculation `canvasGlyphLayer.ts` does for the glyph
+     * itself. `undefined` whenever that comes back unmoved -- no velocity
+     * configured, a stationary or unreported speed, or a fix now older than
+     * `MAX_PROJECTION_MS`, which `motion.ts` refuses to project past.
+     */
+    function headPosition(entry: TrailEntry<T>): { lat: number; lng: number } | undefined {
+        if (!options.velocityFor) return undefined;
+        const at = projectPosition({ lat: entry.fix.lat, lng: entry.fix.lng }, options.velocityFor(entry.data), Date.now() - entry.fix.at);
+        return at.lat === entry.fix.lat && at.lng === entry.fix.lng ? undefined : at;
+    }
+
+    /**
+     * Joins the newest thing this trail actually knows to where the glyph
+     * has glided to since, and keeps that one segment pinned there.
+     *
+     * Moved with `setLatLngs` rather than rebuilt: this runs eight times a
+     * second per vessel, and recreating an `L.Polyline` each frame would
+     * churn a layer's worth of objects for something whose only changing
+     * property is one endpoint. `MOTION_FRAME_MS` is the cadence, matching
+     * the glyph's, so the two never separate by more than a frame.
+     */
+    function drawHead(entry: TrailEntry<T>): void {
+        const to = headPosition(entry);
+        if (to === undefined) {
+            removeHead(entry);
+            return;
+        }
+        // The history's newest point normally *is* the latest fix; it is
+        // not when that fix was declined as a repeat or as already stale,
+        // and then the last point the trail really holds is the honest
+        // place to draw from.
+        const from = entry.points[entry.points.length - 1] ?? entry.fix;
+        const latLngs: [number, number][] = [
+            [from.lat, from.lng],
+            [to.lat, to.lng],
+        ];
+        const color = colorOf(entry);
+        if (entry.head) {
+            entry.head.setLatLngs(latLngs);
+            if (entry.headColor !== color) entry.head.setStyle({ color });
+        } else {
+            entry.head = L.polyline(latLngs, {
+                renderer,
+                color,
+                weight: TRAIL_WEIGHT_PX,
+                // The freshest thing on the trail, so it is drawn at the
+                // near end's own opacity rather than anywhere on the ramp.
+                opacity: NEWEST_OPACITY,
+                interactive: false,
+            });
+            entry.head.addTo(layerGroup);
+        }
+        entry.headColor = color;
+    }
+
     function drawTrail(entry: TrailEntry<T>): void {
         clearLines(entry);
-        const color = options.colorFor?.(entry.data) ?? options.color;
+        const color = colorOf(entry);
         for (const segment of trailSegments(entry.points, { newestOpacity: NEWEST_OPACITY, oldestOpacity: OLDEST_OPACITY })) {
             const line = L.polyline(
                 [
@@ -178,9 +275,13 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
                 points: seedPoints(descriptor.data, nowMs),
                 data: descriptor.data,
                 lines: [],
+                fix: { lat: descriptor.lat, lng: descriptor.lng, at: reportedAt },
+                head: undefined,
+                headColor: undefined,
                 lastSeen: nowMs,
             };
             entry.data = descriptor.data;
+            entry.fix = { lat: descriptor.lat, lng: descriptor.lng, at: reportedAt };
             const before = entry.points;
             entry.points = appendTrailPoint(
                 entry.points,
@@ -196,11 +297,17 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
             // dropped old points, which leaves the newest timestamp untouched
             // while making the drawn trail wrong.
             if (entry.points !== before) drawTrail(entry);
+            // Re-anchored here as well as on the timer: this fix has just
+            // moved the point the head hangs off, and waiting a frame to
+            // notice would draw the segment from the wrong end of the
+            // trail for that frame.
+            drawHead(entry);
         }
 
         for (const [id, entry] of entries) {
             if (nowMs - entry.lastSeen >= FORGET_AFTER_MS) {
                 clearLines(entry);
+                removeHead(entry);
                 entries.delete(id);
                 continue;
             }
@@ -219,14 +326,30 @@ export function createTrailLayer<T>(L: typeof Leaflet, map: Leaflet.Map, options
     }
 
     function clear(): void {
-        for (const entry of entries.values()) clearLines(entry);
+        for (const entry of entries.values()) {
+            clearLines(entry);
+            removeHead(entry);
+        }
         entries.clear();
     }
+
+    // The tails grow between polls, not only on them. Skipped while the
+    // tab is hidden, for the same reason the glyph layer's timer is:
+    // nothing is on screen to draw, and a kiosk on a background tab must
+    // not repaint a canvas eight times a second for nobody.
+    const motionTimer =
+        options.velocityFor === undefined
+            ? undefined
+            : setInterval(() => {
+                  if (document.hidden) return;
+                  for (const entry of entries.values()) drawHead(entry);
+              }, MOTION_FRAME_MS);
 
     return {
         update,
         clear,
         dispose(): void {
+            if (motionTimer !== undefined) clearInterval(motionTimer);
             map.removeLayer(layerGroup);
             entries.clear();
         },

@@ -4,7 +4,7 @@
  * history/fade maths underneath is covered by `trails.test.ts`; what
  * matters here is what actually gets added to and removed from the map.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Leaflet from 'leaflet';
 import { createTrailLayer } from './trailLayer.js';
 import type { GlyphDescriptor } from './glyphs.js';
@@ -13,6 +13,8 @@ interface FakePolyline {
     latLngs: unknown;
     options: Record<string, unknown>;
     addTo: () => FakePolyline;
+    setLatLngs: (latLngs: unknown) => FakePolyline;
+    setStyle: (style: Record<string, unknown>) => FakePolyline;
 }
 
 function fakeLeaflet(created: FakePolyline[], live: Set<FakePolyline>): typeof Leaflet {
@@ -35,6 +37,14 @@ function fakeLeaflet(created: FakePolyline[], live: Set<FakePolyline>): typeof L
                     live.add(line);
                     return line;
                 },
+                setLatLngs: (next: unknown) => {
+                    line.latLngs = next;
+                    return line;
+                },
+                setStyle: (style: Record<string, unknown>) => {
+                    Object.assign(line.options, style);
+                    return line;
+                },
             };
             created.push(line);
             return line;
@@ -55,6 +65,22 @@ function glyph(id: string, lat: number, timestamp: string): GlyphDescriptor<null
 const T0 = '2026-09-07T12:00:00Z';
 const T1 = '2026-09-07T12:00:15Z';
 const T2 = '2026-09-07T12:00:30Z';
+
+/** 60 knots due north is a nautical mile a minute, so any elapsed time projects to a latitude that is easy to reason about. */
+const northbound = (): { speedKt: number; courseDeg: number } => ({ speedKt: 60, courseDeg: 0 });
+
+/** The far end of a segment -- the projected position, for the head; the newer fix, for a history leg. */
+function endOf(line: FakePolyline | undefined): [number, number] | undefined {
+    return (line?.latLngs as [number, number][] | undefined)?.[1];
+}
+
+function startOf(line: FakePolyline | undefined): [number, number] | undefined {
+    return (line?.latLngs as [number, number][] | undefined)?.[0];
+}
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 describe('createTrailLayer', () => {
     it('draws nothing from a single sighting -- a trail needs somewhere to have come from', () => {
@@ -160,6 +186,19 @@ describe('createTrailLayer', () => {
         expect(live.size).toBe(0);
     });
 
+    it('draws no leading segment without a velocity to dead-reckon from', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T1)); // well after the fix: there would be plenty to project, given a speed
+        const created: FakePolyline[] = [];
+        const layer = createTrailLayer<null>(fakeLeaflet(created, new Set()), fakeMap(), { color: 'cyan' });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T1));
+        vi.advanceTimersByTime(5_000);
+
+        expect(created).toHaveLength(0);
+        layer.dispose();
+    });
+
     it('tracks each glyph separately', () => {
         const created: FakePolyline[] = [];
         const live = new Set<FakePolyline>();
@@ -169,5 +208,105 @@ describe('createTrailLayer', () => {
         layer.update([glyph('a', 68.2, T1), glyph('b', 69.2, T1)], new Date(T1));
 
         expect(live.size).toBe(2); // one segment each, not one shared trail
+    });
+});
+
+/**
+ * The bug these cover: the glyph dead-reckons forward between polls while
+ * the history only grows when a fix lands, so the tail stayed nailed to
+ * the last fix and the glyph sailed out ahead of it -- a gap that reopened
+ * after every poll and was widest for the fastest things on the map.
+ */
+describe('createTrailLayer, given a velocity', () => {
+    it('runs a leading segment from the last fix to where the glyph has glided to', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T1)); // 15s past the fix: 0.25nm at 60kt
+        const created: FakePolyline[] = [];
+        const live = new Set<FakePolyline>();
+        const layer = createTrailLayer<null>(fakeLeaflet(created, live), fakeMap(), { color: 'cyan', velocityFor: northbound });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T1));
+
+        // A tail from a single sighting, which the reported positions alone
+        // could never draw: the glyph is already ahead of its own fix.
+        expect(live.size).toBe(1);
+        const [head] = [...live];
+        expect(startOf(head)).toEqual([68.1, 15.4]);
+        expect(endOf(head)?.[0]).toBeCloseTo(68.1 + 0.25 / 60, 4);
+        expect(head?.options.interactive).toBe(false);
+
+        layer.dispose();
+    });
+
+    it('moves that segment on its own timer rather than rebuilding it every frame', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T0));
+        const created: FakePolyline[] = [];
+        const layer = createTrailLayer<null>(fakeLeaflet(created, new Set()), fakeMap(), { color: 'cyan', velocityFor: northbound });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T0));
+        expect(created).toHaveLength(0); // the fix is this instant old: nothing to project onto yet
+
+        vi.advanceTimersByTime(1_000);
+        expect(created).toHaveLength(1);
+        const reachedAfterOneSecond = endOf(created[0])?.[0] ?? 0;
+
+        vi.advanceTimersByTime(4_000);
+        expect(created).toHaveLength(1); // one polyline, moved -- not five thrown away
+        expect(endOf(created[0])?.[0]).toBeGreaterThan(reachedAfterOneSecond);
+
+        layer.dispose();
+    });
+
+    it('re-anchors the leading segment to each new fix as it lands', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T1));
+        const created: FakePolyline[] = [];
+        const live = new Set<FakePolyline>();
+        const layer = createTrailLayer<null>(fakeLeaflet(created, live), fakeMap(), { color: 'cyan', velocityFor: northbound });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T1));
+        vi.setSystemTime(new Date(T2));
+        layer.update([glyph('a', 68.2, T1)], new Date(T2));
+
+        // The history leg T0->T1, and the head hanging off its newer end
+        // rather than off the position it started from.
+        expect(live.size).toBe(2);
+        const head = [...live].find((line) => startOf(line)?.[0] === 68.2);
+        expect(head).toBeDefined();
+        expect(endOf(head)?.[0]).toBeGreaterThan(68.2);
+
+        layer.dispose();
+    });
+
+    it('gives a stationary vessel no leading segment -- there is nowhere for it to have got to', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T1));
+        const created: FakePolyline[] = [];
+        const layer = createTrailLayer<null>(fakeLeaflet(created, new Set()), fakeMap(), {
+            color: 'cyan',
+            velocityFor: () => ({ speedKt: 0, courseDeg: 0 }),
+        });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T1));
+        vi.advanceTimersByTime(5_000);
+
+        expect(created).toHaveLength(0);
+        layer.dispose();
+    });
+
+    it('takes the leading segment off the map with the rest of the trail', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(T1));
+        const live = new Set<FakePolyline>();
+        const layer = createTrailLayer<null>(fakeLeaflet([], live), fakeMap(), { color: 'cyan', velocityFor: northbound });
+
+        layer.update([glyph('a', 68.1, T0)], new Date(T1));
+        expect(live.size).toBe(1);
+
+        layer.clear();
+        expect(live.size).toBe(0);
+
+        layer.dispose();
     });
 });

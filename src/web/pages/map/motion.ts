@@ -32,6 +32,22 @@ const METRES_PER_DEGREE_LAT = 111_320;
  */
 export const MAX_PROJECTION_MS = 90_000;
 
+/**
+ * How often anything dead-reckoned is redrawn.
+ *
+ * A compromise, and the kiosk is what it is picked for: at 8 frames a
+ * second an airliner moves well under a pixel per frame at the map's
+ * usual zoom, so the motion reads as gliding rather than stepping, while
+ * a Raspberry Pi redraws the whole canvas eight times a second instead of
+ * sixty.
+ *
+ * Shared by the glyph layer and the trail layer deliberately: the tail's
+ * leading end is drawn to the same projected position as the glyph it
+ * trails from, and two timers at different rates would let the two drift
+ * visibly apart between frames.
+ */
+export const MOTION_FRAME_MS = 120;
+
 export interface Velocity {
     /** Speed over ground, in knots. */
     speedKt: number;

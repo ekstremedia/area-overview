@@ -403,6 +403,9 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 color: SHIP_GLYPH_COLOR,
                 colorFor: shipColor,
                 trailFor: (ship) => ship.trail,
+                // The same accessor the glyph layer gets, so the tail's
+                // leading end tracks the vessel rather than its last fix.
+                velocityFor: (ship) => ({ speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround }),
             });
 
             const pollSeconds = Math.max(settings.get().ships.pollSeconds, SHIPS_LAYER.minPollSeconds);
