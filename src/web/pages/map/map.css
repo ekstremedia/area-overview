@@ -189,6 +189,63 @@
     justify-content: center;
 }
 
+.map-locate-control {
+    margin-top: var(--space-2) !important;
+    /* The control keeps Leaflet's own `leaflet-bar` chrome, exactly like
+       the three buttons above it. The message below is taken out of flow
+       instead, so a long sentence can never stretch that frame. */
+    position: relative;
+}
+
+.map-locate-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* A slow pulse while a fix is being fetched: the browser's own permission
+   prompt can take seconds, and a button that looks inert for that long
+   invites a second press. */
+.map-locate-button--busy {
+    animation: map-locate-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes map-locate-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.45;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .map-locate-button--busy {
+        animation: none;
+        opacity: 0.6;
+    }
+}
+
+/* Same dark card treatment as the popups, so the explanation reads as
+   part of this app rather than as Leaflet chrome -- and, unlike the
+   default control colours, is actually legible on the dark basemap. */
+.map-locate-message {
+    position: absolute;
+    top: calc(var(--tap-min) + var(--space-1));
+    left: 0;
+    width: max-content;
+    max-width: 220px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--color-text);
+    background: var(--color-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+}
+
 /* — live-layer (ships/aircraft, Phase 7) popups: the same dark card
    treatment as `.camera-popup-wrapper`, kept as its own class so a third
    future live layer can share it without coupling to the camera-specific
