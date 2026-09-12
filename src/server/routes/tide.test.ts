@@ -65,3 +65,75 @@ describe('GET /api/tide', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('GET /api/tide -- by position', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('forwards the position as lng (never lon) while keeping timespan=24h', async () => {
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(tideFixture)));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp();
+
+        await app.inject({ method: 'GET', url: '/api/tide?lat=59.91&lng=10.75' });
+
+        const url = String(fetchMock.mock.calls[0]?.[0]);
+        expect(url).toContain('timespan=24h');
+        expect(url).toContain('lat=59.91');
+        expect(url).toContain('lng=10.75');
+        expect(url).not.toContain('lon=');
+    });
+
+    it('sends no coordinates for the home position', async () => {
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(tideFixture)));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp();
+
+        await app.inject({ method: 'GET', url: '/api/tide' });
+
+        expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain('lat=');
+    });
+
+    it('rejects half a position', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(tideFixture))),
+        );
+        const app = buildTestApp();
+
+        expect((await app.inject({ method: 'GET', url: '/api/tide?lng=10.75' })).statusCode).toBe(400);
+    });
+
+    it('passes through a position with no tide station rather than failing on it', async () => {
+        // What the live upstream returns for somewhere inland abroad: HTTP
+        // 200, everything null, empty series -- and, unhelpfully, the name
+        // "Sortland". A stricter schema would turn this valid degraded
+        // answer into a 502, which is the mistake `weather.ts` already
+        // records having made once with Netatmo.
+        const noStation = {
+            ...tideFixture,
+            location: { name: 'Sortland', latitude: 40.41, longitude: -3.7, code: null },
+            timeseries: [],
+            extremes: [],
+            nextHighTide: null,
+            nextLowTide: null,
+            currentLevel: null,
+            // Explicit nulls, not absent keys -- which is what the live
+            // upstream actually sends, and what a hand-built fixture got
+            // wrong until a real request proved it.
+            observedDeviation: null,
+            ocean: null,
+        };
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(noStation))),
+        );
+        const app = buildTestApp();
+
+        const response = await app.inject({ method: 'GET', url: '/api/tide?lat=40.41&lng=-3.70' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({ location: { code: null }, nextHighTide: null });
+    });
+});

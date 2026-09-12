@@ -18,13 +18,15 @@ import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { tideCurve, tideCurveTicks } from './tide/curve.js';
 import './tide/tide.css';
+import { activePosition, positionQuery } from '../position.js';
+import { positionLabel } from '../position-label.js';
 
 const TIDE_POLL_INTERVAL_MS = 30_000;
 const AXIS_MARK_COUNT = 8;
 
 async function fetchTide(): Promise<Result<Tide>> {
     try {
-        const response = await fetch('/api/tide');
+        const response = await fetch(`/api/tide${positionQuery()}`);
         if (!response.ok) return err({ message: `GET /api/tide responded ${String(response.status)}` });
         const json: unknown = await response.json();
         const parsed = TideSchema.safeParse(json);
@@ -51,15 +53,16 @@ function trendText(trend: string, deviation: string): string {
     return t('tide.trendSteady', { deviation });
 }
 
-function buildTrendLine(tide: Tide): HTMLElement | null {
+/** `currentLevel` is passed in already narrowed: the caller has established there is a station here at all. */
+function buildTrendLine(tide: Tide, currentLevel: NonNullable<Tide['currentLevel']>): HTMLElement | null {
     if (!tide.observedDeviation) return null;
     const trend = document.createElement('div');
     trend.className = 'tide-level-trend';
-    trend.textContent = trendText(tide.currentLevel.trend, deviationText(tide.observedDeviation.value));
+    trend.textContent = trendText(currentLevel.trend, deviationText(tide.observedDeviation.value));
     return trend;
 }
 
-function buildLevelNowColumn(tide: Tide): HTMLElement {
+function buildLevelNowColumn(tide: Tide, currentLevel: NonNullable<Tide['currentLevel']>): HTMLElement {
     const col = document.createElement('div');
     col.className = 'tide-column';
 
@@ -70,14 +73,14 @@ function buildLevelNowColumn(tide: Tide): HTMLElement {
     const value = document.createElement('div');
     value.className = 'tide-level-value';
     const num = document.createElement('span');
-    num.textContent = formatNumber(Math.round(tide.currentLevel.value));
+    num.textContent = formatNumber(Math.round(currentLevel.value));
     const unit = document.createElement('span');
     unit.className = 'tide-level-unit';
     unit.textContent = ` ${t('unit.centimeters')}`;
     value.append(num, unit);
 
     col.append(label, value);
-    const trend = buildTrendLine(tide);
+    const trend = buildTrendLine(tide, currentLevel);
     if (trend) col.append(trend);
 
     return col;
@@ -201,6 +204,19 @@ export function render(container: HTMLElement): () => void {
     const tideResource = resource(fetchTide, { intervalMs: TIDE_POLL_INTERVAL_MS });
     const reportFreshness = createFreshnessReporter(TIDE_POLL_INTERVAL_MS, status);
 
+    // Moving the position must not wait out the rest of the poll interval:
+    // somebody who just pressed locate is looking at the page right now.
+    // The first run is skipped because `resource()` has already fetched.
+    let positionSeen = false;
+    const disposePositionEffect = effect(() => {
+        activePosition.get();
+        if (!positionSeen) {
+            positionSeen = true;
+            return;
+        }
+        tideResource.refresh();
+    });
+
     const disposeEffect = effect(() => {
         const state = tideResource.state.get();
         reportFreshness(state);
@@ -216,10 +232,36 @@ export function render(container: HTMLElement): () => void {
         if (data) {
             const now = new Date();
 
+            // Names the place these numbers are about whenever it is not
+            // the shared home view -- the station name upstream chose, or
+            // the rounded coordinates when it did not name a real one.
+            const position = activePosition.get();
+            if (position) {
+                const caption = document.createElement('p');
+                caption.className = 'tide-position';
+                caption.textContent = t('tide.position', {
+                    place: positionLabel({ name: data.location.name, point: position, formatCoordinate: formatNumber }),
+                });
+                body.append(caption);
+            }
+
+            // No Kartverket station anywhere near the requested position --
+            // what a position outside Norway produces. Upstream answers 200
+            // with everything null and, unhelpfully, `name: "Sortland"`, so
+            // the null station code is the signal and the name is ignored.
+            if (data.location.code === null || data.currentLevel === null || data.nextHighTide === null || data.nextLowTide === null) {
+                const empty = document.createElement('p');
+                empty.className = 'tide-empty';
+                empty.textContent = t('tide.noStation');
+                body.append(empty);
+                status.attribution(data.attribution);
+                return;
+            }
+
             const topRow = document.createElement('div');
             topRow.className = 'tide-top-row';
             topRow.append(
-                buildLevelNowColumn(data),
+                buildLevelNowColumn(data, data.currentLevel),
                 buildNextExtremeColumn('tide.nextHighLabel', data.nextHighTide.time, data.nextHighTide.value, now),
                 buildNextExtremeColumn('tide.nextLowLabel', data.nextLowTide.time, data.nextLowTide.value, now),
             );
@@ -240,6 +282,7 @@ export function render(container: HTMLElement): () => void {
 
     return function dispose(): void {
         disposeEffect();
+        disposePositionEffect();
         tideResource.dispose();
         status.release();
         wrapper.remove();

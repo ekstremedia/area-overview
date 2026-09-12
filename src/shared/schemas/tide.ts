@@ -1,11 +1,19 @@
 import { z } from 'zod';
 import { IsoTimestampSchema } from './common.js';
 
+/**
+ * `code` is `null` when there is no Kartverket station for the requested
+ * position at all -- which is what a position outside Norway produces.
+ * Verified against the live upstream: Madrid coordinates come back HTTP
+ * 200 with `code: null`, empty `timeseries`/`extremes`, and -- misleadingly
+ * -- `name: "Sortland"`. So a null `code` is the reliable signal that
+ * there is nothing to show, and `name` must not be trusted without it.
+ */
 export const TideLocationSchema = z.object({
     name: z.string(),
     latitude: z.number(),
     longitude: z.number(),
-    code: z.string(),
+    code: z.string().nullable(),
 });
 
 export const TideTimeseriesEntrySchema = z.object({
@@ -81,11 +89,21 @@ export const TideSchema = z.object({
     location: TideLocationSchema,
     timeseries: z.array(TideTimeseriesEntrySchema),
     extremes: z.array(TideExtremeSchema),
-    nextHighTide: TideNextExtremeSchema,
-    nextLowTide: TideNextExtremeSchema,
-    currentLevel: TideCurrentLevelSchema,
-    observedDeviation: TideObservedDeviationSchema.optional(),
-    ocean: TideOceanSchema.optional(),
+    // Null together with an empty `timeseries` when the requested position
+    // has no tide station near it. A real, expected degraded-but-valid
+    // state rather than malformed data -- the same lesson as
+    // `weather.ts`'s Netatmo fields, where a stricter schema turned a
+    // degraded upstream response into a full 502 in production.
+    nextHighTide: TideNextExtremeSchema.nullable(),
+    nextLowTide: TideNextExtremeSchema.nullable(),
+    currentLevel: TideCurrentLevelSchema.nullable(),
+    // `.nullable()` as well as `.optional()`: upstream sends these as
+    // explicit `null` -- not absent -- for a position with no station.
+    // Observed against the live API, and the same trap `weather.ts`
+    // documents: `.optional()` alone rejects a `null` outright, turning a
+    // valid degraded response into a 502.
+    observedDeviation: TideObservedDeviationSchema.nullable().optional(),
+    ocean: TideOceanSchema.nullable().optional(),
     attribution: z.string(),
     attributionUrl: z.string(),
     cachedAt: IsoTimestampSchema,

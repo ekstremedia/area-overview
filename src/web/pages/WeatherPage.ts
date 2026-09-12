@@ -25,6 +25,8 @@ import { claimPageStatus } from '../shell/page-status.js';
 import { createFreshnessReporter } from '../shell/resourceStatus.js';
 import { compassWord, humanizeSymbolCode } from '../weather-symbols.js';
 import './weather.css';
+import { activePosition, positionQuery } from '../position.js';
+import { positionLabel } from '../position-label.js';
 
 const WEATHER_POLL_INTERVAL_MS = 30_000;
 const SUMMARY_POLL_INTERVAL_MS = 30_000;
@@ -56,7 +58,7 @@ function displaysAsFreezing(temperature: number): boolean {
 
 async function fetchWeather(): Promise<Result<Weather>> {
     try {
-        const response = await fetch('/api/weather');
+        const response = await fetch(`/api/weather${positionQuery()}`);
         if (!response.ok) return err({ message: `GET /api/weather responded ${String(response.status)}` });
         const json: unknown = await response.json();
         const parsed = WeatherSchema.safeParse(json);
@@ -465,6 +467,19 @@ export function render(container: HTMLElement): () => void {
 
     const reportFreshness = createFreshnessReporter(WEATHER_POLL_INTERVAL_MS, status);
 
+    // Moving the position must not wait out the rest of the poll interval:
+    // somebody who just pressed locate is looking at the page right now.
+    // The first run is skipped because `resource()` has already fetched.
+    let positionSeen = false;
+    const disposePositionEffect = effect(() => {
+        activePosition.get();
+        if (!positionSeen) {
+            positionSeen = true;
+            return;
+        }
+        weatherResource.refresh();
+    });
+
     const disposeWeatherEffect = effect(() => {
         const state = weatherResource.state.get();
         reportFreshness(state);
@@ -491,6 +506,24 @@ export function render(container: HTMLElement): () => void {
         const data = state.status === 'ready' ? state.data : state.status === 'error' ? state.lastData : undefined;
 
         right.innerHTML = '';
+        // The summary is an LLM-written paragraph about Sortland, and the
+        // endpoint takes no coordinates. Shown beside a forecast for
+        // somewhere else it would simply be wrong about the place on
+        // screen, so it is left out. The column then names the place these
+        // numbers *are* about, which is the more useful thing to put there
+        // for a visitor who has moved the position.
+        const position = activePosition.get();
+        if (position !== null) {
+            const weatherState = weatherResource.state.get();
+            const weather = weatherState.status === 'ready' ? weatherState.data : weatherState.status === 'error' ? weatherState.lastData : undefined;
+            const caption = document.createElement('p');
+            caption.className = 'weather-position';
+            caption.textContent = t('weather.position', {
+                place: positionLabel({ name: weather?.location.name, point: position, formatCoordinate: formatNumber }),
+            });
+            right.append(caption);
+            return;
+        }
         const slot = buildSummarySlot(data);
         if (slot) right.append(slot);
     });
@@ -501,6 +534,7 @@ export function render(container: HTMLElement): () => void {
 
     return function dispose(): void {
         disposeWeatherEffect();
+        disposePositionEffect();
         disposeSummaryEffect();
         disposeAttributionEffect();
         weatherResource.dispose();

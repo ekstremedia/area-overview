@@ -164,6 +164,7 @@ export const nb = {
     'compass.w': 'vest',
     'compass.nw': 'nordvest',
 
+    'weather.position': 'Posisjon: {place}',
     'weather.outdoorLabel': 'Netatmo · ute',
     'weather.wind': 'Vind',
     'weather.humidity': 'Fukt',
@@ -199,6 +200,8 @@ export const nb = {
     'aurora.noaaAlert': 'NOAA-varsel · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
 
+    'tide.noStation': 'Ingen målestasjon for tidevann i nærheten av denne posisjonen.',
+    'tide.position': 'Posisjon: {place}',
     'tide.levelNowLabel': 'Nivå nå',
     'tide.trendRising': '↑ stiger, {deviation} over prediksjon',
     'tide.trendFalling': '↓ synker, {deviation} under prediksjon',
