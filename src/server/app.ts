@@ -13,6 +13,7 @@ import { registerHealthzRoute } from './routes/healthz.js';
 import { registerMapConfigRoute } from './routes/map-config.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
+import { createOutboundGate } from './outbound-gate.js';
 import { createShipsSnapshot } from './ships/snapshot.js';
 import { createBarentsWatchToken } from './ships/token.js';
 import { registerTideRoutes } from './routes/tide.js';
@@ -62,9 +63,15 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     // Shared by the routes and the background poller: the routes read
     // trails out and feed their own fetches in, the poller keeps it warm
     // while nobody is on the map page. See `trails/support.ts`.
-    const trails = createTrailSupport(config, { shipsSnapshot });
+    // One ADS-B budget for the whole process, spent by the route and the
+    // background poller alike. The aggregators are free, keyless community
+    // services that see one caller -- this app -- however many people have
+    // the map open. See `outbound-gate.ts`.
+    const aircraftGate = createOutboundGate({ minIntervalMs: config.adsbMinIntervalMs, burst: config.adsbBurst });
+
+    const trails = createTrailSupport(config, { shipsSnapshot, aircraftGate });
     registerShipsRoutes(app, config, { trails: trails.ships, snapshot: shipsSnapshot });
-    registerAircraftRoutes(app, config, { trails: trails.aircraft });
+    registerAircraftRoutes(app, config, { trails: trails.aircraft, gate: aircraftGate });
     registerSettingsRoutes(
         app,
         config,

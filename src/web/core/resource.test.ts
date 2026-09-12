@@ -284,3 +284,108 @@ describe('resource', () => {
         res.dispose();
     });
 });
+
+describe('resource backoff on repeated failure', () => {
+    it('doubles the poll interval per consecutive failure, so a failing service is not hammered by every open tab', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetcher).toHaveBeenCalledTimes(1); // the initial load failed: 1 failure
+
+        // One failure in hand, so the next poll is 2s out, not 1s.
+        await vi.advanceTimersByTimeAsync(1_999);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+
+        // Two failures: 4s.
+        await vi.advanceTimersByTimeAsync(3_999);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fetcher).toHaveBeenCalledTimes(3);
+
+        res.dispose();
+    });
+
+    it('caps the backoff rather than growing without bound', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+        const res = resource(fetcher, { intervalMs: 1_000, maxBackoffMs: 4_000 });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Let it climb well past where an uncapped doubling would be.
+        await vi.advanceTimersByTimeAsync(60_000);
+        const callsAfterOneMinute = fetcher.mock.calls.length;
+
+        // At the 4s ceiling a further minute is ~15 more polls; uncapped
+        // doubling would have stopped polling entirely by now.
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(callsAfterOneMinute + 10);
+
+        res.dispose();
+    });
+
+    it('snaps back to the normal interval on the first success, so recovery is not itself delayed', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(2_000); // second attempt, still failing
+        await vi.advanceTimersByTimeAsync(4_000); // third attempt, still failing
+        const callsWhileFailing = fetcher.mock.calls.length;
+
+        fetcher.mockResolvedValue(ok('back'));
+        await vi.advanceTimersByTimeAsync(8_000); // the backed-off poll succeeds
+        expect(fetcher).toHaveBeenCalledTimes(callsWhileFailing + 1);
+
+        // Back to a 1s rhythm immediately, not still crawling.
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(fetcher).toHaveBeenCalledTimes(callsWhileFailing + 2);
+
+        res.dispose();
+    });
+
+    it('gives a tab returning to the foreground one immediate attempt, however far the backoff had climbed', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(30_000); // several failures, well backed off
+        const backedOffCalls = fetcher.mock.calls.length;
+
+        setHidden(true);
+        document.dispatchEvent(new Event('visibilitychange'));
+        setHidden(false);
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(fetcher).toHaveBeenCalledTimes(backedOffCalls + 1);
+
+        // That attempt failed too, so the backoff starts over from one
+        // failure rather than resuming where it left off: 2s, not the 1s
+        // of a healthy resource nor the half-minute it had climbed to.
+        await vi.advanceTimersByTimeAsync(1_999);
+        expect(fetcher).toHaveBeenCalledTimes(backedOffCalls + 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fetcher).toHaveBeenCalledTimes(backedOffCalls + 2);
+
+        res.dispose();
+    });
+
+    it('does not hold an explicit refresh back behind a backoff the caller knows nothing about', async () => {
+        vi.useFakeTimers();
+        const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+        const res = resource(fetcher, { intervalMs: 1_000 });
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(30_000);
+        const backedOffCalls = fetcher.mock.calls.length;
+
+        res.refresh();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(fetcher).toHaveBeenCalledTimes(backedOffCalls + 1);
+
+        res.dispose();
+    });
+});

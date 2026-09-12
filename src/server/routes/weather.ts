@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { WeatherSchema, WeatherSummaryResponseSchema, type Weather, type WeatherSummaryResponse } from '../../shared/schemas/weather.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
-import { serveCached } from '../route-helpers.js';
+import { cacheSeconds, serveCached } from '../route-helpers.js';
 import { fetchUpstream } from '../upstream.js';
 
 export function registerWeatherRoutes(app: FastifyInstance, config: ServerConfig): void {
@@ -14,15 +14,23 @@ export function registerWeatherRoutes(app: FastifyInstance, config: ServerConfig
     const summaryCache = new TtlCache<WeatherSummaryResponse>(config.cacheTtlMs);
 
     app.get('/api/weather', async (request, reply) => {
-        await serveCached(request, reply, defaultCache, 'weather:default', () => fetchUpstream('/api/weather', WeatherSchema, config));
+        await serveCached(request, reply, defaultCache, 'weather:default', () => fetchUpstream('/api/weather', WeatherSchema, config), {
+            maxAgeSeconds: cacheSeconds(config.cacheTtlMs),
+        });
     });
 
     app.get('/api/weather/summary', async (request, reply) => {
-        await serveCached(request, reply, summaryCache, 'weather:summary', () =>
-            // Upstream answers 204 (no body) before it has generated a first
-            // summary; that's a defined empty state, not an error -- see
-            // `EmptyWeatherSummarySchema`.
-            fetchUpstream('/api/weather/summary', WeatherSummaryResponseSchema, config, { on204: { summary: null } }),
+        await serveCached(
+            request,
+            reply,
+            summaryCache,
+            'weather:summary',
+            () =>
+                // Upstream answers 204 (no body) before it has generated a first
+                // summary; that's a defined empty state, not an error -- see
+                // `EmptyWeatherSummarySchema`.
+                fetchUpstream('/api/weather/summary', WeatherSummaryResponseSchema, config, { on204: { summary: null } }),
+            { maxAgeSeconds: cacheSeconds(config.cacheTtlMs) },
         );
     });
 }

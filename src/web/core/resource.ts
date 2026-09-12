@@ -32,7 +32,23 @@ export interface Resource<T> {
 
 export interface ResourceOptions {
     intervalMs: number;
+    /**
+     * Ceiling for the exponential backoff applied after consecutive
+     * failures. Defaults to `DEFAULT_MAX_BACKOFF_FACTOR` times
+     * `intervalMs`.
+     *
+     * This matters because the app is public now: when the BFF or an
+     * upstream is down, every open tab is otherwise a client retrying on
+     * its own fixed rhythm for as long as the page stays open, and the
+     * failing service gets the *most* traffic exactly when it can least
+     * take it. Backing off spreads them out; a single success snaps the
+     * interval straight back, so recovery is not itself delayed.
+     */
+    maxBackoffMs?: number;
 }
+
+/** Five failed polls in a row take a 30s interval to its 5-minute ceiling. */
+const DEFAULT_MAX_BACKOFF_FACTOR = 10;
 
 export function resource<T>(fetcher: () => Promise<Result<T>>, options: ResourceOptions): Resource<T> {
     const state = signal<ResourceState<T>>({ status: 'idle' });
@@ -42,6 +58,9 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
     // Incremented at the start of every `load()` call so a slower, older call can
     // detect it has been superseded by a newer one before publishing its result.
     let generation = 0;
+    // Consecutive failures, reset by the first success. Drives the poll
+    // interval through `currentIntervalMs()`.
+    let failures = 0;
     // Read through a function, not the bare `disposed` variable, at every check below: `disposed`
     // can flip to `true` from `dispose()` while a `load()` call is suspended on `await fetcher()`,
     // and TS's control-flow narrowing can't see that closure-based mutation -- reading it directly
@@ -57,9 +76,26 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
         }
     }
 
+    /**
+     * `intervalMs` doubled per consecutive failure, capped. Deliberately
+     * not jittered: this app's clients are a handful of browsers, not a
+     * fleet, so the thundering-herd problem jitter solves does not arise,
+     * and a predictable interval is far easier to reason about from a log.
+     */
+    function currentIntervalMs(): number {
+        if (failures === 0) return options.intervalMs;
+        const ceiling = options.maxBackoffMs ?? options.intervalMs * DEFAULT_MAX_BACKOFF_FACTOR;
+        return Math.min(ceiling, options.intervalMs * 2 ** failures);
+    }
+
     function startInterval(): void {
         stopInterval();
-        timer = setInterval(() => void load(), options.intervalMs);
+        timer = setInterval(() => void load(), currentIntervalMs());
+    }
+
+    /** Re-arms the timer at the new interval, but only if one is already running -- a hidden tab must stay stopped. */
+    function restartIntervalIfRunning(): void {
+        if (timer !== undefined) startInterval();
     }
 
     async function load(): Promise<void> {
@@ -78,8 +114,14 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
             const result = await fetcher();
             if (isDisposed() || thisGeneration !== generation) return;
             if (result.ok) {
+                const wasBackingOff = failures > 0;
+                failures = 0;
                 lastData = result.value;
                 state.set({ status: 'ready', data: result.value, fetchedAt: new Date() });
+                // One success is enough to return to the normal rhythm:
+                // an outage that has just ended should not keep the
+                // display minutes behind for the rest of the backoff.
+                if (wasBackingOff) restartIntervalIfRunning();
             } else {
                 setError(new Error(result.error.message));
             }
@@ -90,13 +132,19 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
     }
 
     function setError(error: Error): void {
+        failures += 1;
         state.set(lastData === undefined ? { status: 'error', error } : { status: 'error', error, lastData });
+        restartIntervalIfRunning();
     }
 
     function handleVisibilityChange(): void {
         if (document.hidden) {
             stopInterval();
         } else {
+            // A tab coming back to the foreground is a person looking at
+            // it, which is worth one immediate attempt regardless of how
+            // far the backoff had climbed while nobody was watching.
+            failures = 0;
             void load();
             startInterval();
         }
@@ -110,12 +158,16 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
 
     function refresh(): void {
         if (isDisposed()) return;
+        // An explicit refresh is a deliberate ask (the map viewport moved,
+        // say), so it is not held back by a backoff the caller knows
+        // nothing about.
+        failures = 0;
         void load();
         // Only when a timer is already running: a `refresh()` while the tab
         // is hidden (polling deliberately stopped, see above) must not be
         // what starts polling again -- that stays `handleVisibilityChange`'s
         // decision alone.
-        if (timer !== undefined) startInterval();
+        restartIntervalIfRunning();
     }
 
     function dispose(): void {

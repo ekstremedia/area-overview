@@ -11,13 +11,15 @@ import type { FastifyInstance } from 'fastify';
 import { CameraListResponseSchema, type CameraListResponse } from '../../shared/schemas/camera.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
-import { serveCached } from '../route-helpers.js';
+import { cacheSeconds, serveCached } from '../route-helpers.js';
 import { fetchUpstream } from '../upstream.js';
 
 export function registerCameraRoutes(app: FastifyInstance, config: ServerConfig): void {
     const cache = new TtlCache<CameraListResponse>(config.cacheTtlMs);
 
     app.get('/api/cameras', async (request, reply) => {
-        await serveCached(request, reply, cache, 'cameras:all', () => fetchUpstream('/api/app/cameras', CameraListResponseSchema, config));
+        await serveCached(request, reply, cache, 'cameras:all', () => fetchUpstream('/api/app/cameras', CameraListResponseSchema, config), {
+            maxAgeSeconds: cacheSeconds(config.cacheTtlMs),
+        });
     });
 }

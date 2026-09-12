@@ -21,6 +21,7 @@ import type { ServerConfig } from '../config.js';
 import { clampBbox, parseBbox, type Bbox } from '../layers/bbox.js';
 import { shipsWithin } from '../ships/barentswatch.js';
 import type { ShipsSnapshot } from '../ships/snapshot.js';
+import type { OutboundGate } from '../outbound-gate.js';
 import { ok, type Result } from '../../shared/result.js';
 import { startTrailPoller, type TrailPollerSource } from './poller.js';
 import { createTrailStore, type TrailStore } from './store.js';
@@ -61,6 +62,13 @@ function areaBbox(config: ServerConfig, logger: FastifyBaseLogger): Bbox | null 
 export interface TrailSupportDependencies {
     /** The one nationwide AIS slot, shared with `GET /api/ships`. `undefined` when BarentsWatch is unconfigured, which disables the ships half of the poll. */
     shipsSnapshot: ShipsSnapshot | undefined;
+    /**
+     * The process-wide ADS-B outbound gate, shared with `GET /api/aircraft`.
+     * The poller is one more caller competing for the same budget, not a
+     * privileged one: if visitors have just spent the tokens, this tick
+     * skips and the next one picks the trail back up.
+     */
+    aircraftGate?: OutboundGate | undefined;
 }
 
 export function createTrailSupport(config: ServerConfig, dependencies: TrailSupportDependencies): TrailSupport {
@@ -116,6 +124,7 @@ export function createTrailSupport(config: ServerConfig, dependencies: TrailSupp
                     provider: config.adsbProvider,
                     upstreamTimeoutMs: config.upstreamTimeoutMs,
                     openSkyCredentials,
+                    gate: dependencies.aircraftGate,
                 });
                 if (!result.ok) return result;
                 aircraft.record(result.value.aircraft, now);

@@ -16,7 +16,7 @@ import { shipsWithin } from '../ships/barentswatch.js';
 import type { ShipsSnapshot } from '../ships/snapshot.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
-import { serveCached } from '../route-helpers.js';
+import { cacheSeconds, serveCached } from '../route-helpers.js';
 import type { TrailStore } from '../trails/store.js';
 
 /**
@@ -71,39 +71,46 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig, 
             return;
         }
 
-        await serveCached(request, reply, cache, bboxCacheKey(bbox), async () => {
-            // One nationwide fetch behind the snapshot, however many
-            // viewports are being served; narrowing to this one costs a
-            // filter. See `ships/snapshot.ts`.
-            const all = await snapshot.ships();
-            const result: Result<Ship[]> = all.ok ? ok(shipsWithin(all.value, bbox)) : all;
-            const now = new Date();
+        await serveCached(
+            request,
+            reply,
+            cache,
+            bboxCacheKey(bbox),
+            async () => {
+                // One nationwide fetch behind the snapshot, however many
+                // viewports are being served; narrowing to this one costs a
+                // filter. See `ships/snapshot.ts`.
+                const all = await snapshot.ships();
+                const result: Result<Ship[]> = all.ok ? ok(shipsWithin(all.value, bbox)) : all;
+                const now = new Date();
 
-            if (result.ok) {
-                // Recorded before responding, so a ship's own current fix is
-                // part of its history the next time it is asked for -- a
-                // browser polling a viewport contributes to the trails just
-                // as the background poller does.
-                dependencies.trails.record(result.value, now);
-                return { ok: true, value: withTrails(result.value, dependencies.trails, now) };
-            }
+                if (result.ok) {
+                    // Recorded before responding, so a ship's own current fix is
+                    // part of its history the next time it is asked for -- a
+                    // browser polling a viewport contributes to the trails just
+                    // as the background poller does.
+                    dependencies.trails.record(result.value, now);
+                    return { ok: true, value: withTrails(result.value, dependencies.trails, now) };
+                }
 
-            // BarentsWatch is unreachable. A stale cached response for this
-            // exact viewport is the better answer where one exists --
-            // `serveCached` serves it verbatim and marks it `X-Cache:
-            // stale` -- so only reach for the store when there is no cache
-            // to fall back on. That is the case this covers: a cold load
-            // during an outage, which would otherwise be a blank map.
-            if (cache.get(bboxCacheKey(bbox))) return result;
+                // BarentsWatch is unreachable. A stale cached response for this
+                // exact viewport is the better answer where one exists --
+                // `serveCached` serves it verbatim and marks it `X-Cache:
+                // stale` -- so only reach for the store when there is no cache
+                // to fall back on. That is the case this covers: a cold load
+                // during an outage, which would otherwise be a blank map.
+                if (cache.get(bboxCacheKey(bbox))) return result;
 
-            // The remembered vessels are minutes old at worst, each carries
-            // its own fix timestamp, and the map fades and accounts for
-            // stale vessels itself. An empty store means there is genuinely
-            // nothing to say, so the error stands.
-            const known = dependencies.trails.latestIn(bbox, now);
-            if (known.length === 0) return result;
-            request.log.warn({ reason: result.error.message, ships: known.length }, 'ships upstream failed; serving remembered vessels');
-            return { ok: true, value: withTrails(known, dependencies.trails, now) };
-        });
+                // The remembered vessels are minutes old at worst, each carries
+                // its own fix timestamp, and the map fades and accounts for
+                // stale vessels itself. An empty store means there is genuinely
+                // nothing to say, so the error stands.
+                const known = dependencies.trails.latestIn(bbox, now);
+                if (known.length === 0) return result;
+                request.log.warn({ reason: result.error.message, ships: known.length }, 'ships upstream failed; serving remembered vessels');
+                return { ok: true, value: withTrails(known, dependencies.trails, now) };
+            },
+            { maxAgeSeconds: cacheSeconds(config.shipsCacheTtlMs) },
+        );
     });
 }

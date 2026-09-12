@@ -13,14 +13,20 @@ import { createFlightRouteLookup, type FlightRouteLookup } from '../aircraft/fli
 import { fetchAircraft } from '../aircraft/provider.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
-import { serveCached } from '../route-helpers.js';
+import { cacheSeconds, serveCached } from '../route-helpers.js';
 import type { TrailStore } from '../trails/store.js';
+import type { OutboundGate } from '../outbound-gate.js';
+
+/** Matches `routes/ships.ts` -- same reasoning, same number: on the public internet this key space is every 0.05-degree grid square on Earth, not one kiosk's viewport. */
+const MAX_CACHED_VIEWPORTS = 64;
 
 export interface AircraftRouteDependencies {
     /** See `ShipsRouteDependencies` in `routes/ships.ts` -- same contract, same reasons. */
     trails: TrailStore<Aircraft>;
     /** Callsign-to-route resolution. Injectable so tests can drive it without reaching adsbdb; the real one is built here when this is omitted. */
     flightRoutes?: FlightRouteLookup;
+    /** The process-wide ADS-B outbound rate gate, shared with the background trail poller. A refusal serves stale/remembered aircraft rather than failing the request. */
+    gate?: OutboundGate | undefined;
 }
 
 /**
@@ -51,7 +57,7 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
     // Only ever holds the `configured: true` variant -- typed as the full
     // union so it can be constructed/returned without a cast; see the
     // matching comment in `routes/ships.ts`.
-    const cache = new TtlCache<AircraftResponse>(config.aircraftCacheTtlMs);
+    const cache = new TtlCache<AircraftResponse>(config.aircraftCacheTtlMs, { maxEntries: MAX_CACHED_VIEWPORTS });
     const flightRoutes = dependencies.flightRoutes ?? createFlightRouteLookup({ upstreamTimeoutMs: config.upstreamTimeoutMs });
 
     const openSkyCredentials =
@@ -75,29 +81,37 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
 
         const bbox = roundBbox(clampBbox(parsed.value));
 
-        await serveCached(request, reply, cache, bboxCacheKey(bbox), async () => {
-            const result = await fetchAircraft(bbox, {
-                provider: config.adsbProvider,
-                openSkyCredentials,
-                upstreamTimeoutMs: config.upstreamTimeoutMs,
-            });
-            const now = new Date();
+        await serveCached(
+            request,
+            reply,
+            cache,
+            bboxCacheKey(bbox),
+            async () => {
+                const result = await fetchAircraft(bbox, {
+                    provider: config.adsbProvider,
+                    openSkyCredentials,
+                    upstreamTimeoutMs: config.upstreamTimeoutMs,
+                    gate: dependencies.gate,
+                });
+                const now = new Date();
 
-            if (result.ok) {
-                dependencies.trails.record(result.value.aircraft, now);
-                return { ok: true, value: withTrails(result.value.aircraft, dependencies.trails, flightRoutes, now, result.value.sources) };
-            }
+                if (result.ok) {
+                    dependencies.trails.record(result.value.aircraft, now);
+                    return { ok: true, value: withTrails(result.value.aircraft, dependencies.trails, flightRoutes, now, result.value.sources) };
+                }
 
-            // Same reasoning as the ships route: prefer the stale cached
-            // response where there is one, and reach for the store only on
-            // a cold load during an outage, which would otherwise be a
-            // blank layer.
-            if (cache.get(bboxCacheKey(bbox))) return result;
+                // Same reasoning as the ships route: prefer the stale cached
+                // response where there is one, and reach for the store only on
+                // a cold load during an outage, which would otherwise be a
+                // blank layer.
+                if (cache.get(bboxCacheKey(bbox))) return result;
 
-            const known = dependencies.trails.latestIn(bbox, now);
-            if (known.length === 0) return result;
-            request.log.warn({ reason: result.error.message, aircraft: known.length }, 'aircraft upstream failed; serving remembered aircraft');
-            return { ok: true, value: withTrails(known, dependencies.trails, flightRoutes, now) };
-        });
+                const known = dependencies.trails.latestIn(bbox, now);
+                if (known.length === 0) return result;
+                request.log.warn({ reason: result.error.message, aircraft: known.length }, 'aircraft upstream failed; serving remembered aircraft');
+                return { ok: true, value: withTrails(known, dependencies.trails, flightRoutes, now) };
+            },
+            { maxAgeSeconds: cacheSeconds(config.aircraftCacheTtlMs) },
+        );
     });
 }

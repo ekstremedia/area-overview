@@ -71,6 +71,17 @@ const ServerConfigSchema = z.object({
         .int()
         .nonnegative()
         .default(10 * 60_000),
+    /**
+     * The process-wide ADS-B outbound budget: one request per
+     * `ADSB_MIN_INTERVAL_MS` on average, with up to `ADSB_BURST` banked
+     * for the flurry of `moveend`s a real pan produces. This bounds what
+     * this app sends to adsb.lol / airplanes.live / adsb.fi no matter how
+     * many visitors are polling -- they are free community services with
+     * no key and no quota to push back with. Raising the interval is the
+     * polite direction; see `src/server/outbound-gate.ts`.
+     */
+    adsbMinIntervalMs: z.coerce.number().int().positive().default(2000),
+    adsbBurst: z.coerce.number().int().positive().default(4),
     /** Optional OpenSky OAuth2 client-credentials pair, for the registered tier's higher anonymous-quota-free rate limit. Never logged. */
     openskyClientId: z.string().default(''),
     openskyClientSecret: z.string().default(''),
@@ -136,6 +147,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
         shipsSnapshotRefreshMs: env.SHIPS_SNAPSHOT_REFRESH_MS,
         shipsSnapshotMaxStaleMs: env.SHIPS_SNAPSHOT_MAX_STALE_MS,
+        adsbMinIntervalMs: env.ADSB_MIN_INTERVAL_MS,
+        adsbBurst: env.ADSB_BURST,
         cartoApiKey: env.CARTO_API_KEY,
         trailsPollSeconds: env.TRAILS_POLL_SECONDS,
         trailsAreaBbox: env.TRAILS_AREA_BBOX,

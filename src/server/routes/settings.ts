@@ -75,6 +75,12 @@ export function registerSettingsRoutes(app: FastifyInstance, config: ServerConfi
     });
 
     app.get('/api/settings', async (_request, reply) => {
+        // Stated rather than merely implied, now that every other route
+        // sends a `Cache-Control`. Settings can change from another device
+        // at any moment and this is what every client polls to find that
+        // out, so any freshness lifetime here would be a lie -- see this
+        // file's doc comment on why there is no `ETag` either.
+        reply.header('Cache-Control', 'no-store');
         reply.send(store.get());
     });
 
