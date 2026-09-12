@@ -4,6 +4,7 @@ import { SettingsSchema, type Settings } from '../../../shared/schemas/settings.
 import { signal } from '../../core/signal.js';
 import type { SettingsStore } from '../../settings/sharedStore.js';
 import { mount } from './Layers.js';
+import { fakeSettingsStore } from './test-helpers.js';
 
 function fakeStore(initial: Settings) {
     const settings = signal(initial);
@@ -11,7 +12,7 @@ function fakeStore(initial: Settings) {
         settings.set({ ...settings.get(), ...patch });
         return Promise.resolve(ok(settings.get()));
     });
-    const store: SettingsStore = { settings, patchSettings, setPlacement: vi.fn(), dispose: vi.fn() };
+    const store: SettingsStore = fakeSettingsStore({ settings, patchSettings, setPlacement: vi.fn(), dispose: vi.fn() });
     return { store, settings, patchSettings };
 }
 
