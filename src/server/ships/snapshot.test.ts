@@ -122,6 +122,47 @@ describe('createShipsSnapshot', () => {
         expect(tooOld.ok).toBe(false);
     });
 
+    it('honours the refresh gate even when maxStaleMs is shorter than it, rather than fetching per request', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(combinedFixture));
+        // A misconfiguration, but one an operator can make: a staleness
+        // bound tighter than the refresh window must not turn the window
+        // off. `maxStaleMs` bounds how long a snapshot survives *failing*
+        // refreshes; it is not a second freshness gate on a healthy one.
+        const snapshot = createShipsSnapshot(fakeToken(), {
+            upstreamTimeoutMs: 5000,
+            refreshMs: REFRESH_MS,
+            maxStaleMs: 0,
+            fetchImpl: fetchMock,
+        });
+
+        await snapshot.ships(0);
+        const second = await snapshot.ships(1);
+        const third = await snapshot.ships(2);
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(shipsOf(second).length).toBeGreaterThan(0);
+        expect(shipsOf(third).length).toBeGreaterThan(0);
+    });
+
+    it('does not resurrect a snapshot it already dropped for being too stale', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(combinedFixture)).mockRejectedValue(new Error('upstream is down'));
+        const snapshot = createShipsSnapshot(fakeToken(), {
+            upstreamTimeoutMs: 5000,
+            refreshMs: REFRESH_MS,
+            maxStaleMs: 60_000,
+            fetchImpl: fetchMock,
+        });
+
+        await snapshot.ships(0);
+
+        // Past the bound: the refresh fails and the snapshot is dropped.
+        expect((await snapshot.ships(70_000)).ok).toBe(false);
+
+        // The very next request lands inside the new refresh window, where
+        // a still-held snapshot would be served with no staleness test.
+        expect((await snapshot.ships(70_001)).ok).toBe(false);
+    });
+
     it('holds the whole country, not one viewport -- nothing is filtered on the way in', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse(combinedFixture));
         const snapshot = createShipsSnapshot(fakeToken(), { upstreamTimeoutMs: 5000, refreshMs: REFRESH_MS, fetchImpl: fetchMock });

@@ -134,16 +134,26 @@ describe('GET /api/ships -- configured', () => {
 
         const inArea = await app.inject({ method: 'GET', url: `/api/ships?${VALID_BBOX}` });
         const elsewhere = await app.inject({ method: 'GET', url: '/api/ships?bbox=-60.0,-40.0,-59.0,-39.0' });
+        // Same latitudes as the fixture's ships (68.68-68.75), shifted a
+        // degree east of them. Nothing may come back: without this, the
+        // test would pass on a filter that ignored longitude entirely,
+        // since the only fixture ship outside `VALID_BBOX` is outside it in
+        // both dimensions at once.
+        const sameLatitudeEastward = await app.inject({ method: 'GET', url: '/api/ships?bbox=16.5,68.5,17.5,69.0' });
 
         const here = ShipsResponseSchema.parse(inArea.json());
         const there = ShipsResponseSchema.parse(elsewhere.json());
-        if (!here.configured || !there.configured) throw new Error('expected configured responses');
+        const eastward = ShipsResponseSchema.parse(sameLatitudeEastward.json());
+        if (!here.configured || !there.configured || !eastward.configured) throw new Error('expected configured responses');
 
         expect(here.ships.length).toBeGreaterThan(0);
         expect(there.ships).toHaveLength(0);
+        expect(eastward.ships).toHaveLength(0);
         for (const ship of here.ships) {
             expect(ship.lat).toBeGreaterThanOrEqual(68.5);
             expect(ship.lat).toBeLessThanOrEqual(69.0);
+            expect(ship.lng).toBeGreaterThanOrEqual(15.0);
+            expect(ship.lng).toBeLessThanOrEqual(16.0);
         }
     });
 

@@ -80,12 +80,6 @@ export function createShipsSnapshot(token: BarentsWatchToken, options: ShipsSnap
     let lastAttemptAt = Number.NEGATIVE_INFINITY;
     let inflight: Promise<Result<readonly Ship[]>> | undefined;
 
-    /** A held snapshot young enough to still pass for current traffic. */
-    function servableSnapshot(nowMs: number): readonly Ship[] | undefined {
-        if (!snapshot) return undefined;
-        return nowMs - snapshotAt <= maxStaleMs ? snapshot : undefined;
-    }
-
     async function refresh(nowMs: number): Promise<Result<readonly Ship[]>> {
         const result = await fetchAllShips(token, upstreamTimeoutMs, fetchImpl);
 
@@ -97,10 +91,19 @@ export function createShipsSnapshot(token: BarentsWatchToken, options: ShipsSnap
         }
 
         lastFailure = result.error;
+
+        // `maxStaleMs` bounds how long a snapshot survives *failing*
+        // refreshes -- it is not a second, shorter freshness gate. Once a
+        // held snapshot is past it, drop it outright rather than merely
+        // declining to serve it here: leaving it in place would let the
+        // in-window branch of `ships()` hand it out again on the very next
+        // request, which is exactly the hours-old-positions-as-current
+        // case this bound exists to prevent.
+        if (snapshot && nowMs - snapshotAt > maxStaleMs) snapshot = undefined;
+
         // A recent snapshot outlives the failure that would otherwise
         // replace it with an error -- see this file's doc comment.
-        const servable = servableSnapshot(nowMs);
-        return servable ? ok(servable) : result;
+        return snapshot ? ok(snapshot) : result;
     }
 
     async function ships(nowMs: number = Date.now()): Promise<Result<readonly Ship[]>> {
@@ -110,8 +113,14 @@ export function createShipsSnapshot(token: BarentsWatchToken, options: ShipsSnap
         if (inflight) return inflight;
 
         if (nowMs - lastAttemptAt < refreshMs) {
-            const servable = servableSnapshot(nowMs);
-            if (servable) return ok(servable);
+            // Any held snapshot serves here, with no staleness test: inside
+            // the refresh window it is by construction at most one window
+            // old, and `refresh` has already dropped one that outlived
+            // `maxStaleMs`. Re-testing staleness at this point would let a
+            // `maxStaleMs` shorter than `refreshMs` fall through and start
+            // a fetch per request -- disabling the very gate the knob is
+            // meant to work alongside.
+            if (snapshot) return ok(snapshot);
             if (lastFailure) return err(lastFailure);
         }
 
