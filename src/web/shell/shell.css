@@ -118,7 +118,11 @@
     animation-duration: 0s;
 }
 
-.masthead-cycle--paused .masthead-cycle-bar {
+/* `--stopped` rather than `--paused`: the countdown also stops while a
+   page holds it (the map's follow mode, `holdAutoCycle`), and the bar has
+   to freeze for that too. `--paused` stays the visitor's own state, which
+   is what colours the button. */
+.masthead-cycle--stopped .masthead-cycle-bar {
     animation-play-state: paused;
     background: var(--color-muted);
 }

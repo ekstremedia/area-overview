@@ -18,18 +18,22 @@
  * How a follow ends, all four of them:
  *
  * - the chip's own stop button (`layers.ts`);
- * - any manual pan or zoom -- see `isProgrammaticMove` for how the map's
- *   own movements are told apart from the visitor's;
- * - the reset-view control and the idle reset, which get this for free:
- *   both call `setView` without the programmatic flag, so they read as a
- *   deliberate move away;
+ * - a manual pan or zoom -- a map move with a real gesture behind it, see
+ *   `onMoveStart`;
+ * - the reset-view control (a gesture, so the same path) and the idle
+ *   reset, which says the display has returned itself to neutral;
  * - the popup's own button, which reads "stop following" while this
  *   vessel is the one being followed.
+ *
+ * Emphatically *not* ended by: the tab being changed, the mouse moving
+ * over the map, a poll landing, or Leaflet re-measuring its container.
+ * The first version cancelled on any `movestart` at all and the app moves
+ * the map for plenty of reasons the visitor never asked for.
  */
 import type * as Leaflet from 'leaflet';
 import { signal, type ReadonlySignal } from '../../core/signal.js';
 import { holdAutoCycle } from '../../shell/autoCycle.js';
-import { MOTION_FRAME_MS } from './motion.js';
+import { IDLE_RESET_EVENT } from '../../shell/idle.js';
 
 export interface Position {
     lat: number;
@@ -124,8 +128,56 @@ export function zoomToVessel(map: Leaflet.Map, position: Position): void {
     });
 }
 
-/** The live follow's own teardown, or `null` when nothing is being followed. */
-let active: (() => void) | null = null;
+/**
+ * How long after a real input event a map move still counts as the
+ * visitor's doing.
+ *
+ * Generous on purpose: the gap between letting go of a drag and Leaflet's
+ * inertia settling, or between a tap on a zoom button and its animation
+ * starting, is well inside this -- while nothing the app does on its own
+ * schedule (an idle reset, a container re-measure after a tab comes back,
+ * a poll) lands within a second of the visitor touching anything.
+ */
+const GESTURE_WINDOW_MS = 1_000;
+
+/** How often the follow checks whether its vessel is still being reported. Slow: this is a giving-up clock, not the thing that moves the map. */
+const WATCHDOG_MS = 1_000;
+
+interface ActiveFollow {
+    map: Leaflet.Map;
+    positionOf: () => Position | undefined;
+    stop: () => void;
+}
+
+/** The live follow, or `null` when nothing is being followed. */
+let active: ActiveFollow | null = null;
+
+/**
+ * Puts the map back under the followed vessel, if there is one.
+ *
+ * Called by whichever glyph layer owns that vessel, from inside the same
+ * motion frame that has just redrawn it (`canvasGlyphLayer`'s
+ * `onMotionFrame`) -- and that is the whole point. A timer of its own,
+ * however closely matched in period, drifts out of phase with the layer's
+ * within seconds, and then each frame moves the map from one instant's
+ * dead reckoning while the glyph is still drawn from the previous one's.
+ * The vessel appears to jitter back and forth along its own track, worst
+ * for the fastest things on the map. Sharing the frame makes the glyph
+ * sit still: both positions come from the same instant, so the vessel
+ * stays pinned and the tiles slide under it.
+ */
+export function advanceFollow(): void {
+    if (active === null || document.hidden) return;
+    const at = active.positionOf();
+    if (at === undefined) return;
+    const map = active.map;
+    // `animate: false`: this is not a journey to somewhere, it is the map
+    // being kept under something. An animation would still be running when
+    // the next frame replaced it.
+    moveProgrammatically(() => {
+        map.setView([at.lat, at.lng], map.getZoom(), { animate: false });
+    });
+}
 
 /**
  * Starts following `next`, asking `positionOf` where it has got to on
@@ -143,43 +195,48 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
     stopFollowing();
 
     const releaseAutoCycle = holdAutoCycle();
+    const container = map.getContainer();
+
     /**
      * Accumulated rather than measured from a start time, and only across
-     * frames that actually ran: while the tab is hidden nothing is polled,
+     * ticks that actually ran: while the tab is hidden nothing is polled,
      * nothing is drawn and nobody is looking, so a vessel cannot
      * meaningfully be "missing" then. Measured against a wall clock
      * instead, a kiosk whose display slept for an hour would come back and
-     * drop the follow on its first frame.
+     * drop the follow on its first tick.
      */
     let missingForMs = 0;
+    let lastTickAt: number | null = null;
 
-    function recentre(elapsedMs: number): void {
-        const at = positionOf();
-        if (at === undefined) {
-            missingForMs += elapsedMs;
-            if (missingForMs >= LOSE_AFTER_MS) stopFollowing();
-            return;
-        }
-        missingForMs = 0;
-        // `animate: false` deliberately: at eight frames a second every
-        // animation would be interrupted by the next one before it
-        // finished, which looks like stutter rather than like smoothness.
-        // The vessel is what moves here; the map is just kept under it.
-        moveProgrammatically(() => {
-            map.setView([at.lat, at.lng], map.getZoom(), { animate: false });
-        });
+    /** When the visitor last actually did something to this map -- see `GESTURE_WINDOW_MS`. */
+    let lastGestureAt = 0;
+
+    function noteGesture(): void {
+        lastGestureAt = Date.now();
     }
 
     function onMoveStart(): void {
-        // The visitor took the wheel. Not our own recentring, which is
-        // wrapped in the programmatic flag above.
-        if (!isProgrammaticMove()) stopFollowing();
+        if (isProgrammaticMove()) return; // our own recentring
+        // A map move on its own is not the visitor: an idle reset putting
+        // the home view back, Leaflet re-measuring its container after the
+        // tab comes back, a catch-up poll's `invalidateSize` -- all of
+        // them used to drop the follow out from under someone who had
+        // done nothing but watch.
+        if (Date.now() - lastGestureAt > GESTURE_WINDOW_MS) return;
+        stopFollowing();
     }
 
-    // The "zoom into it" half, before the cancel listener is armed so this
-    // move cannot read as the visitor's. Snapped, not animated, for the
-    // same reason `recentre` is: the frame timer below would cut a pan
-    // animation short 120ms in.
+    function onIdleReset(): void {
+        // The display has put itself back to neutral, and the home view and
+        // a follow cannot both have the map. This one is not a gesture, but
+        // it is a deliberate return to a known state, so the follow yields.
+        stopFollowing();
+    }
+
+    // The "zoom into it" half. Snapped rather than animated: `advanceFollow`
+    // will be putting the map where the vessel is within a frame or two
+    // anyway, and an animation still running when that lands is what
+    // stuttering looks like.
     const at = positionOf();
     if (at !== undefined) {
         moveProgrammatically(() => {
@@ -187,34 +244,48 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
         });
     }
 
+    // Capture phase: Leaflet's own controls call `stopPropagation` on their
+    // clicks (`disableClickPropagation`), so a bubble-phase listener would
+    // never see a tap on the zoom buttons -- and a zoom is exactly the kind
+    // of gesture that should take the map back.
+    const GESTURES = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const;
+    for (const type of GESTURES) container.addEventListener(type, noteGesture, { capture: true, passive: true });
     map.on('movestart', onMoveStart);
-    // Skipped while the tab is hidden, like the glyph and trail timers:
-    // there is nothing on screen to keep centred. `lastFrameAt` is dropped
-    // rather than kept across the gap, so the hidden time is not charged
-    // to the missing-vessel clock when the display comes back.
-    let lastFrameAt: number | null = null;
-    const timer = setInterval(() => {
+    window.addEventListener(IDLE_RESET_EVENT, onIdleReset);
+
+    const watchdog = setInterval(() => {
         if (document.hidden) {
-            lastFrameAt = null;
+            lastTickAt = null;
             return;
         }
         const now = Date.now();
-        const elapsedMs = lastFrameAt === null ? 0 : now - lastFrameAt;
-        lastFrameAt = now;
-        recentre(elapsedMs);
-    }, MOTION_FRAME_MS);
+        const elapsedMs = lastTickAt === null ? 0 : now - lastTickAt;
+        lastTickAt = now;
+        if (positionOf() !== undefined) {
+            missingForMs = 0;
+            return;
+        }
+        missingForMs += elapsedMs;
+        if (missingForMs >= LOSE_AFTER_MS) stopFollowing();
+    }, WATCHDOG_MS);
 
-    active = function stop(): void {
-        clearInterval(timer);
-        map.off('movestart', onMoveStart);
-        releaseAutoCycle();
+    active = {
+        map,
+        positionOf,
+        stop(): void {
+            clearInterval(watchdog);
+            map.off('movestart', onMoveStart);
+            window.removeEventListener(IDLE_RESET_EVENT, onIdleReset);
+            for (const type of GESTURES) container.removeEventListener(type, noteGesture, { capture: true });
+            releaseAutoCycle();
+        },
     };
     target.set(next);
 }
 
 /** Stops following, releases the slideshow, and leaves the map exactly where it is. Safe to call when nothing is being followed. */
 export function stopFollowing(): void {
-    active?.();
+    active?.stop();
     active = null;
     target.set(null);
 }

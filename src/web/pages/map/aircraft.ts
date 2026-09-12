@@ -22,7 +22,7 @@ import { formatNumber, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
-import { followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
+import { advanceFollow, followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
 import { projectPosition } from './motion.js';
 import { buildVesselActions, type VesselActions } from './vesselActions.js';
 import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
@@ -300,6 +300,13 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 // sitting on a stand reports 0 and so does not move.
                 velocityFor: (aircraft) => ({ speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track }),
                 coastMs: COAST_MS,
+                // See the matching hook in `ships.ts`: the map is moved
+                // from the same frame that just redrew the glyph, and only
+                // by the layer that owns the followed vessel.
+                onMotionFrame: () => {
+                    const followed = followTarget.get();
+                    if (followed !== null && latestAircraft.some((candidate) => candidate.icao === followed.id)) advanceFollow();
+                },
             });
 
             const trailLayer = createTrailLayer<Aircraft>(L, map, {

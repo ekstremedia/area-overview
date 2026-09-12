@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Leaflet from 'leaflet';
 import { autoCycleHeld } from '../../shell/autoCycle.js';
-import { followTarget, followVessel, isFollowing, stopFollowing, VESSEL_ZOOM, zoomToVessel } from './follow.js';
+import { advanceFollow, followTarget, followVessel, isFollowing, stopFollowing, VESSEL_ZOOM, zoomToVessel } from './follow.js';
 
 interface AppliedView {
     lat: number;
@@ -18,7 +18,7 @@ interface AppliedView {
     animate: boolean | undefined;
 }
 
-function fakeMap(initialZoom = 10): { map: Leaflet.Map; views: AppliedView[]; fire: (event: string) => void } {
+function fakeMap(initialZoom = 10): { map: Leaflet.Map; views: AppliedView[]; fire: (event: string) => void; container: HTMLElement } {
     const handlers = new Map<string, Set<() => void>>();
     const views: AppliedView[] = [];
     let zoom = initialZoom;
@@ -29,7 +29,9 @@ function fakeMap(initialZoom = 10): { map: Leaflet.Map; views: AppliedView[]; fi
         for (const handler of [...(handlers.get(event) ?? [])]) handler();
     }
 
+    const container = document.createElement('div');
     const map = {
+        getContainer: () => container,
         getZoom: () => zoom,
         setView: (latLng: [number, number], nextZoom: number, options?: { animate?: boolean }) => {
             zoom = nextZoom;
@@ -50,7 +52,7 @@ function fakeMap(initialZoom = 10): { map: Leaflet.Map; views: AppliedView[]; fi
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any as Leaflet.Map;
 
-    return { map, views, fire };
+    return { map, views, fire, container };
 }
 
 const NORDLYS = { id: '257123456', label: 'MS NORDLYS' };
@@ -100,8 +102,7 @@ describe('followVessel', () => {
         expect(autoCycleHeld.get()).toBe(true);
     });
 
-    it('keeps the map under the vessel as it moves, without zooming again', () => {
-        vi.useFakeTimers();
+    it('keeps the map under the vessel as its layer redraws it, without zooming again', () => {
         const { map, views } = fakeMap();
         let lat = 68.7;
 
@@ -109,52 +110,93 @@ describe('followVessel', () => {
         const afterInitialZoom = views.length;
 
         lat = 68.75;
-        vi.advanceTimersByTime(1_000);
+        advanceFollow(); // what a glyph layer calls at the end of its motion frame
 
         const latest = views[views.length - 1];
         expect(views.length).toBeGreaterThan(afterInitialZoom);
         expect(latest?.lat).toBe(68.75);
         expect(latest?.zoom).toBe(VESSEL_ZOOM); // held, not re-applied upward
+        expect(latest?.animate).toBe(false);
     });
 
     it('does not mistake its own recentring for the visitor taking the wheel', () => {
         // The whole hazard of this feature: every recentre is a map move,
         // and Leaflet reports it exactly like a drag.
-        vi.useFakeTimers();
         const { map } = fakeMap();
         let lat = 68.7;
 
         followVessel(map, NORDLYS, () => ({ lat, lng: 15.4 }));
         for (let frame = 0; frame < 20; frame++) {
             lat += 0.001;
-            vi.advanceTimersByTime(200);
+            advanceFollow();
         }
 
         expect(followTarget.get()).toEqual(NORDLYS);
     });
 
-    it('lets go the moment the visitor pans or zooms, and gives the slideshow back', () => {
-        vi.useFakeTimers();
-        const { map, fire } = fakeMap();
+    it('lets go on a map move the visitor actually caused, and gives the slideshow back', () => {
+        const { map, container, fire } = fakeMap();
 
         followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
         expect(autoCycleHeld.get()).toBe(true);
 
-        fire('movestart'); // a drag, a wheel, a zoom button, the reset control, an idle reset
+        container.dispatchEvent(new Event('pointerdown')); // a drag, a tap on a zoom button
+        fire('movestart');
+
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+    });
+
+    it('holds on through a map move nobody asked for', () => {
+        // Leaflet re-measuring its container after a tab comes back, a
+        // catch-up poll, a stray `setView` from elsewhere in the app. The
+        // first version cancelled on any of these, which read as the
+        // follow dropping out at random.
+        const { map, fire } = fakeMap();
+
+        followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        fire('movestart');
+
+        expect(followTarget.get()).toEqual(NORDLYS);
+    });
+
+    it('holds on while the tab is away, and through the mouse merely moving over the map', () => {
+        vi.useFakeTimers();
+        const { map, container } = fakeMap();
+        const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+
+        followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        vi.advanceTimersByTime(5 * 60_000);
+        hidden.mockReturnValue(false);
+
+        container.dispatchEvent(new Event('mousemove'));
+        container.dispatchEvent(new Event('mouseover'));
+
+        expect(followTarget.get()).toEqual(NORDLYS);
+        hidden.mockRestore();
+    });
+
+    it('yields to the idle reset putting the home view back', () => {
+        // Both want the map, and the display returning itself to neutral
+        // wins -- otherwise the two fight for the view every frame.
+        const { map } = fakeMap();
+
+        followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        window.dispatchEvent(new CustomEvent('area-overview:idle-reset'));
 
         expect(followTarget.get()).toBeNull();
         expect(autoCycleHeld.get()).toBe(false);
     });
 
     it('stops moving the map once it has let go', () => {
-        vi.useFakeTimers();
-        const { map, views, fire } = fakeMap();
+        const { map, views, container, fire } = fakeMap();
 
         followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        container.dispatchEvent(new Event('pointerdown'));
         fire('movestart');
         const afterStop = views.length;
 
-        vi.advanceTimersByTime(5_000);
+        advanceFollow();
         expect(views).toHaveLength(afterStop);
     });
 

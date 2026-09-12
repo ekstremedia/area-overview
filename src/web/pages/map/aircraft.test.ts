@@ -85,7 +85,16 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = []): ty
 
 const mapViews: { lat: number; lng: number; zoom: number }[] = [];
 
+/** A real element, so the follow can attach its gesture listeners, that still reports the laid-out size `mapToBboxQuery` insists on. */
+function fakeContainer(): HTMLElement {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'clientWidth', { value: 1000 });
+    Object.defineProperty(el, 'clientHeight', { value: 600 });
+    return el;
+}
+
 function fakeMap(): Leaflet.Map {
+    const container = fakeContainer();
     const map = {
         getZoom: () => 10,
         project: () => ({ x: 0, y: 0 }),
@@ -101,7 +110,7 @@ function fakeMap(): Leaflet.Map {
         getBounds: () => ({ getWest: () => 14.0, getSouth: () => 68.0, getEast: () => 16.0, getNorth: () => 69.0 }),
         // See `ships.test.ts`'s fake: `mapToBboxQuery` skips a viewport it
         // cannot measure, so the fake has to have a real size.
-        getContainer: () => ({ clientWidth: 1000, clientHeight: 600 }),
+        getContainer: () => container,
         getSize: () => ({ x: 1000, y: 600 }),
         invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

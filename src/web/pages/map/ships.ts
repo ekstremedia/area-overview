@@ -37,7 +37,7 @@ import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
-import { followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
+import { advanceFollow, followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
 import { projectPosition } from './motion.js';
 import { buildVesselActions, type VesselActions } from './vesselActions.js';
 import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
@@ -476,6 +476,14 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // the track that says where it will be a few seconds from
                 // now. A moored ship reports 0 knots and so does not move.
                 velocityFor: (ship) => ({ speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround }),
+                // Only when the followed vessel is one of ours: both live
+                // layers run a frame timer, and two of them recentring the
+                // map from two slightly different instants would reproduce
+                // the very jitter this exists to remove.
+                onMotionFrame: () => {
+                    const followed = followTarget.get();
+                    if (followed !== null && latestShips.some((candidate) => candidate.mmsi === followed.id)) advanceFollow();
+                },
             });
             const clusterBadges = createClusterBadgeLayer(L, map, shipActions);
             // Fed every visible ship below, clustered or not -- see

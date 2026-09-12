@@ -149,10 +149,19 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = [], cre
     } as any as typeof Leaflet;
 }
 
+/** A real element, so the follow can attach its gesture listeners, that still reports the laid-out size `mapToBboxQuery` insists on. */
+function fakeContainer(): HTMLElement {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'clientWidth', { value: 1000 });
+    Object.defineProperty(el, 'clientHeight', { value: 600 });
+    return el;
+}
+
 function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[]; views: { lat: number; lng: number; zoom: number }[] } {
     const onCalls: string[] = [];
     const offCalls: string[] = [];
     const views: { lat: number; lng: number; zoom: number }[] = [];
+    const container = fakeContainer();
     const map = {
         getZoom: () => 10,
         // A simple, invertible linear "projection" -- not Web Mercator,
@@ -178,7 +187,7 @@ function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[]; v
         // A laid-out container whose size Leaflet already agrees with --
         // `mapToBboxQuery` skips a viewport it cannot measure, so a fake
         // without a size would make every layer here fetch nothing.
-        getContainer: () => ({ clientWidth: 1000, clientHeight: 600 }),
+        getContainer: () => container,
         getSize: () => ({ x: 1000, y: 600 }),
         invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -110,6 +110,17 @@ export interface CanvasGlyphLayerOptions<T> {
      * poll, exactly as before.
      */
     coastMs?: number;
+    /**
+     * Called at the end of every motion frame, right after the glyphs have
+     * been redrawn at their dead-reckoned positions.
+     *
+     * Exists for the map's follow mode, which has to move the map from the
+     * *same* instant's dead reckoning that the glyph was just drawn with.
+     * A timer of its own, however closely matched, drifts out of phase
+     * within seconds and the followed vessel visibly jitters back and
+     * forth along its own track.
+     */
+    onMotionFrame?: () => void;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -373,6 +384,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             : setInterval(() => {
                   if (document.hidden) return;
                   redrawAll();
+                  options.onMotionFrame?.();
               }, MOTION_FRAME_MS);
 
     function update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void {
