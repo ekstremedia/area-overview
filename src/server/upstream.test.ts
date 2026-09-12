@@ -18,6 +18,8 @@ const config: ServerConfig = {
     openskyClientSecret: '',
     shipsCacheTtlMs: 10_000,
     aircraftCacheTtlMs: 10_000,
+    shipsSnapshotRefreshMs: 10_000,
+    shipsSnapshotMaxStaleMs: 10 * 60_000,
     cartoApiKey: '',
     trailsPollSeconds: 30,
     trailsAreaBbox: '14.4,68.35,16.6,69.05',

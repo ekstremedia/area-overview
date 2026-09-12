@@ -46,6 +46,31 @@ const ServerConfigSchema = z.object({
      */
     shipsCacheTtlMs: z.coerce.number().int().positive().default(10_000),
     aircraftCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    /**
+     * Minimum spacing between nationwide BarentsWatch fetches, for the
+     * one snapshot every viewport is filtered out of
+     * (`src/server/ships/snapshot.ts`). Deliberately a separate knob from
+     * `shipsCacheTtlMs`, which still means what it always did -- how long
+     * one viewport's trail-decorated response stays fresh. This one
+     * governs the multi-megabyte upstream download those responses are
+     * built from, so raising it trades vessel freshness for upstream
+     * load, and lowering it does the reverse for every visitor at once.
+     */
+    shipsSnapshotRefreshMs: z.coerce.number().int().positive().default(10_000),
+    /**
+     * How old the held AIS snapshot may get, while BarentsWatch is
+     * unreachable, before `GET /api/ships` stops serving it and falls
+     * through to this viewport's stale cache and then to the trail
+     * store's remembered vessels. In other words: the longest this app
+     * will present positions it fetched earlier as current traffic.
+     * Zero is meaningful and is what the tests use -- it disables serving
+     * a held snapshot through a failure entirely.
+     */
+    shipsSnapshotMaxStaleMs: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(10 * 60_000),
     /** Optional OpenSky OAuth2 client-credentials pair, for the registered tier's higher anonymous-quota-free rate limit. Never logged. */
     openskyClientId: z.string().default(''),
     openskyClientSecret: z.string().default(''),
@@ -109,6 +134,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         openskyClientSecret: env.OPENSKY_CLIENT_SECRET,
         shipsCacheTtlMs: env.SHIPS_CACHE_TTL_MS,
         aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
+        shipsSnapshotRefreshMs: env.SHIPS_SNAPSHOT_REFRESH_MS,
+        shipsSnapshotMaxStaleMs: env.SHIPS_SNAPSHOT_MAX_STALE_MS,
         cartoApiKey: env.CARTO_API_KEY,
         trailsPollSeconds: env.TRAILS_POLL_SECONDS,
         trailsAreaBbox: env.TRAILS_AREA_BBOX,

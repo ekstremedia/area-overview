@@ -102,14 +102,28 @@ function withinBbox(ship: Ship, bbox: Bbox): boolean {
     return ship.lat >= bbox.minLat && ship.lat <= bbox.maxLat && ship.lng >= bbox.minLng && ship.lng <= bbox.maxLng;
 }
 
-/** Pure mapping step, exported for fixture-based schema tests that don't need a real (or mocked) network call. */
-export function mapRawShipsToShips(rawShips: readonly RawShip[], bbox: Bbox): Ship[] {
+/** Pure mapping step over the whole nationwide array, with no geographic filtering -- what `ShipsSnapshot` holds, and what every viewport is then filtered out of. */
+export function mapRawShips(rawShips: readonly RawShip[]): Ship[] {
     const ships: Ship[] = [];
     for (const raw of rawShips) {
         const ship = toShip(raw);
-        if (ship && withinBbox(ship, bbox)) ships.push(ship);
+        if (ship) ships.push(ship);
     }
     return ships;
+}
+
+/**
+ * Narrows an already-mapped nationwide list to one viewport. Pure and
+ * cheap by design: this, not a second upstream fetch, is what serving a
+ * new bbox costs once `ShipsSnapshot` holds the country.
+ */
+export function shipsWithin(ships: readonly Ship[], bbox: Bbox): Ship[] {
+    return ships.filter((ship) => withinBbox(ship, bbox));
+}
+
+/** Pure mapping step, exported for fixture-based schema tests that don't need a real (or mocked) network call. */
+export function mapRawShipsToShips(rawShips: readonly RawShip[], bbox: Bbox): Ship[] {
+    return shipsWithin(mapRawShips(rawShips), bbox);
 }
 
 async function requestCombined(token: string, upstreamTimeoutMs: number, fetchImpl: typeof fetch): Promise<Result<Response>> {
@@ -128,18 +142,18 @@ async function requestCombined(token: string, upstreamTimeoutMs: number, fetchIm
 }
 
 /**
- * Fetches every ship BarentsWatch currently knows about, filters to
- * `bbox` server-side (see this file's doc comment for why), and maps the
- * survivors onto the shared `Ship` shape. On a `401` the token is
- * invalidated and the request retried exactly once with a fresh token;
- * a second failure is returned as an error, never retried further.
+ * Fetches every ship BarentsWatch currently knows about and maps the lot
+ * onto the shared `Ship` shape, with no geographic filtering -- the whole
+ * country, which is all this endpoint can return anyway (see this file's
+ * doc comment). On a `401` the token is invalidated and the request
+ * retried exactly once with a fresh token; a second failure is returned
+ * as an error, never retried further.
+ *
+ * Callers should go through `ShipsSnapshot` (`./snapshot.ts`) rather than
+ * calling this directly: this is a multi-megabyte nationwide download,
+ * and the snapshot is what makes N viewports cost one of them.
  */
-export async function fetchShips(
-    bbox: Bbox,
-    token: BarentsWatchToken,
-    upstreamTimeoutMs: number,
-    fetchImpl: typeof fetch = fetch,
-): Promise<Result<Ship[]>> {
+export async function fetchAllShips(token: BarentsWatchToken, upstreamTimeoutMs: number, fetchImpl: typeof fetch = fetch): Promise<Result<Ship[]>> {
     const tokenResult = await token.getToken();
     if (!tokenResult.ok) return tokenResult;
 
@@ -170,5 +184,21 @@ export async function fetchShips(
         return err({ message: 'BarentsWatch combined-AIS endpoint response failed schema validation' });
     }
 
-    return ok(mapRawShipsToShips(parsed.data, bbox));
+    return ok(mapRawShips(parsed.data));
+}
+
+/**
+ * The nationwide fetch narrowed to one viewport, kept for the tests that
+ * pin this client's error handling end to end. Production paths read
+ * `ShipsSnapshot` instead, so that a second viewport costs a filter
+ * rather than a second nationwide download.
+ */
+export async function fetchShips(
+    bbox: Bbox,
+    token: BarentsWatchToken,
+    upstreamTimeoutMs: number,
+    fetchImpl: typeof fetch = fetch,
+): Promise<Result<Ship[]>> {
+    const all = await fetchAllShips(token, upstreamTimeoutMs, fetchImpl);
+    return all.ok ? ok(shipsWithin(all.value, bbox)) : all;
 }

@@ -10,17 +10,30 @@
  */
 import type { FastifyInstance } from 'fastify';
 import type { Ship, ShipsResponse } from '../../shared/schemas/ships.js';
+import { ok, type Result } from '../../shared/result.js';
 import { bboxCacheKey, clampBbox, parseBbox, roundBbox } from '../layers/bbox.js';
-import { fetchShips } from '../ships/barentswatch.js';
-import { createBarentsWatchToken } from '../ships/token.js';
+import { shipsWithin } from '../ships/barentswatch.js';
+import type { ShipsSnapshot } from '../ships/snapshot.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
 import { serveCached } from '../route-helpers.js';
 import type { TrailStore } from '../trails/store.js';
 
+/**
+ * How many distinct viewports the per-bbox cache remembers. Unbounded was
+ * fine for a kiosk that only ever looks at one place; on the public
+ * internet the key space is every 0.05-degree grid square on Earth, so
+ * this needs a ceiling. 64 is far more than the handful of viewports any
+ * real set of simultaneous visitors produces, and each entry is one
+ * viewport's ships rather than the nationwide array.
+ */
+const MAX_CACHED_VIEWPORTS = 64;
+
 export interface ShipsRouteDependencies {
     /** The BFF's memory of recent positions (`src/server/trails/`). Every ship served carries its own recent trail from here, and when BarentsWatch is unreachable the store's last-known vessels are served in place of an error. */
     trails: TrailStore<Ship>;
+    /** The one nationwide AIS slot (`src/server/ships/snapshot.ts`), shared with the background trail poller. `undefined` when BarentsWatch is unconfigured. */
+    snapshot: ShipsSnapshot | undefined;
 }
 
 /** Attaches each ship's remembered positions and stamps the response. */
@@ -39,10 +52,8 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig, 
     // per-bbox (unlike the nesthus.no proxy routes' single fixed key), so
     // this gets its own TTL config field (`config.shipsCacheTtlMs`, >= 10s
     // in production) rather than sharing `config.cacheTtlMs`.
-    const cache = new TtlCache<ShipsResponse>(config.shipsCacheTtlMs);
-    const token = configured
-        ? createBarentsWatchToken(config.barentswatchClientId, config.barentswatchClientSecret, config.upstreamTimeoutMs)
-        : undefined;
+    const cache = new TtlCache<ShipsResponse>(config.shipsCacheTtlMs, { maxEntries: MAX_CACHED_VIEWPORTS });
+    const snapshot = dependencies.snapshot;
 
     app.get('/api/ships', async (request, reply) => {
         const query = request.query as { bbox?: unknown };
@@ -54,14 +65,18 @@ export function registerShipsRoutes(app: FastifyInstance, config: ServerConfig, 
 
         const bbox = roundBbox(clampBbox(parsed.value));
 
-        if (!configured || !token) {
+        if (!configured || !snapshot) {
             const body: ShipsResponse = { configured: false };
             reply.code(503).send(body);
             return;
         }
 
         await serveCached(request, reply, cache, bboxCacheKey(bbox), async () => {
-            const result = await fetchShips(bbox, token, config.upstreamTimeoutMs);
+            // One nationwide fetch behind the snapshot, however many
+            // viewports are being served; narrowing to this one costs a
+            // filter. See `ships/snapshot.ts`.
+            const all = await snapshot.ships();
+            const result: Result<Ship[]> = all.ok ? ok(shipsWithin(all.value, bbox)) : all;
             const now = new Date();
 
             if (result.ok) {
