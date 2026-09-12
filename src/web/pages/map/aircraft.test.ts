@@ -510,12 +510,50 @@ describe('mountAircraftLayer -- the popup actions', () => {
         dispose();
     });
 
+    it('keeps tracking an aircraft that has slipped out of the polled viewport', async () => {
+        // The trap this exists to prevent, and it was self-reinforcing:
+        // the layer polls by viewport, so an aircraft that drifts off the
+        // screen is missing from the next answer -- and when being missing
+        // also stopped the map tracking it, it drifted further out and
+        // never came back. The follow silently did nothing while the chip
+        // still claimed it was following.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        const empty = { configured: true, fetchedAt: '2026-09-05T12:00:00Z', sources: ['adsblol'], aircraft: [] };
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(oneAircraft)).mockResolvedValue(jsonResponse(empty));
+        vi.stubGlobal('fetch', fetchMock);
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [, hitArea] = createdPolygons;
+        const buttons = [...(hitArea?.popupContent?.().querySelectorAll('.vessel-action') ?? [])] as HTMLButtonElement[];
+        buttons[1]?.click();
+        expect(followTarget.get()?.id).toBe('abc123');
+
+        // Several polls in which the viewport no longer holds it.
+        mapViews.length = 0;
+        await vi.advanceTimersByTimeAsync(12_000);
+
+        // Still followed, and still being tracked from its last known fix.
+        expect(followTarget.get()?.id).toBe('abc123');
+        expect(mapViews.length).toBeGreaterThan(0);
+
+        dispose();
+    });
+
     it('follows the aircraft by callsign, holding the slideshow', async () => {
         const { buttons, dispose } = await openAircraftPopup();
 
         buttons[1]?.click();
 
-        expect(followTarget.get()).toEqual({ id: 'abc123', label: 'TEST01' });
+        expect(followTarget.get()).toEqual({ id: 'abc123', label: 'TEST01', layer: 'aircraft' });
         expect(autoCycleHeld.get()).toBe(true);
 
         dispose();

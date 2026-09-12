@@ -121,6 +121,17 @@ export interface CanvasGlyphLayerOptions<T> {
      * forth along its own track.
      */
     onMotionFrame?: () => void;
+    /**
+     * How long to wait between motion frames, read fresh before each one
+     * so it can change while the layer is mounted. Defaults to
+     * `MOTION_FRAME_MS`.
+     *
+     * The map's follow mode asks for a faster cadence while it is running:
+     * at eight frames a second a fast aircraft steps several pixels
+     * between redraws, which reads as stuttering however precisely the map
+     * is kept under it.
+     */
+    motionIntervalMs?: () => number;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -378,14 +389,20 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     // tab is hidden: nothing is on screen to glide, and a kiosk left on a
     // background tab should not be redrawing a canvas eight times a
     // second for nobody.
-    const motionTimer =
-        options.velocityFor === undefined
-            ? undefined
-            : setInterval(() => {
-                  if (document.hidden) return;
-                  redrawAll();
-                  options.onMotionFrame?.();
-              }, MOTION_FRAME_MS);
+    // A self-rescheduling timeout, not an interval: the cadence is read
+    // fresh each time so the follow can ask for a faster one (and give it
+    // back) without the layer being remounted.
+    let motionTimer: ReturnType<typeof setTimeout> | undefined;
+    function scheduleMotionFrame(): void {
+        motionTimer = setTimeout(() => {
+            if (!document.hidden) {
+                redrawAll();
+                options.onMotionFrame?.();
+            }
+            scheduleMotionFrame();
+        }, options.motionIntervalMs?.() ?? MOTION_FRAME_MS);
+    }
+    if (options.velocityFor !== undefined) scheduleMotionFrame();
 
     function update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void {
         const nowMs = now.getTime();
@@ -466,7 +483,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         },
         count: () => visibleCount,
         dispose(): void {
-            if (motionTimer !== undefined) clearInterval(motionTimer);
+            if (motionTimer !== undefined) clearTimeout(motionTimer);
             map.off('zoomend', onZoomEnd);
             map.removeLayer(layerGroup);
             entries.clear();

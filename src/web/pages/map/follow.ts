@@ -45,6 +45,19 @@ export interface FollowTarget {
     id: string;
     /** What the chip names it: a ship's name, an aircraft's callsign. */
     label: string;
+    /**
+     * Which live layer this vessel belongs to.
+     *
+     * Both layers run a motion frame, and only the one that owns the
+     * followed vessel may recentre the map -- two of them doing it from
+     * two slightly different instants is the jitter `advanceFollow` exists
+     * to avoid. Stated here rather than inferred from "is it in my latest
+     * response", which was the same thing right up until the vessel
+     * slipped out of the viewport, and then became a trap: the layer
+     * stopped recentring, so the vessel drifted further out, so it stayed
+     * missing. A follow could never recover from a single missed frame.
+     */
+    layer: 'ships' | 'aircraft';
 }
 
 /**
@@ -65,7 +78,8 @@ export const VESSEL_ZOOM = 14;
 
 /**
  * How long a followed vessel may go unreported before the follow gives
- * up.
+ * up -- and, in the layers, how long they keep answering for it from its
+ * last known fix so the map can go on tracking it meanwhile.
  *
  * Not on the first miss: a ship absent from one poll has not gone
  * anywhere (a cluster, a gap in AIS coverage), and an aircraft blinking
@@ -74,7 +88,7 @@ export const VESSEL_ZOOM = 14;
  * the vessel really has gone, and a map holding station over empty water
  * with a chip naming a ship nobody can see is worse than letting go.
  */
-const LOSE_AFTER_MS = 30_000;
+export const LOSE_AFTER_MS = 30_000;
 
 const target = signal<FollowTarget | null>(null);
 
@@ -143,9 +157,23 @@ const GESTURE_WINDOW_MS = 1_000;
 /** How often the follow checks whether its vessel is still being reported. Slow: this is a giving-up clock, not the thing that moves the map. */
 const WATCHDOG_MS = 1_000;
 
+/**
+ * How often the owning layer redraws, and so how often the map is put
+ * back under the vessel, while a follow is running.
+ *
+ * Faster than the ordinary `MOTION_FRAME_MS` (120ms, chosen to spare the
+ * Raspberry Pi): at eight frames a second an airliner covers five pixels
+ * between frames, and that shows as stepping however well the map and the
+ * glyph agree. Following is a deliberate, temporary mode applied to one
+ * vessel, so paying for smoothness here is a bargain the kiosk can afford.
+ */
+export const FOLLOW_FRAME_MS = 33;
+
 interface ActiveFollow {
     map: Leaflet.Map;
     positionOf: () => Position | undefined;
+    /** When the visitor last actually did something to this map -- see `GESTURE_WINDOW_MS`. */
+    lastGestureAt: number;
     stop: () => void;
 }
 
@@ -168,6 +196,13 @@ let active: ActiveFollow | null = null;
  */
 export function advanceFollow(): void {
     if (active === null || document.hidden) return;
+    // Yield while the visitor is touching the map. Recentring runs often
+    // enough to interrupt Leaflet's own zoom animation before it can take
+    // effect -- the zoom would be silently undone, and, worse, the
+    // `movestart` that should have ended the follow never arrived, so the
+    // map could not be zoomed at all while following. Standing off for a
+    // moment lets their gesture land and cancel this properly.
+    if (Date.now() - active.lastGestureAt <= GESTURE_WINDOW_MS) return;
     const at = active.positionOf();
     if (at === undefined) return;
     const map = active.map;
@@ -208,11 +243,8 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
     let missingForMs = 0;
     let lastTickAt: number | null = null;
 
-    /** When the visitor last actually did something to this map -- see `GESTURE_WINDOW_MS`. */
-    let lastGestureAt = 0;
-
     function noteGesture(): void {
-        lastGestureAt = Date.now();
+        if (active !== null) active.lastGestureAt = Date.now();
     }
 
     function onMoveStart(): void {
@@ -222,7 +254,7 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
         // tab comes back, a catch-up poll's `invalidateSize` -- all of
         // them used to drop the follow out from under someone who had
         // done nothing but watch.
-        if (Date.now() - lastGestureAt > GESTURE_WINDOW_MS) return;
+        if (active === null || Date.now() - active.lastGestureAt > GESTURE_WINDOW_MS) return;
         stopFollowing();
     }
 
@@ -272,6 +304,7 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
     active = {
         map,
         positionOf,
+        lastGestureAt: 0,
         stop(): void {
             clearInterval(watchdog);
             map.off('movestart', onMoveStart);

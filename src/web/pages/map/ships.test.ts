@@ -725,7 +725,7 @@ describe('mountShipsLayer -- the popup actions', () => {
 
         buttons[1]?.click();
 
-        expect(followTarget.get()).toEqual({ id: '257123456', label: 'MS NORDLYS' });
+        expect(followTarget.get()).toEqual({ id: '257123456', label: 'MS NORDLYS', layer: 'ships' });
         expect(autoCycleHeld.get()).toBe(true);
 
         dispose();

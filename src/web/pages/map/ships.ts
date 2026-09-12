@@ -37,8 +37,18 @@ import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
-import { advanceFollow, followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
-import { projectPosition } from './motion.js';
+import {
+    advanceFollow,
+    FOLLOW_FRAME_MS,
+    followTarget,
+    followVessel,
+    isFollowing,
+    LOSE_AFTER_MS,
+    stopFollowing,
+    zoomToVessel,
+    type Position,
+} from './follow.js';
+import { MOTION_FRAME_MS, projectPosition } from './motion.js';
 import { buildVesselActions, type VesselActions } from './vesselActions.js';
 import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
@@ -401,6 +411,27 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
         () => settings.get().ships.enabled,
         () => {
             /**
+             * The followed ship's last known record, kept for
+             * `LOSE_AFTER_MS` after it stops appearing in a response --
+             * see the matching comment in `aircraft.ts`. A follow that
+             * needed its vessel to be inside the current viewport could
+             * not survive the vessel briefly leaving it, which is the one
+             * thing following exists to prevent.
+             */
+            let followedMemory: { ship: Ship; lastSeenMs: number } | undefined;
+
+            function rememberFollowed(items: readonly Ship[], nowMs: number): void {
+                const followed = followTarget.get();
+                if (followed?.layer !== 'ships') {
+                    followedMemory = undefined;
+                    return;
+                }
+                const seen = items.find((candidate) => candidate.mmsi === followed.id);
+                if (seen) followedMemory = { ship: seen, lastSeenMs: nowMs };
+                else if (nowMs - (followedMemory?.lastSeenMs ?? nowMs) >= LOSE_AFTER_MS) followedMemory = undefined;
+            }
+
+            /**
              * Where a ship is right now -- its last fix carried forward at
              * its own speed and course, the same dead reckoning the glyph
              * is drawn with (`motion.ts`), so a follow holds the triangle
@@ -412,7 +443,9 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
              * cluster must not be lost because of how it is being drawn.
              */
             function shipPosition(mmsi: string): Position | undefined {
-                const ship = latestShips.find((candidate) => candidate.mmsi === mmsi);
+                const ship =
+                    latestShips.find((candidate) => candidate.mmsi === mmsi) ??
+                    (followedMemory?.ship.mmsi === mmsi && Date.now() - followedMemory.lastSeenMs < LOSE_AFTER_MS ? followedMemory.ship : undefined);
                 if (!ship) return undefined;
                 // The same age filter the map draws by. Without it a ship
                 // whose last fix has aged off the map keeps answering here
@@ -452,7 +485,8 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                             stopFollowing();
                             return;
                         }
-                        followVessel(map, { id: ship.mmsi, label: shipLabel(ship) }, () => shipPosition(ship.mmsi));
+                        followedMemory = { ship, lastSeenMs: Date.now() };
+                        followVessel(map, { id: ship.mmsi, label: shipLabel(ship), layer: 'ships' }, () => shipPosition(ship.mmsi));
                     },
                 };
             }
@@ -481,9 +515,9 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // map from two slightly different instants would reproduce
                 // the very jitter this exists to remove.
                 onMotionFrame: () => {
-                    const followed = followTarget.get();
-                    if (followed !== null && latestShips.some((candidate) => candidate.mmsi === followed.id)) advanceFollow();
+                    if (followTarget.get()?.layer === 'ships') advanceFollow();
                 },
+                motionIntervalMs: () => (followTarget.get()?.layer === 'ships' ? FOLLOW_FRAME_MS : undefined) ?? MOTION_FRAME_MS,
             });
             const clusterBadges = createClusterBadgeLayer(L, map, shipActions);
             // Fed every visible ship below, clustered or not -- see
@@ -559,6 +593,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
 
             function clear(): void {
                 latestShips = [];
+                followedMemory = undefined;
                 latestConfigured = false;
                 canvasLayer.clear();
                 clusterBadges.update([]);
@@ -585,6 +620,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 }
                 latestConfigured = true;
                 latestShips = state.data.ships;
+                rememberFollowed(latestShips, Date.now());
                 render();
             });
 

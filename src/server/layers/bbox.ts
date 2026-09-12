@@ -29,7 +29,7 @@ export interface Bbox {
 const MAX_SPAN_DEGREES = 2;
 
 /**
- * The grid two nearby viewport bboxes are rounded to before becoming a
+ * The grid two nearby viewport bboxes are snapped to before becoming a
  * cache key, so ordinary map panning -- which changes the exact viewport
  * on every frame -- doesn't defeat the server-side cache by missing on
  * every single request. 0.05° is about 5.5km of latitude at this
@@ -37,6 +37,14 @@ const MAX_SPAN_DEGREES = 2;
  * a real pan still gets a fresh-enough bbox once it's moved meaningfully.
  */
 const ROUND_PRECISION_DEGREES = 0.05;
+
+/**
+ * Absorbs floating-point noise in the grid-cell quotient -- five
+ * micrometres' worth of degree, so it can only ever snap a value that is
+ * already on a grid line to that line, never move it to a neighbouring
+ * one.
+ */
+const GRID_EPSILON_CELLS = 1e-9;
 
 function isFiniteNumber(value: number): boolean {
     return Number.isFinite(value);
@@ -68,11 +76,6 @@ export function parseBbox(raw: unknown): Result<Bbox> {
     return ok({ minLat, minLng, maxLat, maxLng });
 }
 
-/** Rounds a floating-point degree value to the nearest `ROUND_PRECISION_DEGREES`, without floating-point drift artifacts (e.g. `0.1 + 0.05` becoming `0.15000000000000002`). */
-function roundToPrecision(value: number): number {
-    return Math.round(Math.round(value / ROUND_PRECISION_DEGREES) * ROUND_PRECISION_DEGREES * 1000) / 1000;
-}
-
 /** Rounds away the floating-point drift `(center ± span / 2)` arithmetic introduces (e.g. `68.3` becoming `68.29999999999998`), without affecting any value that matters at real-world map precision. */
 function roundDrift(value: number): number {
     return Math.round(value * 1e9) / 1e9;
@@ -93,13 +96,43 @@ export function clampBbox(bbox: Bbox): Bbox {
     };
 }
 
-/** Rounds every coordinate of `bbox` to `ROUND_PRECISION_DEGREES`, so two viewport bboxes close enough not to matter produce the same cache key. */
+/** The grid line at or below `value`. */
+function floorToPrecision(value: number): number {
+    return roundDrift(Math.floor(value / ROUND_PRECISION_DEGREES + GRID_EPSILON_CELLS) * ROUND_PRECISION_DEGREES);
+}
+
+/** The grid line at or above `value`. */
+function ceilToPrecision(value: number): number {
+    return roundDrift(Math.ceil(value / ROUND_PRECISION_DEGREES - GRID_EPSILON_CELLS) * ROUND_PRECISION_DEGREES);
+}
+
+/**
+ * Snaps `bbox` out to the `ROUND_PRECISION_DEGREES` grid, so two viewport
+ * bboxes close enough not to matter produce the same cache key.
+ *
+ * **Outward**, not to the nearest line, and that is the whole point.
+ * Rounding each edge independently to the nearest line quietly collapsed
+ * any viewport narrower than one grid cell: both edges landed on the same
+ * line and the result had zero area, so the upstream was asked for a
+ * rectangle containing nothing and the layer went empty. That is not an
+ * exotic case -- 0.05° is about 2km of latitude on this display, which a
+ * 600px-tall map reaches at zoom 13, well inside what a visitor zooms to
+ * and exactly where the map's own "zoom to this vessel" lands. Ships and
+ * aircraft simply vanished on zooming in, leaving their trails (which the
+ * browser remembers) drawn across an empty map.
+ *
+ * Snapping outward makes the rounded box always *contain* the one asked
+ * for, and always at least one cell across, so rounding can never exclude
+ * something that was really in view. The cost is fetching a little more
+ * water than is on screen, which is the right direction to err: those
+ * vessels are already in hand when the visitor pans.
+ */
 export function roundBbox(bbox: Bbox): Bbox {
     return {
-        minLat: roundToPrecision(bbox.minLat),
-        minLng: roundToPrecision(bbox.minLng),
-        maxLat: roundToPrecision(bbox.maxLat),
-        maxLng: roundToPrecision(bbox.maxLng),
+        minLat: floorToPrecision(bbox.minLat),
+        minLng: floorToPrecision(bbox.minLng),
+        maxLat: ceilToPrecision(bbox.maxLat),
+        maxLng: ceilToPrecision(bbox.maxLng),
     };
 }
 

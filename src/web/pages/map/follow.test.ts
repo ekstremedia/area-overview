@@ -55,7 +55,7 @@ function fakeMap(initialZoom = 10): { map: Leaflet.Map; views: AppliedView[]; fi
     return { map, views, fire, container };
 }
 
-const NORDLYS = { id: '257123456', label: 'MS NORDLYS' };
+const NORDLYS = { id: '257123456', label: 'MS NORDLYS', layer: 'ships' } as const;
 
 afterEach(() => {
     stopFollowing();
@@ -145,6 +145,23 @@ describe('followVessel', () => {
 
         expect(followTarget.get()).toBeNull();
         expect(autoCycleHeld.get()).toBe(false);
+    });
+
+    it('stands off while the visitor is touching the map, so their zoom can actually land', () => {
+        // At the follow frame rate, recentring would otherwise interrupt
+        // Leaflet's own zoom animation before it took effect -- the zoom
+        // was silently undone, and the `movestart` that should have ended
+        // the follow never arrived, so the map could not be zoomed at all
+        // while following.
+        const { map, views, container } = fakeMap();
+
+        followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        const afterStart = views.length;
+
+        container.dispatchEvent(new Event('pointerdown'));
+        advanceFollow();
+
+        expect(views).toHaveLength(afterStart); // the map was left alone
     });
 
     it('holds on through a map move nobody asked for', () => {
@@ -256,7 +273,7 @@ describe('followVessel', () => {
         const { map } = fakeMap();
 
         followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
-        followVessel(map, { id: '4787aa', label: 'WIF607' }, () => ({ lat: 69.0, lng: 16.0 }));
+        followVessel(map, { id: '4787aa', label: 'WIF607', layer: 'aircraft' }, () => ({ lat: 69.0, lng: 16.0 }));
 
         expect(followTarget.get()?.id).toBe('4787aa');
         expect(autoCycleHeld.get()).toBe(true);
