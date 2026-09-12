@@ -82,6 +82,18 @@ const ServerConfigSchema = z.object({
      */
     adsbMinIntervalMs: z.coerce.number().int().positive().default(2000),
     adsbBurst: z.coerce.number().int().positive().default(4),
+    /**
+     * How long a point forecast (`/api/weather?lat&lng`,
+     * `/api/tide?lat&lng`) is held.
+     *
+     * Much longer than `cacheTtlMs`, because it answers a different
+     * question. The home position is a live display refreshed every thirty
+     * seconds; a visitor's point forecast does not change by the
+     * half-minute, and every distinct coordinate is its own upstream call.
+     * Ten minutes also matches what the upstream caches a point forecast
+     * for, so a shorter value here would buy nothing but traffic.
+     */
+    pointForecastTtlMs: z.coerce.number().int().positive().default(600_000),
     /** Optional OpenSky OAuth2 client-credentials pair, for the registered tier's higher anonymous-quota-free rate limit. Never logged. */
     openskyClientId: z.string().default(''),
     openskyClientSecret: z.string().default(''),
@@ -147,6 +159,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         aircraftCacheTtlMs: env.AIRCRAFT_CACHE_TTL_MS,
         shipsSnapshotRefreshMs: env.SHIPS_SNAPSHOT_REFRESH_MS,
         shipsSnapshotMaxStaleMs: env.SHIPS_SNAPSHOT_MAX_STALE_MS,
+        pointForecastTtlMs: env.POINT_FORECAST_TTL_MS,
         adsbMinIntervalMs: env.ADSB_MIN_INTERVAL_MS,
         adsbBurst: env.ADSB_BURST,
         cartoApiKey: env.CARTO_API_KEY,

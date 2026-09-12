@@ -32,6 +32,16 @@ export interface ServeCachedOptions {
      * would itself consider it fresh. Omitted, no header is sent.
      */
     maxAgeSeconds?: number;
+    /**
+     * What a failure is logged as, when the cache key itself must not be.
+     *
+     * The point-forecast keys embed the visitor's coordinates, so logging
+     * the key would write positions into the container log through the
+     * error path -- undoing the same promise `app.ts`'s request serializer
+     * keeps on the success path. Defaults to `key`, which is right for
+     * every route whose key is a fixed name.
+     */
+    logKey?: string;
 }
 
 /**
@@ -113,14 +123,15 @@ export async function serveCached<T>(
         });
         sendJson(reply, request, value, false, options);
     } catch (error) {
+        const logKey = options.logKey ?? key;
         const stale = cache.get(key);
         if (stale) {
-            request.log.error({ err: error }, `upstream fetch for "${key}" failed, serving stale cache`);
+            request.log.error({ err: error }, `upstream fetch for "${logKey}" failed, serving stale cache`);
             sendJson(reply, request, stale.value, true);
             return;
         }
 
-        request.log.error({ err: error }, `upstream fetch for "${key}" failed, no cached value available`);
+        request.log.error({ err: error }, `upstream fetch for "${logKey}" failed, no cached value available`);
         reply.code(502).send({ error: 'Upstream unavailable' });
     }
 }

@@ -152,6 +152,7 @@ export const en: Record<keyof typeof nb, string> = {
     'compass.w': 'west',
     'compass.nw': 'northwest',
 
+    'weather.position': 'Position: {place}',
     'weather.outdoorLabel': 'Netatmo · outdoors',
     'weather.wind': 'Wind',
     'weather.humidity': 'Humidity',
@@ -187,6 +188,8 @@ export const en: Record<keyof typeof nb, string> = {
     'aurora.noaaAlert': 'NOAA alert · {scale}',
     'aurora.attributionText': 'NOAA SWPC',
 
+    'tide.noStation': 'No tide station near this position.',
+    'tide.position': 'Position: {place}',
     'tide.levelNowLabel': 'Level now',
     'tide.trendRising': '↑ rising, {deviation} above prediction',
     'tide.trendFalling': '↓ falling, {deviation} below prediction',

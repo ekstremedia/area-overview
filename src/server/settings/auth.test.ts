@@ -28,6 +28,7 @@ function fakeConfig(): ServerConfig {
         shipsSnapshotRefreshMs: 10_000,
         shipsSnapshotMaxStaleMs: 10 * 60_000,
         adsbMinIntervalMs: 2000,
+        pointForecastTtlMs: 600_000,
         adsbBurst: 4,
         cartoApiKey: '',
         trailsPollSeconds: 30,

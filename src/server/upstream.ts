@@ -27,6 +27,17 @@ export interface FetchUpstreamOptions {
      * that model a bare-null empty state.
      */
     on204?: unknown;
+    /**
+     * Query parameters appended to `path`, URL-encoded here rather than
+     * by the caller.
+     *
+     * This preserves the invariant in this file's doc comment -- callers
+     * pass a literal path and never concatenate request input into a URL
+     * -- while still letting a route forward a validated position. Values
+     * are numbers or strings that have already been through their own
+     * validation; this function only encodes them.
+     */
+    query?: Record<string, string | number>;
 }
 
 export async function fetchUpstream<T>(
@@ -35,7 +46,13 @@ export async function fetchUpstream<T>(
     config: ServerConfig,
     options: FetchUpstreamOptions = {},
 ): Promise<Result<T>> {
-    const url = new URL(path, config.upstreamBaseUrl).toString();
+    const target = new URL(path, config.upstreamBaseUrl);
+    for (const [key, value] of Object.entries(options.query ?? {})) {
+        // `set`, not `append`: a route forwarding `lat` must replace a
+        // `lat` already written into its literal path rather than send two.
+        target.searchParams.set(key, String(value));
+    }
+    const url = target.toString();
 
     let response: Response;
     try {
