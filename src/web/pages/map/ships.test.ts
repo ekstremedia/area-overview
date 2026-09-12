@@ -129,6 +129,12 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = [], cre
             createdMarkers.push(marker);
             return marker;
         },
+        // The trail layer's own; this file asserts about glyphs and cluster
+        // badges, so the segments only need to exist without throwing.
+        polyline: () => {
+            const line = { addTo: () => line, setLatLngs: () => line, setStyle: () => line };
+            return line;
+        },
         divIcon: (options: Record<string, unknown>) => ({ __divIcon: true, ...options }),
         latLng: (lat: number, lng: number) => ({ lat, lng }),
         point: (x: number, y: number) => ({ x, y }),

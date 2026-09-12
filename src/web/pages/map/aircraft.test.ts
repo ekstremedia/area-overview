@@ -64,6 +64,12 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = []): ty
             createdPolygons.push(polygon);
             return polygon;
         },
+        // The trail layer's own; this file asserts about glyphs, so the
+        // segments only need to exist without throwing.
+        polyline: () => {
+            const line = { addTo: () => line, setLatLngs: () => line, setStyle: () => line };
+            return line;
+        },
         latLng: (lat: number, lng: number) => ({ lat, lng }),
         point: (x: number, y: number) => ({ x, y }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

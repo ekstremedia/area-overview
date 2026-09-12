@@ -32,7 +32,7 @@
 import type * as Leaflet from 'leaflet';
 import { sharedCanvasRenderer } from './canvasRenderer.js';
 import { diffGlyphs, rotatedPlanePoints, rotatedTrianglePoints, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
-import { projectPosition, type Velocity } from './motion.js';
+import { MOTION_FRAME_MS, projectPosition, type Velocity } from './motion.js';
 
 export interface CanvasGlyphLayerOptions<T> {
     /** A literal colour string -- see `liveLayerColors.ts`'s doc comment for why this can't be a CSS custom property. */
@@ -159,17 +159,6 @@ function cornersToLatLngs<T>(
         shape === 'plane' ? rotatedPlanePoints(widthPx, heightPx, descriptor.heading) : rotatedTrianglePoints(widthPx, heightPx, descriptor.heading);
     return corners.map((corner) => map.unproject(L.point(centerPixel.x + corner.x, centerPixel.y + corner.y), zoom));
 }
-
-/**
- * How often a dead-reckoned glyph is redrawn.
- *
- * A compromise, and the kiosk is what it is picked for: at 8 frames a
- * second an airliner moves well under a pixel per frame at the map's
- * usual zoom, so the motion reads as gliding rather than stepping, while
- * a Raspberry Pi redraws the whole canvas eight times a second instead of
- * sixty.
- */
-const MOTION_FRAME_MS = 120;
 
 /** What a coasting glyph is drawn at, against a reported one's 1: enough to see, clearly less than certain. */
 const COAST_OPACITY = 0.45;

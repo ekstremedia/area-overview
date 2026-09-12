@@ -165,7 +165,13 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 coastMs: COAST_MS,
             });
 
-            const trailLayer = createTrailLayer<Aircraft>(L, map, { color: AIRCRAFT_GLYPH_COLOR, trailFor: (item) => item.trail });
+            const trailLayer = createTrailLayer<Aircraft>(L, map, {
+                color: AIRCRAFT_GLYPH_COLOR,
+                trailFor: (item) => item.trail,
+                // The same accessor the glyph layer gets, so the tail's
+                // leading end tracks the plane rather than its last fix.
+                velocityFor: (aircraft) => ({ speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track }),
+            });
 
             const pollSeconds = Math.max(settings.get().aircraft.pollSeconds, AIRCRAFT_LAYER.minPollSeconds);
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
