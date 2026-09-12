@@ -78,6 +78,25 @@ const AuroraAlertsSchema = z.object({
  * carries its own `attribution`/`attributionUrl`, plus a top-level pair
  * for the response as a whole.
  */
+/**
+ * The aurora probability at the position the request asked about, from
+ * NOAA's OVATION model (`src/server/aurora/ovation.ts`). Absent when no
+ * position was given, and absent when NOAA has not answered -- which is
+ * why it is `.optional()` on `AuroraAllSchema` rather than required: a
+ * NOAA outage must degrade this one figure, not fail the whole page.
+ */
+export const AuroraPointProbabilitySchema = z.object({
+    lat: z.number(),
+    lng: z.number(),
+    probability: z.number().min(0).max(100),
+    observationTime: z.string(),
+    forecastTime: z.string(),
+    attribution: z.string(),
+    attributionUrl: z.string(),
+});
+
+export type AuroraPointProbability = z.infer<typeof AuroraPointProbabilitySchema>;
+
 export const AuroraAllSchema = z.object({
     status: AuroraStatusSchema,
     oval: AuroraOvalSchema,
@@ -86,6 +105,8 @@ export const AuroraAllSchema = z.object({
     alerts: AuroraAlertsSchema,
     attribution: z.string(),
     attributionUrl: z.string(),
+    /** Optional, so existing fixtures and an unanswering NOAA both parse -- see `AuroraPointProbabilitySchema`. */
+    point: AuroraPointProbabilitySchema.optional(),
 });
 
 export type AuroraAll = z.infer<typeof AuroraAllSchema>;

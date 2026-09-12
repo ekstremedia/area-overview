@@ -172,6 +172,8 @@ export const en: Record<keyof typeof nb, string> = {
     'weather.attributionText': 'MET.no / Yr',
 
     'aurora.kpLabel': 'Planetary K-index',
+    'aurora.localLabel': 'Chance where you are',
+    'aurora.localValue': '{value}%',
     'aurora.hemisphericPower': '{value} GW hemispheric power',
     'aurora.band.quiet': 'Quiet',
     'aurora.band.active': 'Active',

@@ -22,12 +22,13 @@ import { southwardRun } from './aurora/southward.js';
 import { buildBzSparkline, buildPlasmaSparkline } from './aurora/sparkline.js';
 import { selectKpBars, type KpBar } from './aurora/kpBars.js';
 import './aurora/aurora.css';
+import { positionQuery } from '../position.js';
 
 const AURORA_POLL_INTERVAL_MS = 30_000;
 
 async function fetchAurora(): Promise<Result<AuroraAll>> {
     try {
-        const response = await fetch('/api/aurora');
+        const response = await fetch(`/api/aurora${positionQuery()}`);
         if (!response.ok) return err({ message: `GET /api/aurora responded ${String(response.status)}` });
         const json: unknown = await response.json();
         const parsed = AuroraAllSchema.safeParse(json);
@@ -86,6 +87,26 @@ function buildLeftColumn(data: AuroraAll): HTMLElement {
     const power = document.createElement('div');
     power.className = 'aurora-hemispheric-power';
     power.textContent = powerGw === null ? '' : t('aurora.hemisphericPower', { value: formatNumber(powerGw) });
+
+    // The chance of aurora where the visitor actually is, when they have
+    // told us. Sits beside the global Kp figure rather than replacing it:
+    // Kp says how disturbed the field is everywhere, this says whether
+    // that means anything from here.
+    if (data.point) {
+        const local = document.createElement('div');
+        local.className = 'aurora-local-probability';
+
+        const localLabel = document.createElement('div');
+        localLabel.className = 'aurora-local-label';
+        localLabel.textContent = t('aurora.localLabel');
+
+        const localValue = document.createElement('div');
+        localValue.className = 'aurora-local-value';
+        localValue.textContent = t('aurora.localValue', { value: formatNumber(data.point.probability) });
+
+        local.append(localLabel, localValue);
+        bandGroup.append(local);
+    }
 
     bandGroup.append(bandWord, power);
     headline.append(kpValue, bandGroup);

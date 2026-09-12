@@ -184,6 +184,8 @@ export const nb = {
     'weather.attributionText': 'MET.no / Yr',
 
     'aurora.kpLabel': 'Planetarisk K-indeks',
+    'aurora.localLabel': 'Sjanse der du er',
+    'aurora.localValue': '{value} %',
     'aurora.hemisphericPower': '{value} GW hemisfærisk effekt',
     'aurora.band.quiet': 'Rolig',
     'aurora.band.active': 'Aktiv',

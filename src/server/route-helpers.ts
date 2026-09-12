@@ -45,6 +45,20 @@ export interface ServeCachedOptions {
 }
 
 /**
+ * Applied to a cached value on its way out, per response.
+ *
+ * The cache holds one canonical document; this is what lets two responses
+ * differ without two upstream calls. Because `sendJson` hashes the body it
+ * is about to send, the `ETag` is automatically computed on the *served*
+ * variant rather than on the cached one.
+ *
+ * Returning `null` means "this cannot be served" and produces a 502 --
+ * used where serving the untransformed document would be wrong rather
+ * than merely incomplete.
+ */
+export type ServeCachedTransform<T> = (value: T) => T | null | Promise<T | null>;
+
+/**
  * A window for revalidating in the background after `max-age` lapses.
  * Short on purpose: this is live data, and a browser reusing a response
  * for a minute while it refetches is the most staleness worth accepting.
@@ -111,7 +125,7 @@ export async function serveCached<T>(
     cache: TtlCache<T>,
     key: string,
     fetcher: () => Promise<Result<T>>,
-    options: ServeCachedOptions = {},
+    options: ServeCachedOptions & { transform?: ServeCachedTransform<T> } = {},
 ): Promise<void> {
     try {
         const value = await cache.getOrLoad(key, async () => {
@@ -121,7 +135,13 @@ export async function serveCached<T>(
             }
             return result.value;
         });
-        sendJson(reply, request, value, false, options);
+        const served = options.transform ? await options.transform(value) : value;
+        if (served === null) {
+            request.log.error(`transform for "${options.logKey ?? key}" refused to serve the cached document`);
+            reply.code(502).send({ error: 'Upstream unavailable' });
+            return;
+        }
+        sendJson(reply, request, served, false, options);
     } catch (error) {
         const logKey = options.logKey ?? key;
         const stale = cache.get(key);
