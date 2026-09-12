@@ -119,6 +119,20 @@ export function addMapBasemapControl(L: typeof Leaflet, map: Leaflet.Map, option
                 L.DomEvent.preventDefault(event);
                 options.onSelect(offered);
             });
+            // An anchor carrying `role="button"` activates on Enter by
+            // itself (the browser fires a click) but not on Space, which
+            // a real `<button>` would take -- so a keyboard visitor
+            // pressing the key the role promises would scroll the page
+            // instead of switching the basemap. Handled here rather than
+            // by using a `<button>`: Leaflet's own `.leaflet-bar` chrome
+            // (and the zoom controls this sits under) is anchor-shaped,
+            // and a lone button in that stack would need its own reset of
+            // every border, background and focus style to match.
+            L.DomEvent.on(button, 'keydown', (event) => {
+                if (!(event instanceof KeyboardEvent) || event.key !== ' ') return;
+                L.DomEvent.preventDefault(event); // ...or the page scrolls under the map as well
+                options.onSelect(offered);
+            });
             return container;
         },
     });

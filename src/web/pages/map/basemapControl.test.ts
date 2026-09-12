@@ -110,6 +110,27 @@ describe('addMapBasemapControl', () => {
         dispose();
     });
 
+    it('activates on Space, which its role="button" promises but an anchor does not give for free', () => {
+        const { button, onSelect, dispose } = setup('dark');
+
+        const event = new KeyboardEvent('keydown', { key: ' ', cancelable: true, bubbles: true });
+        button().dispatchEvent(event);
+
+        expect(onSelect).toHaveBeenCalledWith('light');
+        expect(event.defaultPrevented).toBe(true); // ...or the page scrolls as well
+        dispose();
+    });
+
+    it('ignores other keys', () => {
+        const { button, onSelect, dispose } = setup('dark');
+
+        button().dispatchEvent(new KeyboardEvent('keydown', { key: 'a', cancelable: true, bubbles: true }));
+        button().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true, bubbles: true }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+        dispose();
+    });
+
     it('re-renders when the basemap changes underneath it (a theme or night-schedule switch)', () => {
         const { button, current, onSelect, dispose } = setup('dark');
 
