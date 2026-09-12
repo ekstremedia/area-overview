@@ -7,6 +7,7 @@ import fastifyCompress from '@fastify/compress';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import type { ServerConfig } from './config.js';
 import { registerAuroraRoutes } from './routes/aurora.js';
+import type { OvationClient } from './aurora/ovation.js';
 import { registerCameraRoutes } from './routes/cameras.js';
 import { registerAircraftRoutes } from './routes/aircraft.js';
 import { registerHealthzRoute } from './routes/healthz.js';
@@ -37,6 +38,8 @@ export interface BuildAppOptions {
      * turn down.
      */
     settingsAuthFailureDelayMs?: number;
+    /** Test-only: an `OvationClient` standing in for NOAA, so the aurora route's point path can be driven without a network call. */
+    ovation?: OvationClient;
 }
 
 /**
@@ -81,7 +84,7 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     registerHealthzRoute(app, config);
     registerMapConfigRoute(app, config);
     registerWeatherRoutes(app, config);
-    registerAuroraRoutes(app, config);
+    registerAuroraRoutes(app, config, options.ovation === undefined ? {} : { ovation: options.ovation });
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
     // One BarentsWatch token and one nationwide AIS slot for the whole

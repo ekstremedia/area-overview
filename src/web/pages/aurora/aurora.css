@@ -54,6 +54,29 @@
     letter-spacing: -0.03em;
 }
 
+/* The local chance sits above the band word, so the eye meets "where you
+   are" before the global description of the storm. */
+.aurora-local-probability {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: 8px;
+}
+
+.aurora-local-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+
+.aurora-local-value {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 24px;
+    color: var(--color-accent);
+}
+
 .aurora-hemispheric-power {
     font-style: italic;
     font-size: 20px;
