@@ -11,6 +11,8 @@ upstreams (AIS, ADS-B, weather, tide, aurora, cameras), holds the API
 credentials, caches the responses and validates every payload with Zod
 before the browser sees it.
 
+A live instance runs at [area.nesthus.no](https://area.nesthus.no/).
+
 See `docs/ARCHITECTURE.md` for how the pieces fit together, `docs/ROADMAP.md`
 for the phase plan, and `docs/adr/` for the reasoning behind the main design
 decisions.
