@@ -736,6 +736,38 @@ describe('mountShipsLayer -- the popup actions', () => {
         dispose();
     });
 
+    it('lets go of a ship whose last fix has aged off the map', async () => {
+        // `latestShips` holds the last good response even while the
+        // upstream is down, so without the age filter the follow would
+        // hold station over water with nothing drawn on it, under a chip
+        // naming a ship nobody can see.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([ship()]))));
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+        const { map } = fakeMap();
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [, hitArea] = createdPolygons;
+        const buttons = [...(hitArea?.popupContent?.().querySelectorAll('.vessel-action') ?? [])] as HTMLButtonElement[];
+        buttons[1]?.click();
+        expect(followTarget.get()).not.toBeNull();
+
+        // Past the 30-minute age filter, plus the follow's own 30s grace.
+        await vi.advanceTimersByTimeAsync(31 * 60_000);
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+
+        dispose();
+    });
+
     it('lets the slideshow go when the map page does, however the follow was left', async () => {
         // A follow is a property of this page being open. Leaving it while
         // still following must not strand the kiosk on a frozen timer.

@@ -40,7 +40,7 @@ import { clusterPoints, type Cluster, type ClusterInputPoint } from './clusterin
 import { followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
 import { projectPosition } from './motion.js';
 import { buildVesselActions, type VesselActions } from './vesselActions.js';
-import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
 import { shipTypeKey } from './shipType.js';
 import { createTrailLayer } from './trailLayer.js';
@@ -414,12 +414,20 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
             function shipPosition(mmsi: string): Position | undefined {
                 const ship = latestShips.find((candidate) => candidate.mmsi === mmsi);
                 if (!ship) return undefined;
+                // The same age filter the map draws by. Without it a ship
+                // whose last fix has aged off the map keeps answering here
+                // -- `latestShips` holds the last good response even while
+                // the upstream is down -- and the follow would hold station
+                // over water with nothing drawn on it, under a chip naming
+                // a ship nobody can see.
+                const now = new Date();
+                if (opacityForAge(ageMs(ship.timestamp, now), settings.get().ships.maxAgeMinutes) === null) return undefined;
                 const fixMs = Date.parse(ship.timestamp);
                 if (Number.isNaN(fixMs)) return { lat: ship.lat, lng: ship.lng };
                 return projectPosition(
                     { lat: ship.lat, lng: ship.lng },
                     { speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround },
-                    Date.now() - fixMs,
+                    now.getTime() - fixMs,
                 );
             }
 

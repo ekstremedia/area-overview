@@ -172,6 +172,30 @@ describe('followVessel', () => {
         expect(followTarget.get()).toEqual(NORDLYS);
     });
 
+    it("does not charge a hidden display's time to the missing-vessel clock", () => {
+        // A kiosk whose tab was hidden for an hour polls nothing and draws
+        // nothing, so a vessel cannot meaningfully be "missing" over that
+        // hour -- measured against a wall clock it would come back and drop
+        // the follow on its very first frame.
+        vi.useFakeTimers();
+        const { map } = fakeMap();
+        let reported: { lat: number; lng: number } | undefined = { lat: 68.7, lng: 15.4 };
+        const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+
+        followVessel(map, NORDLYS, () => reported);
+        reported = undefined;
+        vi.advanceTimersByTime(60 * 60_000); // an hour asleep
+
+        hidden.mockReturnValue(false);
+        vi.advanceTimersByTime(1_000); // and back
+        expect(followTarget.get()).toEqual(NORDLYS);
+
+        // The clock starts from the moment it is being looked at again.
+        vi.advanceTimersByTime(31_000);
+        expect(followTarget.get()).toBeNull();
+        hidden.mockRestore();
+    });
+
     it('gives up on a vessel that has genuinely gone, rather than holding over empty water', () => {
         vi.useFakeTimers();
         const { map } = fakeMap();

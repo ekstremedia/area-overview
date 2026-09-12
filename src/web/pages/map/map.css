@@ -262,6 +262,10 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* A flex item defaults to `min-width: auto` -- it refuses to shrink
+       below its content -- so without this a long vessel name pushes the
+       chip past `max-width` and the ellipsis above never applies. */
+    min-width: 0;
 }
 
 .map-follow-chip-stop {

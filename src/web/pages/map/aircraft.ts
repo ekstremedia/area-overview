@@ -25,7 +25,7 @@ import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
 import { projectPosition } from './motion.js';
 import { buildVesselActions, type VesselActions } from './vesselActions.js';
-import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
@@ -251,12 +251,17 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
             function aircraftPosition(icao: string): Position | undefined {
                 const aircraft = latestAircraft.find((candidate) => candidate.icao === icao);
                 if (!aircraft) return undefined;
+                // The same age filter the map draws by -- see the matching
+                // guard in `ships.ts` for why answering for an aircraft the
+                // map has stopped drawing is the wrong thing to do.
+                const now = new Date();
+                if (opacityForAge(ageMs(aircraft.timestamp, now), settings.get().aircraft.maxAgeMinutes) === null) return undefined;
                 const fixMs = Date.parse(aircraft.timestamp);
                 if (Number.isNaN(fixMs)) return { lat: aircraft.lat, lng: aircraft.lng };
                 return projectPosition(
                     { lat: aircraft.lat, lng: aircraft.lng },
                     { speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track },
-                    Date.now() - fixMs,
+                    now.getTime() - fixMs,
                 );
             }
 

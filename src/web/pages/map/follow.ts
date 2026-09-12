@@ -143,16 +143,24 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
     stopFollowing();
 
     const releaseAutoCycle = holdAutoCycle();
-    let missingSince: number | null = null;
+    /**
+     * Accumulated rather than measured from a start time, and only across
+     * frames that actually ran: while the tab is hidden nothing is polled,
+     * nothing is drawn and nobody is looking, so a vessel cannot
+     * meaningfully be "missing" then. Measured against a wall clock
+     * instead, a kiosk whose display slept for an hour would come back and
+     * drop the follow on its first frame.
+     */
+    let missingForMs = 0;
 
-    function recentre(): void {
+    function recentre(elapsedMs: number): void {
         const at = positionOf();
         if (at === undefined) {
-            missingSince ??= Date.now();
-            if (Date.now() - missingSince >= LOSE_AFTER_MS) stopFollowing();
+            missingForMs += elapsedMs;
+            if (missingForMs >= LOSE_AFTER_MS) stopFollowing();
             return;
         }
-        missingSince = null;
+        missingForMs = 0;
         // `animate: false` deliberately: at eight frames a second every
         // animation would be interrupted by the next one before it
         // finished, which looks like stutter rather than like smoothness.
@@ -181,11 +189,19 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
 
     map.on('movestart', onMoveStart);
     // Skipped while the tab is hidden, like the glyph and trail timers:
-    // there is nothing on screen to keep centred, and the missing-vessel
-    // clock should not run against a kiosk whose display is asleep.
+    // there is nothing on screen to keep centred. `lastFrameAt` is dropped
+    // rather than kept across the gap, so the hidden time is not charged
+    // to the missing-vessel clock when the display comes back.
+    let lastFrameAt: number | null = null;
     const timer = setInterval(() => {
-        if (document.hidden) return;
-        recentre();
+        if (document.hidden) {
+            lastFrameAt = null;
+            return;
+        }
+        const now = Date.now();
+        const elapsedMs = lastFrameAt === null ? 0 : now - lastFrameAt;
+        lastFrameAt = now;
+        recentre(elapsedMs);
     }, MOTION_FRAME_MS);
 
     active = function stop(): void {
