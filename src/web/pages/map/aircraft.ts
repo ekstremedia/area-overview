@@ -46,6 +46,24 @@ const COAST_MS = 30_000;
 const HIT_RADIUS_PX = 22; // half of a 44px tap diameter
 
 const METERS_PER_FOOT = 0.3048;
+/**
+ * Aviation reports ground speed in knots and climb rate in feet per
+ * minute; this display is read by people standing in a Norwegian living
+ * room, for whom km/h is the speed they have a feel for. Altitude keeps
+ * its feet alongside metres because flight levels are what an aircraft
+ * actually flies, but the two rates are converted outright.
+ */
+const KM_PER_HOUR_PER_KNOT = 1.852;
+const METERS_PER_SECOND_PER_FOOT_PER_MINUTE = METERS_PER_FOOT / 60;
+
+/**
+ * Below this a climb rate is noise, not a climb: an aircraft holding
+ * level reports a few tens of feet a minute either way as the barometric
+ * altitude jitters, and a popup that flickers between "climbing" and
+ * "descending" while a plane sits at its cruise level reads as a fault.
+ * 200 ft/min is about 1 m/s.
+ */
+const LEVEL_FLIGHT_FPM = 200;
 
 async function fetchAircraft(map: Leaflet.Map): Promise<Result<AircraftResponse>> {
     // Same reasoning as `ships.ts`'s own skip -- see `mapToBboxQuery`.
@@ -82,9 +100,15 @@ const ADSB_SOURCE_LABELS: Record<AdsbSource, string> = {
  * absent -- an older server, or the BFF's own remembered-aircraft
  * fallback, where no live provider actually answered this request.
  */
-function attributionFor(sources: readonly AdsbSource[] | undefined): string {
-    if (!sources || sources.length === 0) return AIRCRAFT_LAYER.attribution;
-    return `Data: ${sources.map((source) => ADSB_SOURCE_LABELS[source]).join(' / ')}`;
+function attributionFor(sources: readonly AdsbSource[] | undefined, showsRoutes: boolean): string {
+    // adsbdb is credited on the same "what is actually on screen" rule the
+    // ADS-B providers are: it is named only while a route it resolved is
+    // being drawn, not merely because the BFF is able to ask it.
+    const routeCredit = showsRoutes ? ['adsbdb'] : [];
+    if (!sources || sources.length === 0) {
+        return showsRoutes ? `${AIRCRAFT_LAYER.attribution} / adsbdb` : AIRCRAFT_LAYER.attribution;
+    }
+    return `Data: ${[...sources.map((source) => ADSB_SOURCE_LABELS[source]), ...routeCredit].join(' / ')}`;
 }
 
 function toGlyph(aircraft: Aircraft): GlyphDescriptor<Aircraft> {
@@ -108,6 +132,33 @@ function aircraftLabel(aircraft: Aircraft): string {
     return callsign === '' ? aircraft.icao : callsign;
 }
 
+/**
+ * The operator, aircraft type and tail number on one line, in that order,
+ * skipping whatever this aircraft's feed did not carry -- OpenSky's state
+ * vectors have neither type nor registration, and the community feeds
+ * have them only for aircraft their own databases know. Empty when none
+ * of the three is known, and the caller draws no line at all.
+ */
+function identityLine(aircraft: Aircraft): string {
+    return [aircraft.route?.airline, aircraft.aircraftType, aircraft.registration].filter((part) => part !== undefined && part !== '').join(' · ');
+}
+
+/** A route end as the town, with its airport code after it: "Bodø (BOO)" -- the town is what a passer-by reads, the code is what disambiguates it. */
+function airportLabel(airport: { code: string; municipality: string }): string {
+    return airport.municipality === airport.code ? airport.code : `${airport.municipality} (${airport.code})`;
+}
+
+/** "Climbing 6 m/s" / "Descending 3 m/s", or `null` for level flight and for a feed that reports no vertical rate at all. */
+function verticalRateLine(aircraft: Aircraft): string | null {
+    const fpm = aircraft.verticalRateFpm;
+    if (fpm === undefined || Math.abs(fpm) < LEVEL_FLIGHT_FPM) return null;
+    // Whole metres a second: the underlying figure is a barometric
+    // estimate, and a decimal on it would claim a precision it does not
+    // have.
+    const rate = formatNumber(Math.round(Math.abs(fpm) * METERS_PER_SECOND_PER_FOOT_PER_MINUTE), t('unit.metersPerSecond'));
+    return fpm > 0 ? t('map.aircraftClimbing', { rate }) : t('map.aircraftDescending', { rate });
+}
+
 function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLElement {
     const root = document.createElement('div');
     root.className = 'aircraft-popup';
@@ -116,6 +167,28 @@ function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLEle
     callsign.className = 'aircraft-popup-callsign';
     callsign.textContent = aircraft.callsign.trim() === '' ? aircraft.icao : aircraft.callsign;
     root.append(callsign);
+
+    const identity = identityLine(aircraft);
+    if (identity !== '') {
+        const line = document.createElement('div');
+        line.className = 'aircraft-popup-identity';
+        line.textContent = identity;
+        root.append(line);
+    }
+
+    // Never part of the broadcast -- see `FlightRouteSchema`. Absent for
+    // most aircraft (nothing scheduled has a route to look up), and for a
+    // scheduled one whose lookup has not come back yet; in both cases the
+    // popup simply has one line fewer.
+    if (aircraft.route) {
+        const route = document.createElement('div');
+        route.className = 'aircraft-popup-route';
+        route.textContent = t('map.aircraftRoute', {
+            from: airportLabel(aircraft.route.origin),
+            to: airportLabel(aircraft.route.destination),
+        });
+        root.append(route);
+    }
 
     const altitude = document.createElement('div');
     if (aircraft.altitudeFt === 'ground') {
@@ -131,12 +204,23 @@ function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLEle
     root.append(altitude);
 
     const speed = document.createElement('div');
-    speed.textContent = t('map.aircraftSpeed', { speed: formatNumber(aircraft.groundSpeedKt, t('unit.knots')) });
+    speed.textContent = t('map.aircraftSpeed', {
+        // Whole km/h: converting knots leaves three decimals otherwise,
+        // and nobody reads a ground speed to the metre per hour.
+        speed: formatNumber(Math.round(aircraft.groundSpeedKt * KM_PER_HOUR_PER_KNOT), t('unit.kilometersPerHour')),
+    });
     root.append(speed);
 
     const track = document.createElement('div');
     track.textContent = t('map.aircraftTrack', { track: formatNumber(aircraft.track, t('unit.degrees')) });
     root.append(track);
+
+    const verticalRate = verticalRateLine(aircraft);
+    if (verticalRate !== null) {
+        const climb = document.createElement('div');
+        climb.textContent = verticalRate;
+        root.append(climb);
+    }
 
     const age = document.createElement('div');
     age.textContent = t('map.popupUpdated', { age: formatAge(new Date(aircraft.timestamp), now) });
@@ -220,7 +304,12 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                         lng: descriptor.lng,
                     })),
                 );
-                callbacks.reportAttribution(attributionFor(state.data.sources));
+                callbacks.reportAttribution(
+                    attributionFor(
+                        state.data.sources,
+                        visible.some(({ descriptor }) => descriptor.data.route !== undefined),
+                    ),
+                );
             });
 
             const disposeMoveRefetch = refetchOnMapMove(map, () => {

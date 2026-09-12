@@ -63,6 +63,7 @@ export const nb = {
     'unit.celsius': '°C',
     'unit.nanotesla': 'nT',
     'unit.kilometersPerSecond': 'km/s',
+    'unit.kilometersPerHour': 'km/t',
     'unit.particlesPerCm3': 'p/cm³',
     'unit.centimeters': 'cm',
     'unit.metersPerSecondSea': 'm/s strøm',
@@ -116,6 +117,9 @@ export const nb = {
     'map.aircraftAltitudeShort': '{feet}',
     'map.aircraftSpeed': '{speed} fart',
     'map.aircraftTrack': '{track} kurs',
+    'map.aircraftRoute': '{from} → {to}',
+    'map.aircraftClimbing': 'Stiger {rate}',
+    'map.aircraftDescending': 'Synker {rate}',
 
     'map.popupUpdated': 'Oppdatert {age}',
 

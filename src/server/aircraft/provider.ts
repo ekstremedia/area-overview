@@ -39,17 +39,45 @@ const MAX_RADIUS_NM = 250; // adsb.lol's own documented maximum for `dist`
  * more fields this app doesn't need (already stripped by this schema's
  * default tolerant-object behaviour), and some aircraft entries lack
  * position/speed/altitude data entirely (e.g. Mode-A/C-only contacts).
+ *
+ * `nullish()`, not `optional()`: adsb.lol's own OpenAPI schema declares
+ * every field here but `hex` as `<type> | null`, and a `null` arriving at
+ * a plain `optional()` is a validation *failure*, not a missing field.
+ * The entries are parsed as one array, so a single aircraft transmitting
+ * a null anywhere would fail the whole response and leave the layer
+ * silently empty -- the same failure mode the `ac`/`aircraft` key
+ * mismatch once caused, and exactly what this file's tolerant parsing
+ * exists to prevent. `toAircraft` reads both spellings of "absent" as
+ * the same thing.
+ */
+/**
+ * `null` treated as "this aircraft did not report it".
+ *
+ * adsb.lol's own OpenAPI schema declares every field of an aircraft entry
+ * but `hex` and `seen` as `<type> | null` (checked against
+ * `https://api.adsb.lol/api/openapi.json`), and a `null` arriving at a
+ * plain `.optional()` is a validation *failure*, not an absent field.
+ * Since the entries are parsed as one array, a single aircraft
+ * transmitting a null anywhere would fail the whole response and empty
+ * the layer -- the same silent-empty-layer failure the `ac`/`aircraft`
+ * key mismatch caused before, and exactly what this file's tolerant
+ * parsing is meant to prevent.
  */
 const RawV2AircraftSchema = z.object({
     hex: z.string(),
-    flight: z.string().optional(),
-    alt_baro: z.union([z.number(), z.literal('ground')]).optional(),
-    gs: z.number().optional(),
-    track: z.number().optional(),
-    lat: z.number().optional(),
-    lon: z.number().optional(),
-    seen: z.number().optional(),
-    seen_pos: z.number().optional(),
+    flight: z.string().nullish(),
+    alt_baro: z.union([z.number(), z.literal('ground')]).nullish(),
+    gs: z.number().nullish(),
+    track: z.number().nullish(),
+    lat: z.number().nullish(),
+    lon: z.number().nullish(),
+    seen: z.number().nullish(),
+    seen_pos: z.number().nullish(),
+    /** Registration (tail number) and ICAO type designator. Present on the community feeds, which enrich the broadcast from their own aircraft databases -- an ADS-B message itself carries neither. */
+    r: z.string().nullish(),
+    t: z.string().nullish(),
+    /** Barometric climb rate, feet per minute, positive up. */
+    baro_rate: z.number().nullish(),
 });
 
 export type RawV2Aircraft = z.infer<typeof RawV2AircraftSchema>;
@@ -119,9 +147,20 @@ export function bboxToCenterRadius(bbox: Bbox): CenterRadius {
     return { lat: centerLat, lon: centerLng, nm };
 }
 
-function trimmedCallsign(flight: string | undefined, hex: string): string {
+function trimmedCallsign(flight: string | null | undefined, hex: string): string {
     const trimmed = (flight ?? '').trim();
     return trimmed === '' ? hex : trimmed;
+}
+
+/**
+ * A feed string with something in it, or `undefined`. A feed that has no
+ * registration for an aircraft says so with `null`, an absent field, or
+ * an empty one -- all three mean the same thing, and an empty tail number
+ * in the popup reads as a rendering fault.
+ */
+function reportedText(value: string | null | undefined): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed === undefined || trimmed === '' ? undefined : trimmed;
 }
 
 /**
@@ -131,8 +170,10 @@ function trimmedCallsign(flight: string | undefined, hex: string): string {
  * states for a Mode-S-only contact the ADS-B feed still lists.
  */
 function toAircraft(raw: RawV2Aircraft, now: Date): Aircraft | undefined {
-    if (raw.lat === undefined || raw.lon === undefined) return undefined;
-    if (raw.alt_baro === undefined) return undefined;
+    // `== null` deliberately: `null` and an absent field both mean this
+    // aircraft did not report the value (see `RawV2AircraftSchema`).
+    if (raw.lat == null || raw.lon == null) return undefined;
+    if (raw.alt_baro == null) return undefined;
 
     const seenPos = raw.seen_pos ?? 0;
     const candidate = {
@@ -144,6 +185,9 @@ function toAircraft(raw: RawV2Aircraft, now: Date): Aircraft | undefined {
         groundSpeedKt: raw.gs ?? 0,
         track: raw.track ?? 0,
         timestamp: new Date(now.getTime() - seenPos * 1000).toISOString(),
+        registration: reportedText(raw.r),
+        aircraftType: reportedText(raw.t),
+        verticalRateFpm: raw.baro_rate ?? undefined,
     };
 
     const parsed = AircraftSchema.safeParse(candidate);

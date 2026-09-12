@@ -117,4 +117,43 @@ describe('GET /api/aircraft', () => {
 
         expect(response.statusCode).toBe(502);
     });
+
+    it('attaches a flight route once its callsign has been looked up, without the first response waiting for it', async () => {
+        // Both upstreams behind one stub: the ADS-B provider answers with
+        // the real captured fixture, adsbdb with a route for the one
+        // aircraft inside the bbox (`SAS69L`).
+        const fetchMock = vi.fn().mockImplementation((url: unknown) => {
+            if (String(url).includes('adsbdb')) {
+                return Promise.resolve(
+                    jsonResponse({
+                        response: {
+                            flightroute: {
+                                airline: { name: 'Scandinavian Airlines System' },
+                                origin: { iata_code: 'OSL', name: 'Oslo Airport, Gardermoen', municipality: 'Oslo' },
+                                destination: { iata_code: 'BOO', name: 'Bodø Airport', municipality: 'Bodø' },
+                            },
+                        },
+                    }),
+                );
+            }
+            return Promise.resolve(jsonResponse(adsbLolFixture));
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ adsbProvider: 'adsblol' });
+
+        const first = AircraftResponseSchema.parse((await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` })).json());
+        if (first.configured) {
+            // Nothing blocks on a third party's answer about a flight number.
+            expect(first.aircraft[0]?.route).toBeUndefined();
+        }
+
+        await sleep(30); // the background lookup lands, and the response cache expires
+        const second = AircraftResponseSchema.parse((await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` })).json());
+        expect(second.configured).toBe(true);
+        if (second.configured) {
+            expect(second.aircraft[0]?.route?.origin.code).toBe('OSL');
+            expect(second.aircraft[0]?.route?.destination.municipality).toBe('Bodø');
+            expect(second.aircraft[0]?.route?.airline).toBe('Scandinavian Airlines System');
+        }
+    });
 });

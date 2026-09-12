@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { AdsbSource, Aircraft, AircraftResponse } from '../../shared/schemas/aircraft.js';
 import { bboxCacheKey, clampBbox, parseBbox, roundBbox } from '../layers/bbox.js';
+import { createFlightRouteLookup, type FlightRouteLookup } from '../aircraft/flight-routes.js';
 import { fetchAircraft } from '../aircraft/provider.js';
 import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
@@ -18,6 +19,8 @@ import type { TrailStore } from '../trails/store.js';
 export interface AircraftRouteDependencies {
     /** See `ShipsRouteDependencies` in `routes/ships.ts` -- same contract, same reasons. */
     trails: TrailStore<Aircraft>;
+    /** Callsign-to-route resolution. Injectable so tests can drive it without reaching adsbdb; the real one is built here when this is omitted. */
+    flightRoutes?: FlightRouteLookup;
 }
 
 /**
@@ -29,12 +32,16 @@ export interface AircraftRouteDependencies {
 function withTrails(
     aircraft: readonly Aircraft[],
     trails: TrailStore<Aircraft>,
+    flightRoutes: FlightRouteLookup,
     now: Date,
     sources?: readonly AdsbSource[],
 ): Extract<AircraftResponse, { configured: true }> {
+    // Routes attach from whatever the lookup already knows and never hold
+    // this response up -- a callsign first seen now gets its route on the
+    // next poll. See `aircraft/flight-routes.ts`.
     return {
         configured: true,
-        aircraft: aircraft.map((item) => ({ ...item, trail: trails.trailFor(item.icao, now) })),
+        aircraft: flightRoutes.attach(aircraft).map((item) => ({ ...item, trail: trails.trailFor(item.icao, now) })),
         fetchedAt: now.toISOString(),
         sources: sources ? [...sources] : undefined,
     };
@@ -45,6 +52,7 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
     // union so it can be constructed/returned without a cast; see the
     // matching comment in `routes/ships.ts`.
     const cache = new TtlCache<AircraftResponse>(config.aircraftCacheTtlMs);
+    const flightRoutes = dependencies.flightRoutes ?? createFlightRouteLookup({ upstreamTimeoutMs: config.upstreamTimeoutMs });
 
     const openSkyCredentials =
         config.openskyClientId !== '' && config.openskyClientSecret !== ''
@@ -77,7 +85,7 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
 
             if (result.ok) {
                 dependencies.trails.record(result.value.aircraft, now);
-                return { ok: true, value: withTrails(result.value.aircraft, dependencies.trails, now, result.value.sources) };
+                return { ok: true, value: withTrails(result.value.aircraft, dependencies.trails, flightRoutes, now, result.value.sources) };
             }
 
             // Same reasoning as the ships route: prefer the stale cached
@@ -89,7 +97,7 @@ export function registerAircraftRoutes(app: FastifyInstance, config: ServerConfi
             const known = dependencies.trails.latestIn(bbox, now);
             if (known.length === 0) return result;
             request.log.warn({ reason: result.error.message, aircraft: known.length }, 'aircraft upstream failed; serving remembered aircraft');
-            return { ok: true, value: withTrails(known, dependencies.trails, now) };
+            return { ok: true, value: withTrails(known, dependencies.trails, flightRoutes, now) };
         });
     });
 }
