@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsSchema, type Settings } from '../../shared/schemas/settings.js';
 import { signal } from '../core/signal.js';
-import { autoCycleArmed, autoCyclePaused, nextCycleRoute, startAutoCycle } from './autoCycle.js';
+import { autoCycleArmed, autoCycleHeld, autoCyclePaused, holdAutoCycle, nextCycleRoute, startAutoCycle } from './autoCycle.js';
 
 function settingsWith(overrides: Partial<Settings['autoCycle']> = {}, enabledPages?: Settings['enabledPages']): Settings {
     return SettingsSchema.parse({
@@ -262,5 +262,109 @@ describe('startAutoCycle', () => {
         expect(autoCycleArmed.get()).toBeNull();
 
         dispose();
+    });
+});
+
+/**
+ * A hold is not the visitor's pause, and the difference is the whole
+ * reason it exists: the map's follow mode borrows the timer for a while
+ * and has to give it back exactly as it found it.
+ */
+describe('holdAutoCycle', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        autoCyclePaused.set(false);
+    });
+
+    function armedCycle(onCycle: () => void): () => void {
+        const settingsSignal = signal(
+            SettingsSchema.parse({ autoCycle: { enabled: true, intervalSeconds: 30, pages: [] }, enabledPages: ['map', 'weather'] }),
+        );
+        const routeSignal = signal<{ name: 'map' }>({ name: 'map' });
+        return startAutoCycle({ settings: settingsSignal, route: routeSignal, onCycle });
+    }
+
+    it('stops the timer while held, and starts it again on release', () => {
+        const onCycle = vi.fn();
+        const dispose = armedCycle(onCycle);
+
+        const release = holdAutoCycle();
+        vi.advanceTimersByTime(60_000);
+        expect(onCycle).not.toHaveBeenCalled();
+
+        release();
+        vi.advanceTimersByTime(30_000);
+        expect(onCycle).toHaveBeenCalledTimes(1);
+
+        dispose();
+    });
+
+    it('leaves a slideshow the visitor paused paused, rather than starting it on release', () => {
+        // The bug a shared boolean would have: following a ship and then
+        // letting go would start a slideshow somebody had deliberately
+        // stopped, and flip the masthead's button under them.
+        const onCycle = vi.fn();
+        const dispose = armedCycle(onCycle);
+        autoCyclePaused.set(true);
+
+        const release = holdAutoCycle();
+        release();
+
+        vi.advanceTimersByTime(120_000);
+        expect(onCycle).not.toHaveBeenCalled();
+        expect(autoCyclePaused.get()).toBe(true); // untouched throughout
+
+        dispose();
+    });
+
+    it('keeps the countdown frozen where it got to rather than emptying it', () => {
+        const dispose = armedCycle(vi.fn());
+        const armed = autoCycleArmed.get();
+
+        const release = holdAutoCycle();
+        expect(autoCycleArmed.get()).toEqual(armed); // the masthead bar holds its position
+
+        release();
+        dispose();
+    });
+
+    it('composes: the timer runs again only once the last hold lets go', () => {
+        const onCycle = vi.fn();
+        const dispose = armedCycle(onCycle);
+
+        const first = holdAutoCycle();
+        const second = holdAutoCycle();
+        expect(autoCycleHeld.get()).toBe(true);
+
+        first();
+        expect(autoCycleHeld.get()).toBe(true);
+        vi.advanceTimersByTime(60_000);
+        expect(onCycle).not.toHaveBeenCalled();
+
+        second();
+        expect(autoCycleHeld.get()).toBe(false);
+        vi.advanceTimersByTime(30_000);
+        expect(onCycle).toHaveBeenCalledTimes(1);
+
+        dispose();
+    });
+
+    it("releasing the same hold twice cannot drop somebody else's", () => {
+        // Disposers get run twice in this app (a layer unmount inside a
+        // page unmount), and a counter would go negative and let the timer
+        // loose while the other holder still wanted it held.
+        const release = holdAutoCycle();
+        const other = holdAutoCycle();
+
+        release();
+        release();
+        expect(autoCycleHeld.get()).toBe(true);
+
+        other();
+        expect(autoCycleHeld.get()).toBe(false);
     });
 });

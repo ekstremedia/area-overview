@@ -37,6 +37,9 @@ import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
 import { clusterPoints, type Cluster, type ClusterInputPoint } from './clustering.js';
+import { followTarget, followVessel, isFollowing, stopFollowing, zoomToVessel, type Position } from './follow.js';
+import { projectPosition } from './motion.js';
+import { buildVesselActions, type VesselActions } from './vesselActions.js';
 import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
 import { SHIP_GLYPH_COLOR, SHIP_GLYPH_COLOR_UNDERWAY_ENGINE } from './liveLayerColors.js';
 import { shipTypeKey } from './shipType.js';
@@ -113,7 +116,7 @@ function toGlyph(ship: Ship): GlyphDescriptor<Ship> {
     };
 }
 
-function buildShipPopup(ship: Ship, now: Date = new Date()): HTMLElement {
+function buildShipPopup(ship: Ship, actions: VesselActions, now: Date = new Date()): HTMLElement {
     const root = document.createElement('div');
     root.className = 'ship-popup';
 
@@ -149,6 +152,8 @@ function buildShipPopup(ship: Ship, now: Date = new Date()): HTMLElement {
     const age = document.createElement('div');
     age.textContent = t('map.popupUpdated', { age: formatAge(new Date(ship.timestamp), now) });
     root.append(age);
+
+    root.append(buildVesselActions(actions));
 
     return root;
 }
@@ -203,7 +208,7 @@ function buildClusterListPopup(members: readonly Ship[], onSelect: (mmsi: string
 }
 
 /** A cluster member's full detail -- `buildShipPopup` reused unchanged, plus a "back to list" affordance above it since a cluster tap is likely to be revisited for another member. */
-function buildClusterDetailPopup(ship: Ship, onBack: () => void): HTMLElement {
+function buildClusterDetailPopup(ship: Ship, onBack: () => void, actions: VesselActions): HTMLElement {
     const root = document.createElement('div');
     root.className = 'ship-cluster-popup ship-cluster-popup-detail';
 
@@ -216,7 +221,7 @@ function buildClusterDetailPopup(ship: Ship, onBack: () => void): HTMLElement {
         onBack();
     });
     root.append(back);
-    root.append(buildShipPopup(ship));
+    root.append(buildShipPopup(ship, actions));
 
     return root;
 }
@@ -278,15 +283,19 @@ interface ClusterPopupState {
  * `setPopupContent` whenever `state` changes (a row/back tap, or a fresh
  * poll while the popup is open).
  */
-function renderClusterPopup(state: ClusterPopupState, refresh: () => void): HTMLElement {
+function renderClusterPopup(state: ClusterPopupState, refresh: () => void, actionsFor: (ship: Ship) => VesselActions): HTMLElement {
     if (state.mode === 'detail' && state.selectedMmsi !== undefined) {
         const ship = state.members.find((member) => member.mmsi === state.selectedMmsi);
         if (ship) {
-            return buildClusterDetailPopup(ship, () => {
-                state.mode = 'list';
-                state.selectedMmsi = undefined;
-                refresh();
-            });
+            return buildClusterDetailPopup(
+                ship,
+                () => {
+                    state.mode = 'list';
+                    state.selectedMmsi = undefined;
+                    refresh();
+                },
+                actionsFor(ship),
+            );
         }
         state.mode = 'list';
         state.selectedMmsi = undefined;
@@ -304,15 +313,20 @@ interface ClusterBadgeEntry {
     refresh: () => void;
 }
 
-function createClusterEntry(L: typeof Leaflet, map: Leaflet.Map, cluster: Cluster<Ship>): ClusterBadgeEntry {
+function createClusterEntry(
+    L: typeof Leaflet,
+    map: Leaflet.Map,
+    cluster: Cluster<Ship>,
+    actionsFor: (ship: Ship) => VesselActions,
+): ClusterBadgeEntry {
     const state: ClusterPopupState = { mode: 'list', selectedMmsi: undefined, members: cluster.members };
     const marker = L.marker(clusterCentroidLatLng(L, map, cluster), {
         icon: buildClusterIcon(L, cluster.members.length, clusterHasUnderway(cluster.members)),
     });
     function refresh(): void {
-        marker.setPopupContent(renderClusterPopup(state, refresh));
+        marker.setPopupContent(renderClusterPopup(state, refresh, actionsFor));
     }
-    marker.bindPopup(() => renderClusterPopup(state, refresh), {
+    marker.bindPopup(() => renderClusterPopup(state, refresh, actionsFor), {
         className: 'live-glyph-popup-wrapper',
         autoPanPadding: [20, 20],
     });
@@ -334,7 +348,11 @@ function createClusterEntry(L: typeof Leaflet, map: Leaflet.Map, cluster: Cluste
  * between polls updates the badge even when membership itself (and so the
  * key) doesn't change.
  */
-function createClusterBadgeLayer(L: typeof Leaflet, map: Leaflet.Map): { update(clusters: readonly Cluster<Ship>[]): void; dispose(): void } {
+function createClusterBadgeLayer(
+    L: typeof Leaflet,
+    map: Leaflet.Map,
+    actionsFor: (ship: Ship) => VesselActions,
+): { update(clusters: readonly Cluster<Ship>[]): void; refreshOpenPopup(): void; dispose(): void } {
     const layerGroup = L.layerGroup().addTo(map);
     const entries = new Map<string, ClusterBadgeEntry>();
 
@@ -350,7 +368,7 @@ function createClusterBadgeLayer(L: typeof Leaflet, map: Leaflet.Map): { update(
                 existing.marker.setIcon(buildClusterIcon(L, cluster.members.length, clusterHasUnderway(cluster.members)));
                 if (existing.marker.isPopupOpen()) existing.refresh();
             } else {
-                const entry = createClusterEntry(L, map, cluster);
+                const entry = createClusterEntry(L, map, cluster, actionsFor);
                 entry.marker.addTo(layerGroup);
                 entries.set(key, entry);
             }
@@ -364,6 +382,13 @@ function createClusterBadgeLayer(L: typeof Leaflet, map: Leaflet.Map): { update(
 
     return {
         update,
+        // Same reason the glyph layer has one: a follow can start or stop
+        // from outside this popup, and its button says which.
+        refreshOpenPopup(): void {
+            for (const entry of entries.values()) {
+                if (entry.marker.isPopupOpen()) entry.refresh();
+            }
+        },
         dispose(): void {
             map.removeLayer(layerGroup);
             entries.clear();
@@ -375,12 +400,61 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
     return mountWhileEnabled(
         () => settings.get().ships.enabled,
         () => {
+            /**
+             * Where a ship is right now -- its last fix carried forward at
+             * its own speed and course, the same dead reckoning the glyph
+             * is drawn with (`motion.ts`), so a follow holds the triangle
+             * still rather than chasing it between polls.
+             *
+             * Read from `latestShips` rather than from the canvas layer:
+             * a ship pulled into a cluster badge is withheld from that
+             * layer entirely, and a followed ship that drifts into a
+             * cluster must not be lost because of how it is being drawn.
+             */
+            function shipPosition(mmsi: string): Position | undefined {
+                const ship = latestShips.find((candidate) => candidate.mmsi === mmsi);
+                if (!ship) return undefined;
+                const fixMs = Date.parse(ship.timestamp);
+                if (Number.isNaN(fixMs)) return { lat: ship.lat, lng: ship.lng };
+                return projectPosition(
+                    { lat: ship.lat, lng: ship.lng },
+                    { speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround },
+                    Date.now() - fixMs,
+                );
+            }
+
+            /**
+             * Both popup actions close the popup first: it is an opaque
+             * card sitting over the very water the map is about to centre
+             * on, and Leaflet would spend the follow fighting to keep it
+             * on screen (`autoPanPadding`) against every recentre.
+             */
+            function shipActions(ship: Ship): VesselActions {
+                return {
+                    following: isFollowing(ship.mmsi),
+                    onZoomTo: (): void => {
+                        const at = shipPosition(ship.mmsi);
+                        map.closePopup();
+                        if (at) zoomToVessel(map, at);
+                    },
+                    onToggleFollow: (): void => {
+                        const wasFollowing = isFollowing(ship.mmsi);
+                        map.closePopup();
+                        if (wasFollowing) {
+                            stopFollowing();
+                            return;
+                        }
+                        followVessel(map, { id: ship.mmsi, label: shipLabel(ship) }, () => shipPosition(ship.mmsi));
+                    },
+                };
+            }
+
             const canvasLayer = createCanvasGlyphLayer<Ship>(L, map, {
                 color: SHIP_GLYPH_COLOR,
                 widthPx: SHIP_WIDTH_PX,
                 heightPx: SHIP_HEIGHT_PX,
                 hitRadiusPx: HIT_RADIUS_PX,
-                buildPopup: (ship) => buildShipPopup(ship),
+                buildPopup: (ship) => buildShipPopup(ship, shipActions(ship)),
                 colorFor: shipColor,
                 // Only ships under way using their engine get a label --
                 // Terje's ask was specifically the green/underway subset
@@ -395,7 +469,7 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 // now. A moored ship reports 0 knots and so does not move.
                 velocityFor: (ship) => ({ speedKt: ship.speedOverGround, courseDeg: ship.courseOverGround }),
             });
-            const clusterBadges = createClusterBadgeLayer(L, map);
+            const clusterBadges = createClusterBadgeLayer(L, map, shipActions);
             // Fed every visible ship below, clustered or not -- see
             // `trailLayer.ts`'s doc comment for why it can't be fed the
             // canvas layer's (cluster-filtered) set instead.
@@ -498,8 +572,19 @@ export function mountShipsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                 render();
             });
 
+            // A follow can start or stop from anywhere -- a pan, the chip,
+            // another vessel's popup -- and an open popup's button says
+            // which. Without this it would keep saying the old thing until
+            // the next poll happened to rebuild it.
+            const disposeFollowSync = effect(() => {
+                followTarget.get();
+                canvasLayer.refreshOpenPopup();
+                clusterBadges.refreshOpenPopup();
+            });
+
             return function dispose(): void {
                 disposeEffect();
+                disposeFollowSync();
                 map.off('zoomend', onZoomEnd);
                 disposeMoveRefetch();
                 res.dispose();

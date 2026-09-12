@@ -125,6 +125,17 @@ export interface CanvasGlyphLayer<T> {
      * believe in it.
      */
     clear(): void;
+    /**
+     * Rebuilds the content of whichever popup is open, if any.
+     *
+     * A popup's content is a function of more than the glyph's own data:
+     * whether this vessel is the one being followed changes what its
+     * follow button says (`vesselActions.ts`). That can change at any
+     * moment, from somewhere else entirely -- a pan cancelling a follow --
+     * and waiting for the next poll to notice would leave a button
+     * claiming to stop something that already stopped.
+     */
+    refreshOpenPopup(): void;
     /** Count of glyphs currently rendered (post age-filter) -- for the masthead's live-layer counts. */
     count(): number;
     dispose(): void;
@@ -327,6 +338,10 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         return entry;
     }
 
+    function rebuildPopup(entry: GlyphEntry, descriptor: GlyphDescriptor<T>): void {
+        entry.hitArea.setPopupContent(options.buildPopup(descriptor.data));
+    }
+
     function removeEntry(id: string): void {
         const entry = entries.get(id);
         if (!entry) return;
@@ -383,7 +398,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             const entry = entries.get(descriptor.id);
             if (!entry) continue;
             applyLatLngs(descriptor, entry);
-            if (entry.hitArea.isPopupOpen()) entry.hitArea.setPopupContent(options.buildPopup(descriptor.data));
+            if (entry.hitArea.isPopupOpen()) rebuildPopup(entry, descriptor);
             applyLabel(entry, descriptor);
         }
 
@@ -429,6 +444,13 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         clear(): void {
             for (const id of [...entries.keys()]) removeEntry(id);
             visibleCount = 0;
+        },
+        refreshOpenPopup(): void {
+            for (const [id, entry] of entries) {
+                if (!entry.hitArea.isPopupOpen()) continue;
+                const descriptor = descriptorsById.get(id);
+                if (descriptor) rebuildPopup(entry, descriptor);
+            }
         },
         count: () => visibleCount,
         dispose(): void {

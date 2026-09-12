@@ -109,6 +109,12 @@ export const en: Record<keyof typeof nb, string> = {
     'map.aircraftClimbing': 'Climbing {rate}',
     'map.aircraftDescending': 'Descending {rate}',
 
+    'map.zoomToVessel': 'Zoom in',
+    'map.followVessel': 'Follow',
+    'map.stopFollowingVessel': 'Stop following',
+    'map.followingVessel': 'Following {name}',
+    'map.stopFollowing': 'Stop following',
+
     'map.popupUpdated': 'Updated {age}',
 
     'error.staleData': 'Could not refresh · showing earlier data.',

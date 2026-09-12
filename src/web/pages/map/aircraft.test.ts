@@ -12,6 +12,8 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({ aircraft: { enabled
 vi.mock('../../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountAircraftLayer } = await import('./aircraft.js');
+const { followTarget, stopFollowing, VESSEL_ZOOM } = await import('./follow.js');
+const { autoCycleHeld } = await import('../../shell/autoCycle.js');
 
 function fakePolygon() {
     const polygon = {
@@ -81,14 +83,21 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = []): ty
     } as any as typeof Leaflet;
 }
 
+const mapViews: { lat: number; lng: number; zoom: number }[] = [];
+
 function fakeMap(): Leaflet.Map {
-    return {
+    const map = {
         getZoom: () => 10,
         project: () => ({ x: 0, y: 0 }),
         unproject: () => ({ lat: 0, lng: 0 }),
         on: () => undefined,
         off: () => undefined,
         removeLayer: () => undefined,
+        setView: (latLng: [number, number], zoom: number) => {
+            mapViews.push({ lat: latLng[0], lng: latLng[1], zoom });
+            return map;
+        },
+        closePopup: () => map,
         getBounds: () => ({ getWest: () => 14.0, getSouth: () => 68.0, getEast: () => 16.0, getNorth: () => 69.0 }),
         // See `ships.test.ts`'s fake: `mapToBboxQuery` skips a viewport it
         // cannot measure, so the fake has to have a real size.
@@ -97,6 +106,7 @@ function fakeMap(): Leaflet.Map {
         invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any as Leaflet.Map;
+    return map;
 }
 
 function jsonResponse(body: unknown): Response {
@@ -446,6 +456,58 @@ describe("mountAircraftLayer -- an aircraft's popup", () => {
         await vi.advanceTimersByTimeAsync(0);
 
         expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol / adsbdb');
+
+        dispose();
+    });
+});
+
+describe('mountAircraftLayer -- the popup actions', () => {
+    afterEach(() => {
+        stopFollowing();
+        mapViews.length = 0;
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: false, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+    });
+
+    async function openAircraftPopup(): Promise<{ buttons: HTMLButtonElement[]; dispose: () => void }> {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(oneAircraft)));
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [, hitArea] = createdPolygons;
+        const buttons = [...(hitArea?.popupContent?.().querySelectorAll('.vessel-action') ?? [])] as HTMLButtonElement[];
+        return { buttons, dispose };
+    }
+
+    it('zooms to the aircraft from its popup', async () => {
+        const { buttons, dispose } = await openAircraftPopup();
+
+        expect(buttons.map((button) => button.textContent)).toEqual(['Zoom inn', 'Følg']);
+        buttons[0]?.click();
+
+        expect(mapViews.at(-1)).toEqual({ lat: 68.5, lng: 15.5, zoom: VESSEL_ZOOM });
+        expect(followTarget.get()).toBeNull();
+
+        dispose();
+    });
+
+    it('follows the aircraft by callsign, holding the slideshow', async () => {
+        const { buttons, dispose } = await openAircraftPopup();
+
+        buttons[1]?.click();
+
+        expect(followTarget.get()).toEqual({ id: 'abc123', label: 'TEST01' });
+        expect(autoCycleHeld.get()).toBe(true);
 
         dispose();
     });
