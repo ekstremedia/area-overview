@@ -164,6 +164,42 @@ describe('followVessel', () => {
         expect(views).toHaveLength(afterStart); // the map was left alone
     });
 
+    it("treats a slow drag as the visitor's, however long the pointer was held first", () => {
+        // Press, hold, then drag: the move arrived outside the gesture
+        // window, so the follow neither yielded to the drag nor ended, and
+        // the map could not be taken back at all.
+        vi.useFakeTimers();
+        const { map, container, fire } = fakeMap();
+
+        followVessel(map, NORDLYS, () => ({ lat: 68.7, lng: 15.4 }));
+        container.dispatchEvent(new Event('pointerdown'));
+        vi.advanceTimersByTime(5_000); // held still, well past GESTURE_WINDOW_MS
+
+        // Now it actually moves. happy-dom has no PointerEvent buttons, so
+        // a plain move event stands in for the drag the browser sends.
+        container.dispatchEvent(new Event('pointermove'));
+        fire('movestart');
+
+        expect(followTarget.get()).toBeNull();
+    });
+
+    it('gives up as soon as its layer stops being able to place the vessel', () => {
+        // The layer holds the last fix for its own `LOSE_AFTER_MS` before
+        // it stops answering; waiting out a second full window here would
+        // hold the map, and the slideshow, for twice as long as documented.
+        vi.useFakeTimers();
+        const { map } = fakeMap();
+        let reported: { lat: number; lng: number } | undefined = { lat: 68.7, lng: 15.4 };
+
+        followVessel(map, NORDLYS, () => reported);
+        vi.advanceTimersByTime(2_000); // placed at least once
+        reported = undefined;
+        vi.advanceTimersByTime(1_500);
+
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+    });
+
     it('holds on through a map move nobody asked for', () => {
         // Leaflet re-measuring its container after a tab comes back, a
         // catch-up poll, a stray `setView` from elsewhere in the app. The

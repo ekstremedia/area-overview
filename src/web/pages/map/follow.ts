@@ -242,9 +242,33 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
      */
     let missingForMs = 0;
     let lastTickAt: number | null = null;
+    /**
+     * Whether this follow has ever been able to place its vessel.
+     *
+     * Once it has, a `positionOf` that comes back empty means the layer
+     * itself has given up -- it holds the last fix for `LOSE_AFTER_MS` of
+     * its own (see either layer's `followedMemory`) -- so waiting out a
+     * second full window here would keep the map, and the slideshow, held
+     * for twice as long as this module documents.
+     */
+    let everPlaced = false;
 
     function noteGesture(): void {
         if (active !== null) active.lastGestureAt = Date.now();
+    }
+
+    /**
+     * A drag in progress counts as a gesture for as long as it lasts.
+     *
+     * `pointerdown` alone was not enough: press, hold for a second, then
+     * drag, and the move arrived outside `GESTURE_WINDOW_MS` -- so the
+     * follow neither yielded to the drag nor ended, and the map could not
+     * be taken back. Guarded on `buttons` because a bare `pointermove` is
+     * the mouse merely crossing the map, which must leave a follow alone.
+     */
+    function noteDrag(event: Event): void {
+        if (event instanceof PointerEvent && event.buttons === 0) return;
+        noteGesture();
     }
 
     function onMoveStart(): void {
@@ -280,8 +304,10 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
     // clicks (`disableClickPropagation`), so a bubble-phase listener would
     // never see a tap on the zoom buttons -- and a zoom is exactly the kind
     // of gesture that should take the map back.
-    const GESTURES = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const;
+    const GESTURES = ['pointerdown', 'pointerup', 'pointercancel', 'wheel', 'keydown', 'touchstart', 'touchend'] as const;
+    const DRAG_GESTURES = ['pointermove', 'touchmove'] as const;
     for (const type of GESTURES) container.addEventListener(type, noteGesture, { capture: true, passive: true });
+    for (const type of DRAG_GESTURES) container.addEventListener(type, noteDrag, { capture: true, passive: true });
     map.on('movestart', onMoveStart);
     window.addEventListener(IDLE_RESET_EVENT, onIdleReset);
 
@@ -294,9 +320,16 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
         const elapsedMs = lastTickAt === null ? 0 : now - lastTickAt;
         lastTickAt = now;
         if (positionOf() !== undefined) {
+            everPlaced = true;
             missingForMs = 0;
             return;
         }
+        if (everPlaced) {
+            stopFollowing(); // the layer has already waited its own `LOSE_AFTER_MS`
+            return;
+        }
+        // Never placed at all: give it the same window to turn up before
+        // giving up, rather than dropping a follow the instant it starts.
         missingForMs += elapsedMs;
         if (missingForMs >= LOSE_AFTER_MS) stopFollowing();
     }, WATCHDOG_MS);
@@ -310,6 +343,7 @@ export function followVessel(map: Leaflet.Map, next: FollowTarget, positionOf: (
             map.off('movestart', onMoveStart);
             window.removeEventListener(IDLE_RESET_EVENT, onIdleReset);
             for (const type of GESTURES) container.removeEventListener(type, noteGesture, { capture: true });
+            for (const type of DRAG_GESTURES) container.removeEventListener(type, noteDrag, { capture: true });
             releaseAutoCycle();
         },
     };
