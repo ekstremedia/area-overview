@@ -75,7 +75,19 @@ describe('GET /api/ships -- configured', () => {
             .mockResolvedValueOnce(jsonResponse({ access_token: 'a-token', expires_in: 3600 }))
             .mockResolvedValueOnce(jsonResponse(combinedFixture));
         vi.stubGlobal('fetch', fetchMock);
-        const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret', shipsCacheTtlMs: 10 });
+        // `shipsSnapshotMaxStaleMs: 0` stops the shared nationwide snapshot
+        // from answering through the outage, which is what puts this
+        // viewport's own stale cache back in the path. Without it the
+        // request succeeds for a different (also correct) reason -- see the
+        // snapshot-serves-every-viewport test below -- and this one would
+        // pass without ever exercising `X-Cache: stale`.
+        const app = buildTestApp({
+            barentswatchClientId: 'client-id',
+            barentswatchClientSecret: 'client-secret',
+            shipsCacheTtlMs: 10,
+            shipsSnapshotRefreshMs: 10,
+            shipsSnapshotMaxStaleMs: 0,
+        });
 
         const warm = await app.inject({ method: 'GET', url: `/api/ships?${VALID_BBOX}` });
         expect(warm.statusCode).toBe(200);
@@ -89,13 +101,68 @@ describe('GET /api/ships -- configured', () => {
         expect(stale.headers['x-cache']).toBe('stale');
     });
 
+    it('serves every viewport from one nationwide fetch, however many viewports there are', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse({ access_token: 'a-token', expires_in: 3600 }))
+            .mockResolvedValue(jsonResponse(combinedFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret' });
+
+        // Three different places, the way three visitors would ask.
+        const bboxes = ['15.0,68.5,16.0,69.0', '10.0,59.5,11.0,60.5', '5.0,60.0,6.0,61.0'];
+        const responses = await Promise.all(bboxes.map((bbox) => app.inject({ method: 'GET', url: `/api/ships?bbox=${bbox}` })));
+
+        for (const response of responses) {
+            expect(response.statusCode).toBe(200);
+        }
+
+        // One token request plus exactly one nationwide AIS download --
+        // this is the whole point of the snapshot. Before it, this was
+        // three full-country fetches.
+        const aisCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('live.ais.barentswatch.no'));
+        expect(aisCalls).toHaveLength(1);
+    });
+
+    it('gives each viewport only its own ships, not the whole country', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse({ access_token: 'a-token', expires_in: 3600 }))
+            .mockResolvedValue(jsonResponse(combinedFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret' });
+
+        const inArea = await app.inject({ method: 'GET', url: `/api/ships?${VALID_BBOX}` });
+        const elsewhere = await app.inject({ method: 'GET', url: '/api/ships?bbox=-60.0,-40.0,-59.0,-39.0' });
+
+        const here = ShipsResponseSchema.parse(inArea.json());
+        const there = ShipsResponseSchema.parse(elsewhere.json());
+        if (!here.configured || !there.configured) throw new Error('expected configured responses');
+
+        expect(here.ships.length).toBeGreaterThan(0);
+        expect(there.ships).toHaveLength(0);
+        for (const ship of here.ships) {
+            expect(ship.lat).toBeGreaterThanOrEqual(68.5);
+            expect(ship.lat).toBeLessThanOrEqual(69.0);
+        }
+    });
+
     it('serves the vessels it remembers, with their trails, on a cold cache while BarentsWatch is unreachable', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValueOnce(jsonResponse({ access_token: 'a-token', expires_in: 3600 }))
             .mockResolvedValueOnce(jsonResponse(combinedFixture));
         vi.stubGlobal('fetch', fetchMock);
-        const app = buildTestApp({ barentswatchClientId: 'client-id', barentswatchClientSecret: 'client-secret', shipsCacheTtlMs: 10 });
+        // As above: the shared snapshot must be forbidden from answering
+        // through the outage, or the remembered-vessels path is never
+        // reached and this test would pass vacuously.
+        const app = buildTestApp({
+            barentswatchClientId: 'client-id',
+            barentswatchClientSecret: 'client-secret',
+            shipsCacheTtlMs: 10,
+            shipsSnapshotRefreshMs: 10,
+            shipsSnapshotMaxStaleMs: 0,
+        });
 
         // One good response fills the BFF's memory...
         const warm = await app.inject({ method: 'GET', url: `/api/ships?${VALID_BBOX}` });

@@ -13,6 +13,8 @@ import { registerHealthzRoute } from './routes/healthz.js';
 import { registerMapConfigRoute } from './routes/map-config.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
+import { createShipsSnapshot } from './ships/snapshot.js';
+import { createBarentsWatchToken } from './ships/token.js';
 import { registerTideRoutes } from './routes/tide.js';
 import { registerWeatherRoutes } from './routes/weather.js';
 import { registerStaticPlugin } from './static.js';
@@ -42,11 +44,26 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     registerAuroraRoutes(app, config);
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
+    // One BarentsWatch token and one nationwide AIS slot for the whole
+    // process, built here rather than inside either consumer because both
+    // `GET /api/ships` and the background trail poller must share them --
+    // that sharing is what keeps the upstream cost at one fetch per
+    // refresh window however many viewports are being served. See
+    // `ships/snapshot.ts`.
+    const shipsConfigured = config.barentswatchClientId !== '' && config.barentswatchClientSecret !== '';
+    const shipsSnapshot = shipsConfigured
+        ? createShipsSnapshot(createBarentsWatchToken(config.barentswatchClientId, config.barentswatchClientSecret, config.upstreamTimeoutMs), {
+              upstreamTimeoutMs: config.upstreamTimeoutMs,
+              refreshMs: config.shipsSnapshotRefreshMs,
+              maxStaleMs: config.shipsSnapshotMaxStaleMs,
+          })
+        : undefined;
+
     // Shared by the routes and the background poller: the routes read
     // trails out and feed their own fetches in, the poller keeps it warm
     // while nobody is on the map page. See `trails/support.ts`.
-    const trails = createTrailSupport(config);
-    registerShipsRoutes(app, config, { trails: trails.ships });
+    const trails = createTrailSupport(config, { shipsSnapshot });
+    registerShipsRoutes(app, config, { trails: trails.ships, snapshot: shipsSnapshot });
     registerAircraftRoutes(app, config, { trails: trails.aircraft });
     registerSettingsRoutes(
         app,

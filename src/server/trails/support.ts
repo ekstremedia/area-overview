@@ -3,11 +3,15 @@
  * them: one place that knows a trail exists, so `app.ts` only has to
  * start and stop it and the routes only have to be handed a store.
  *
- * The ships poller creates its own BarentsWatch token rather than sharing
- * the ships route's. That is one extra OAuth token per process, refreshed
- * on its own schedule, and it buys the poller independence from route
- * construction -- a route and a background job that must be built in the
- * right order to share a credential is a worse trade than a second token.
+ * The ships poller reads the same `ShipsSnapshot` the route does, rather
+ * than holding its own BarentsWatch token and issuing its own nationwide
+ * fetch. It used to do the latter deliberately -- one extra token bought
+ * the poller independence from route construction order -- but that trade
+ * only made sense while the fetch itself was cheap to duplicate. It is a
+ * multi-megabyte nationwide download, and the whole point of the snapshot
+ * is that the process makes exactly one of them per refresh window, so
+ * `app.ts` now builds the token and the snapshot and hands both consumers
+ * the same slot.
  */
 import type { FastifyBaseLogger } from 'fastify';
 import type { Aircraft } from '../../shared/schemas/aircraft.js';
@@ -15,8 +19,8 @@ import type { Ship } from '../../shared/schemas/ships.js';
 import { fetchAircraft } from '../aircraft/provider.js';
 import type { ServerConfig } from '../config.js';
 import { clampBbox, parseBbox, type Bbox } from '../layers/bbox.js';
-import { fetchShips } from '../ships/barentswatch.js';
-import { createBarentsWatchToken } from '../ships/token.js';
+import { shipsWithin } from '../ships/barentswatch.js';
+import type { ShipsSnapshot } from '../ships/snapshot.js';
 import { ok, type Result } from '../../shared/result.js';
 import { startTrailPoller, type TrailPollerSource } from './poller.js';
 import { createTrailStore, type TrailStore } from './store.js';
@@ -54,7 +58,12 @@ function areaBbox(config: ServerConfig, logger: FastifyBaseLogger): Bbox | null 
     return clampBbox(parsed.value);
 }
 
-export function createTrailSupport(config: ServerConfig): TrailSupport {
+export interface TrailSupportDependencies {
+    /** The one nationwide AIS slot, shared with `GET /api/ships`. `undefined` when BarentsWatch is unconfigured, which disables the ships half of the poll. */
+    shipsSnapshot: ShipsSnapshot | undefined;
+}
+
+export function createTrailSupport(config: ServerConfig, dependencies: TrailSupportDependencies): TrailSupport {
     const storeOptions = { maxPoints: MAX_POINTS, maxAgeMs: MAX_AGE_MS, forgetAfterMs: FORGET_AFTER_MS };
 
     const ships = createTrailStore<Ship>(
@@ -83,15 +92,18 @@ export function createTrailSupport(config: ServerConfig): TrailSupport {
 
         const sources: TrailPollerSource[] = [];
 
-        const shipsConfigured = config.barentswatchClientId !== '' && config.barentswatchClientSecret !== '';
-        if (shipsConfigured) {
-            const token = createBarentsWatchToken(config.barentswatchClientId, config.barentswatchClientSecret, config.upstreamTimeoutMs);
+        const shipsSnapshot = dependencies.shipsSnapshot;
+        if (shipsSnapshot) {
             sources.push({
                 name: 'ships',
                 poll: async (now): Promise<Result<void>> => {
-                    const result = await fetchShips(area, token, config.upstreamTimeoutMs);
+                    // Shares the route's snapshot, so this poll usually
+                    // costs nothing upstream at all: whichever of the two
+                    // asks first inside a refresh window pays for the
+                    // fetch and the other reads the same ships out.
+                    const result = await shipsSnapshot.ships();
                     if (!result.ok) return result;
-                    ships.record(result.value, now);
+                    ships.record(shipsWithin(result.value, area), now);
                     return ok(undefined);
                 },
             });
