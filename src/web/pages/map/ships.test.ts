@@ -15,6 +15,8 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({ ships: { enabled: f
 vi.mock('../../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountShipsLayer } = await import('./ships.js');
+const { followTarget, stopFollowing, VESSEL_ZOOM } = await import('./follow.js');
+const { autoCycleHeld } = await import('../../shell/autoCycle.js');
 
 function fakePolygon(initial: Record<string, unknown> = {}) {
     const polygon = {
@@ -27,7 +29,12 @@ function fakePolygon(initial: Record<string, unknown> = {}) {
             polygon.style = { ...polygon.style, ...style };
             return polygon;
         },
-        bindPopup: () => polygon,
+        /** Leaflet calls the bound function when a popup opens; keeping it lets a test read the popup this layer would render. */
+        popupContent: undefined as (() => HTMLElement) | undefined,
+        bindPopup: (content: () => HTMLElement) => {
+            polygon.popupContent = content;
+            return polygon;
+        },
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
         bindTooltip: (content: HTMLElement) => {
@@ -142,9 +149,19 @@ function fakeLeaflet(createdPolygons: ReturnType<typeof fakePolygon>[] = [], cre
     } as any as typeof Leaflet;
 }
 
-function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[] } {
+/** A real element, so the follow can attach its gesture listeners, that still reports the laid-out size `mapToBboxQuery` insists on. */
+function fakeContainer(): HTMLElement {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'clientWidth', { value: 1000 });
+    Object.defineProperty(el, 'clientHeight', { value: 600 });
+    return el;
+}
+
+function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[]; views: { lat: number; lng: number; zoom: number }[] } {
     const onCalls: string[] = [];
     const offCalls: string[] = [];
+    const views: { lat: number; lng: number; zoom: number }[] = [];
+    const container = fakeContainer();
     const map = {
         getZoom: () => 10,
         // A simple, invertible linear "projection" -- not Web Mercator,
@@ -161,16 +178,21 @@ function fakeMap(): { map: Leaflet.Map; onCalls: string[]; offCalls: string[] } 
             offCalls.push(event);
         },
         removeLayer: () => undefined,
+        setView: (latLng: [number, number], zoom: number) => {
+            views.push({ lat: latLng[0], lng: latLng[1], zoom });
+            return map;
+        },
+        closePopup: () => map,
         getBounds: () => ({ getWest: () => 14.0, getSouth: () => 68.0, getEast: () => 16.0, getNorth: () => 69.0 }),
         // A laid-out container whose size Leaflet already agrees with --
         // `mapToBboxQuery` skips a viewport it cannot measure, so a fake
         // without a size would make every layer here fetch nothing.
-        getContainer: () => ({ clientWidth: 1000, clientHeight: 600 }),
+        getContainer: () => container,
         getSize: () => ({ x: 1000, y: 600 }),
         invalidateSize: () => undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any as Leaflet.Map;
-    return { map, onCalls, offCalls };
+    return { map, onCalls, offCalls, views };
 }
 
 function jsonResponse(body: unknown): Response {
@@ -634,5 +656,137 @@ describe('mountShipsLayer -- clustering', () => {
         expect(createdPolygons.length).toBeGreaterThan(0);
 
         dispose();
+    });
+});
+
+/**
+ * The two actions at the foot of a ship's popup. They are what the whole
+ * follow feature is reached through, and one of them holds the kiosk's
+ * slideshow -- so "does the button do the thing" is worth asserting from
+ * the layer that builds it, not only from `follow.ts` in isolation.
+ */
+describe('mountShipsLayer -- the popup actions', () => {
+    afterEach(() => {
+        stopFollowing();
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: false, pollSeconds: 10, maxAgeMinutes: 30 } }));
+    });
+
+    async function openShipPopup(): Promise<{
+        buttons: HTMLButtonElement[];
+        rebuild: () => HTMLButtonElement[];
+        views: { lat: number; lng: number; zoom: number }[];
+        dispose: () => void;
+    }> {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([ship()]))));
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+        const { map, views } = fakeMap();
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // The popup is bound to the hit area -- the second of each glyph's
+        // (visible, hitArea) pair.
+        const [, hitArea] = createdPolygons;
+        const rebuild = (): HTMLButtonElement[] => [...(hitArea?.popupContent?.().querySelectorAll('.vessel-action') ?? [])] as HTMLButtonElement[];
+        return { buttons: rebuild(), rebuild, views, dispose };
+    }
+
+    it('offers exactly the two of them', async () => {
+        const { buttons, dispose } = await openShipPopup();
+
+        expect(buttons.map((button) => button.textContent)).toEqual(['Zoom inn', 'Følg']);
+
+        dispose();
+    });
+
+    it('zooms to the ship without following it or touching the slideshow', async () => {
+        const { buttons, views, dispose } = await openShipPopup();
+
+        buttons[0]?.click();
+
+        expect(views.at(-1)).toEqual({ lat: 68.7, lng: 15.4, zoom: VESSEL_ZOOM });
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+
+        dispose();
+    });
+
+    it('follows the ship by name, and holds the slideshow while it does', async () => {
+        const { buttons, dispose } = await openShipPopup();
+
+        buttons[1]?.click();
+
+        expect(followTarget.get()).toEqual({ id: '257123456', label: 'MS NORDLYS', layer: 'ships' });
+        expect(autoCycleHeld.get()).toBe(true);
+
+        dispose();
+    });
+
+    it('offers to stop once it is the one being followed, and stops on the second tap', async () => {
+        const { buttons, rebuild, dispose } = await openShipPopup();
+
+        buttons[1]?.click();
+        const nowFollowing = rebuild();
+        expect(nowFollowing[1]?.textContent).toBe('Slutt å følge');
+
+        nowFollowing[1]?.click();
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+
+        dispose();
+    });
+
+    it('lets go of a ship whose last fix has aged off the map', async () => {
+        // `latestShips` holds the last good response even while the
+        // upstream is down, so without the age filter the follow would
+        // hold station over water with nothing drawn on it, under a chip
+        // naming a ship nobody can see.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(configuredResponse([ship()]))));
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+        const { map } = fakeMap();
+
+        mockSettings.set(SettingsSchema.parse({ ships: { enabled: true, pollSeconds: 10, maxAgeMinutes: 30 } }));
+        const dispose = mountShipsLayer(fakeLeaflet(createdPolygons), map, {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [, hitArea] = createdPolygons;
+        const buttons = [...(hitArea?.popupContent?.().querySelectorAll('.vessel-action') ?? [])] as HTMLButtonElement[];
+        buttons[1]?.click();
+        expect(followTarget.get()).not.toBeNull();
+
+        // Past the 30-minute age filter, plus the follow's own 30s grace.
+        await vi.advanceTimersByTimeAsync(31 * 60_000);
+        expect(followTarget.get()).toBeNull();
+        expect(autoCycleHeld.get()).toBe(false);
+
+        dispose();
+    });
+
+    it('lets the slideshow go when the map page does, however the follow was left', async () => {
+        // A follow is a property of this page being open. Leaving it while
+        // still following must not strand the kiosk on a frozen timer.
+        const { buttons, dispose } = await openShipPopup();
+
+        buttons[1]?.click();
+        expect(autoCycleHeld.get()).toBe(true);
+
+        dispose();
+        stopFollowing(); // what `mountLiveLayers`' own disposer does
+        expect(autoCycleHeld.get()).toBe(false);
     });
 });

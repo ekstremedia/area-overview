@@ -194,6 +194,94 @@
     height: var(--tap-min) !important;
 }
 
+/* — the two actions at the foot of a ship's/aircraft's popup: zoom to it,
+   and follow it (`vesselActions.ts`). A rule above them separates them
+   from the figures, since these do something rather than say something.
+   Borderless and `--tap-min` tall, the same shape every other button in
+   this app takes (there is no shared button class -- see
+   `.ship-cluster-popup-back`, `.camera-popup-link`). */
+.vessel-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-divider);
+}
+
+.vessel-action {
+    flex: 1;
+    min-height: var(--tap-min);
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 15px;
+    color: var(--color-accent);
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* The follow button while this vessel is the one being followed: it now
+   says "stop", and reading as the active state is what makes that
+   obvious at a glance rather than only from the wording. */
+.vessel-action--active {
+    color: var(--color-text);
+}
+
+/* — the following chip: what the map is holding station on, and the way
+   out. Centred at the top of the map, above Leaflet's own controls
+   (`.leaflet-control` sits at z-index 800). */
+.map-follow-chip {
+    position: absolute;
+    top: var(--space-3);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-left: var(--space-4);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    max-width: calc(100% - 2 * var(--space-4));
+}
+/* `display: flex` above would otherwise beat the attribute, and the chip
+   would sit there permanently with nothing in it. */
+.map-follow-chip[hidden] {
+    display: none;
+}
+
+.map-follow-chip-label {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 15px;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* A flex item defaults to `min-width: auto` -- it refuses to shrink
+       below its content -- so without this a long vessel name pushes the
+       chip past `max-width` and the ellipsis above never applies. */
+    min-width: 0;
+}
+
+.map-follow-chip-stop {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
 /* — always-visible glyph labels (ship name/aircraft callsign, Phase 8):
    an `L.Tooltip` (`permanent: true`) bound to the same `hitArea` polygon
    `.live-glyph-popup-wrapper`'s popup is already on -- see

@@ -22,7 +22,7 @@ import { formatDayMonth, formatTime, formatWeekdayLong, t } from '../i18n/index.
 import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
-import { autoCycleArmed, autoCyclePaused } from './autoCycle.js';
+import { autoCycleArmed, autoCycleHeld, autoCyclePaused } from './autoCycle.js';
 import { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
@@ -183,6 +183,12 @@ function autoCycleControl(): { el: HTMLElement; update: () => void; dispose: () 
 
     function update(): void {
         const paused = autoCyclePaused.get();
+        // Held is not paused: the visitor's own choice is untouched (see
+        // `holdAutoCycle`), so the button still says what *they* set. But
+        // the countdown genuinely is not running, and a bar that kept
+        // filling towards a page change that cannot happen would be a lie
+        // the masthead told for the whole length of a follow.
+        const stopped = paused || autoCycleHeld.get();
         const armed = autoCycleArmed.get();
         const enabled = settings.get().autoCycle.enabled;
 
@@ -190,7 +196,7 @@ function autoCycleControl(): { el: HTMLElement; update: () => void; dispose: () 
         // on, and either counting down or held by this very button. With
         // one eligible page nothing is armed, and a play button that
         // cannot make anything happen is worse than none.
-        const shown = enabled && (armed !== null || paused);
+        const shown = enabled && (armed !== null || stopped);
         el.hidden = !shown;
         if (!shown) return;
 
@@ -198,6 +204,7 @@ function autoCycleControl(): { el: HTMLElement; update: () => void; dispose: () 
         button.setAttribute('aria-label', t(paused ? 'masthead.autoCyclePlay' : 'masthead.autoCyclePause'));
         button.title = button.getAttribute('aria-label') ?? '';
         el.classList.toggle('masthead-cycle--paused', paused);
+        el.classList.toggle('masthead-cycle--stopped', stopped);
 
         if (!armed) {
             bar.style.removeProperty('animation-duration');

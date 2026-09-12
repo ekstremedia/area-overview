@@ -58,7 +58,7 @@ describe('clampBbox', () => {
 });
 
 describe('roundBbox', () => {
-    it('rounds coordinates to the 0.05° grid', () => {
+    it('snaps coordinates out to the 0.05° grid', () => {
         expect(roundBbox({ minLat: 68.301, minLng: 14.523, maxLat: 69.099, maxLng: 16.478 })).toEqual({
             minLat: 68.3,
             minLng: 14.5,
@@ -67,11 +67,71 @@ describe('roundBbox', () => {
         });
     });
 
+    it('never shrinks a bbox: every edge lands on or outside the one asked for', () => {
+        const asked = { minLat: 68.34, minLng: 14.56, maxLat: 69.06, maxLng: 16.44 };
+        const rounded = roundBbox(asked);
+
+        // Rounding each edge to the *nearest* line used to pull three of
+        // these four inward, so a vessel in the real viewport could be
+        // outside the box actually queried.
+        expect(rounded.minLat).toBeLessThanOrEqual(asked.minLat);
+        expect(rounded.minLng).toBeLessThanOrEqual(asked.minLng);
+        expect(rounded.maxLat).toBeGreaterThanOrEqual(asked.maxLat);
+        expect(rounded.maxLng).toBeGreaterThanOrEqual(asked.maxLng);
+    });
+
+    it('keeps a zoomed-in viewport from collapsing to a point', () => {
+        // The bug this exists to prevent: a viewport narrower than one grid
+        // cell had both its edges rounded onto the same line, so the
+        // upstream was asked for a rectangle with no area and the layer
+        // went empty. A 600px-tall map reaches this at zoom 13 -- and the
+        // map's own "zoom to this vessel" lands at 14, so a followed ship
+        // vanished the moment it was followed.
+        const tight = { minLat: 68.7616, minLng: 16.053, maxLat: 68.7736, maxLng: 16.073 };
+        const rounded = roundBbox(tight);
+
+        // `toBeCloseTo`, not `>=`: 68.80 - 68.75 is 0.04999999999999716 in
+        // binary floating point, which is one grid cell by any measure
+        // that matters.
+        expect(rounded.maxLat - rounded.minLat).toBeCloseTo(0.05, 6);
+        expect(rounded.maxLng - rounded.minLng).toBeCloseTo(0.05, 6);
+        // And it still contains the ship that was dead centre of it.
+        expect(rounded.minLat).toBeLessThan(68.76761);
+        expect(rounded.maxLat).toBeGreaterThan(68.76761);
+        expect(rounded.minLng).toBeLessThan(16.06304);
+        expect(rounded.maxLng).toBeGreaterThan(16.06304);
+    });
+
+    it('leaves a bbox already on the grid exactly where it is', () => {
+        // Floating-point noise in the cell quotient must not nudge an edge
+        // out to the next line and quietly double the area queried.
+        expect(roundBbox({ minLat: 68.3, minLng: 14.5, maxLat: 69.1, maxLng: 16.5 })).toEqual({
+            minLat: 68.3,
+            minLng: 14.5,
+            maxLat: 69.1,
+            maxLng: 16.5,
+        });
+    });
+
     it('produces the same cache key for two slightly different viewport bboxes from normal panning', () => {
+        // Both land in the same grid cell on every edge, which is what a
+        // pan of a few hundred metres looks like.
         const a = roundBbox({ minLat: 68.301, minLng: 14.523, maxLat: 69.099, maxLng: 16.478 });
-        const b = roundBbox({ minLat: 68.318, minLng: 14.489, maxLat: 69.112, maxLng: 16.501 });
+        const b = roundBbox({ minLat: 68.318, minLng: 14.541, maxLat: 69.088, maxLng: 16.462 });
 
         expect(bboxCacheKey(a)).toBe(bboxCacheKey(b));
+    });
+
+    it('changes the cache key once an edge crosses a cell boundary', () => {
+        // The trade-off of snapping outward rather than to the nearest
+        // line: the boundaries sit in different places, so a pan that
+        // straddles one is a fresh key. The rate is unchanged -- an edge
+        // crosses a line just as often either way -- and correctness now
+        // never depends on which side it landed.
+        const inside = roundBbox({ minLat: 68.31, minLng: 14.52, maxLat: 69.09, maxLng: 16.47 });
+        const across = roundBbox({ minLat: 68.29, minLng: 14.52, maxLat: 69.09, maxLng: 16.47 });
+
+        expect(bboxCacheKey(inside)).not.toBe(bboxCacheKey(across));
     });
 
     it('produces a different cache key once a pan moves meaningfully', () => {

@@ -76,6 +76,42 @@ export function nextCycleRoute(current: Route['name'], settings: Settings): Rout
  */
 export const autoCyclePaused: Signal<boolean> = signal(false);
 
+/** Whether something on the current page is holding the slideshow -- see `holdAutoCycle`. */
+const held: Signal<boolean> = signal(false);
+export const autoCycleHeld: ReadonlySignal<boolean> = held;
+
+/**
+ * The live tokens holding the slideshow. A set, not a counter: a released
+ * hold is deleted by identity, so releasing the same one twice (a
+ * disposer run on both a layer unmount and a page unmount, say) cannot
+ * take somebody else's hold down with it.
+ */
+const holds = new Set<symbol>();
+
+/**
+ * Holds the slideshow where it is until the returned function is called.
+ *
+ * Distinct from `autoCyclePaused` on purpose, and this is the whole point
+ * of it existing: that signal is the visitor's own play/pause decision,
+ * and a feature that borrowed it would both flip the masthead's button
+ * under them and, on release, start a slideshow they had deliberately
+ * stopped. A hold composes instead -- the timer runs only when nobody has
+ * paused it *and* nothing is holding it -- so whatever the visitor chose
+ * is still in force when the hold lets go.
+ *
+ * Used by the map's follow mode: a display that is tracking a ship across
+ * the fjord must not swipe itself to the weather page halfway through.
+ */
+export function holdAutoCycle(): () => void {
+    const token = Symbol('auto-cycle hold');
+    holds.add(token);
+    held.set(true);
+    return function release(): void {
+        holds.delete(token);
+        held.set(holds.size > 0);
+    };
+}
+
 /**
  * The interval currently counting down: when it started, and how long it
  * runs. What the masthead's progress bar draws.
@@ -98,14 +134,14 @@ export interface StartAutoCycleOptions {
 }
 
 /** A cheap structural key for the fields that govern re-arming -- see the `lastArmedKey` doc below. The route is part of it because the interval is measured from the page currently showing: see `startAutoCycle`. */
-function armKey(settings: Settings, route: Route, paused: boolean, canCycle: boolean): string {
+function armKey(settings: Settings, route: Route, stopped: boolean, canCycle: boolean): string {
     const page = route.name === 'cameras' && route.cameraId !== undefined ? `cameras/${route.cameraId}` : route.name;
     return [
         String(settings.autoCycle.enabled),
         String(settings.autoCycle.intervalSeconds),
         settings.autoCycle.pages.join(','),
         page,
-        String(paused),
+        String(stopped),
         String(canCycle),
     ].join(':');
 }
@@ -154,10 +190,11 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
             autoCycleArmed.set(null);
             return;
         }
-        // Paused keeps the last armed interval standing on purpose -- see
-        // `autoCycleArmed` -- so the masthead's bar freezes rather than
-        // emptying.
-        if (autoCyclePaused.get()) return;
+        // Paused (the visitor) or held (a page that is mid-something --
+        // see `holdAutoCycle`) both keep the last armed interval standing
+        // on purpose -- see `autoCycleArmed` -- so the masthead's bar
+        // freezes rather than emptying.
+        if (autoCyclePaused.get() || held.get()) return;
         timer = setInterval(fire, settings.autoCycle.intervalSeconds * 1000);
         autoCycleArmed.set({ armedAt: Date.now(), intervalSeconds: settings.autoCycle.intervalSeconds });
     }
@@ -169,7 +206,7 @@ export function startAutoCycle(options: StartAutoCycleOptions): () => void {
         // cycle is possible at all does, since that is the difference
         // between a timer and no timer.
         const canCycle = nextCycleRoute(route.name, settings) !== null;
-        const key = armKey(settings, route, autoCyclePaused.get(), canCycle);
+        const key = armKey(settings, route, autoCyclePaused.get() || held.get(), canCycle);
         if (key !== lastArmedKey) {
             lastArmedKey = key;
             arm(settings, canCycle);

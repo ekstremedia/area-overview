@@ -110,6 +110,28 @@ export interface CanvasGlyphLayerOptions<T> {
      * poll, exactly as before.
      */
     coastMs?: number;
+    /**
+     * Called at the end of every motion frame, right after the glyphs have
+     * been redrawn at their dead-reckoned positions.
+     *
+     * Exists for the map's follow mode, which has to move the map from the
+     * *same* instant's dead reckoning that the glyph was just drawn with.
+     * A timer of its own, however closely matched, drifts out of phase
+     * within seconds and the followed vessel visibly jitters back and
+     * forth along its own track.
+     */
+    onMotionFrame?: () => void;
+    /**
+     * How long to wait between motion frames, read fresh before each one
+     * so it can change while the layer is mounted. Defaults to
+     * `MOTION_FRAME_MS`.
+     *
+     * The map's follow mode asks for a faster cadence while it is running:
+     * at eight frames a second a fast aircraft steps several pixels
+     * between redraws, which reads as stuttering however precisely the map
+     * is kept under it.
+     */
+    motionIntervalMs?: () => number;
 }
 
 export interface CanvasGlyphLayer<T> {
@@ -125,6 +147,17 @@ export interface CanvasGlyphLayer<T> {
      * believe in it.
      */
     clear(): void;
+    /**
+     * Rebuilds the content of whichever popup is open, if any.
+     *
+     * A popup's content is a function of more than the glyph's own data:
+     * whether this vessel is the one being followed changes what its
+     * follow button says (`vesselActions.ts`). That can change at any
+     * moment, from somewhere else entirely -- a pan cancelling a follow --
+     * and waiting for the next poll to notice would leave a button
+     * claiming to stop something that already stopped.
+     */
+    refreshOpenPopup(): void;
     /** Count of glyphs currently rendered (post age-filter) -- for the masthead's live-layer counts. */
     count(): number;
     dispose(): void;
@@ -327,6 +360,10 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
         return entry;
     }
 
+    function rebuildPopup(entry: GlyphEntry, descriptor: GlyphDescriptor<T>): void {
+        entry.hitArea.setPopupContent(options.buildPopup(descriptor.data));
+    }
+
     function removeEntry(id: string): void {
         const entry = entries.get(id);
         if (!entry) return;
@@ -352,13 +389,20 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
     // tab is hidden: nothing is on screen to glide, and a kiosk left on a
     // background tab should not be redrawing a canvas eight times a
     // second for nobody.
-    const motionTimer =
-        options.velocityFor === undefined
-            ? undefined
-            : setInterval(() => {
-                  if (document.hidden) return;
-                  redrawAll();
-              }, MOTION_FRAME_MS);
+    // A self-rescheduling timeout, not an interval: the cadence is read
+    // fresh each time so the follow can ask for a faster one (and give it
+    // back) without the layer being remounted.
+    let motionTimer: ReturnType<typeof setTimeout> | undefined;
+    function scheduleMotionFrame(): void {
+        motionTimer = setTimeout(() => {
+            if (!document.hidden) {
+                redrawAll();
+                options.onMotionFrame?.();
+            }
+            scheduleMotionFrame();
+        }, options.motionIntervalMs?.() ?? MOTION_FRAME_MS);
+    }
+    if (options.velocityFor !== undefined) scheduleMotionFrame();
 
     function update(items: readonly GlyphDescriptor<T>[], maxAgeMinutes: number, now: Date): void {
         const nowMs = now.getTime();
@@ -383,7 +427,7 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             const entry = entries.get(descriptor.id);
             if (!entry) continue;
             applyLatLngs(descriptor, entry);
-            if (entry.hitArea.isPopupOpen()) entry.hitArea.setPopupContent(options.buildPopup(descriptor.data));
+            if (entry.hitArea.isPopupOpen()) rebuildPopup(entry, descriptor);
             applyLabel(entry, descriptor);
         }
 
@@ -430,9 +474,16 @@ export function createCanvasGlyphLayer<T>(L: typeof Leaflet, map: Leaflet.Map, o
             for (const id of [...entries.keys()]) removeEntry(id);
             visibleCount = 0;
         },
+        refreshOpenPopup(): void {
+            for (const [id, entry] of entries) {
+                if (!entry.hitArea.isPopupOpen()) continue;
+                const descriptor = descriptorsById.get(id);
+                if (descriptor) rebuildPopup(entry, descriptor);
+            }
+        },
         count: () => visibleCount,
         dispose(): void {
-            if (motionTimer !== undefined) clearInterval(motionTimer);
+            if (motionTimer !== undefined) clearTimeout(motionTimer);
             map.off('zoomend', onZoomEnd);
             map.removeLayer(layerGroup);
             entries.clear();

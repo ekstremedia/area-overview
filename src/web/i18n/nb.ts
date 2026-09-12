@@ -121,6 +121,12 @@ export const nb = {
     'map.aircraftClimbing': 'Stiger {rate}',
     'map.aircraftDescending': 'Synker {rate}',
 
+    'map.zoomToVessel': 'Zoom inn',
+    'map.followVessel': 'Følg',
+    'map.stopFollowingVessel': 'Slutt å følge',
+    'map.followingVessel': 'Følger {name}',
+    'map.stopFollowing': 'Slutt å følge',
+
     'map.popupUpdated': 'Oppdatert {age}',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',

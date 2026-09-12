@@ -22,7 +22,20 @@ import { formatNumber, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { createCanvasGlyphLayer } from './canvasGlyphLayer.js';
-import { visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import {
+    advanceFollow,
+    FOLLOW_FRAME_MS,
+    followTarget,
+    followVessel,
+    isFollowing,
+    LOSE_AFTER_MS,
+    stopFollowing,
+    zoomToVessel,
+    type Position,
+} from './follow.js';
+import { buildVesselActions, type VesselActions } from './vesselActions.js';
+import { ageMs, opacityForAge, visibleGlyphs, type GlyphDescriptor } from './glyphs.js';
+import { MOTION_FRAME_MS, projectPosition } from './motion.js';
 import { AIRCRAFT_GLYPH_COLOR } from './liveLayerColors.js';
 import { createTrailLayer } from './trailLayer.js';
 import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
@@ -159,7 +172,7 @@ function verticalRateLine(aircraft: Aircraft): string | null {
     return fpm > 0 ? t('map.aircraftClimbing', { rate }) : t('map.aircraftDescending', { rate });
 }
 
-function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLElement {
+function buildAircraftPopup(aircraft: Aircraft, actions: VesselActions, now: Date = new Date()): HTMLElement {
     const root = document.createElement('div');
     root.className = 'aircraft-popup';
 
@@ -226,6 +239,8 @@ function buildAircraftPopup(aircraft: Aircraft, now: Date = new Date()): HTMLEle
     age.textContent = t('map.popupUpdated', { age: formatAge(new Date(aircraft.timestamp), now) });
     root.append(age);
 
+    root.append(buildVesselActions(actions));
+
     return root;
 }
 
@@ -233,13 +248,92 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
     return mountWhileEnabled(
         () => settings.get().aircraft.enabled,
         () => {
+            let latestAircraft: readonly Aircraft[] = [];
+            /**
+             * The followed aircraft's last known record, kept for
+             * `LOSE_AFTER_MS` after it stops appearing in a response.
+             *
+             * Without it a follow could not survive its own success: the
+             * layer polls by viewport, so an aircraft that drifts off the
+             * screen for even one frame is absent from the next answer --
+             * and if being absent also stopped the map tracking it, it
+             * drifted further and never came back. Remembering the last
+             * fix lets the map keep dead-reckoning after it, which brings
+             * it back inside the viewport and so back into the next poll.
+             */
+            let followedMemory: { aircraft: Aircraft; lastSeenMs: number } | undefined;
+
+            function rememberFollowed(items: readonly Aircraft[], nowMs: number): void {
+                const followed = followTarget.get();
+                if (followed?.layer !== 'aircraft') {
+                    followedMemory = undefined;
+                    return;
+                }
+                const seen = items.find((candidate) => candidate.icao === followed.id);
+                if (seen) followedMemory = { aircraft: seen, lastSeenMs: nowMs };
+                else if (nowMs - (followedMemory?.lastSeenMs ?? nowMs) >= LOSE_AFTER_MS) followedMemory = undefined;
+            }
+
+            /**
+             * Where an aircraft is right now -- its last fix carried
+             * forward on its own track and ground speed, the same dead
+             * reckoning the glyph is drawn with (`motion.ts`). At 500km/h
+             * a fix ten seconds old is well over a kilometre stale, so a
+             * follow that used the raw fix would trail the plane by most
+             * of the screen.
+             */
+            function aircraftPosition(icao: string): Position | undefined {
+                const aircraft =
+                    latestAircraft.find((candidate) => candidate.icao === icao) ??
+                    (followedMemory?.aircraft.icao === icao && Date.now() - followedMemory.lastSeenMs < LOSE_AFTER_MS
+                        ? followedMemory.aircraft
+                        : undefined);
+                if (!aircraft) return undefined;
+                // The same age filter the map draws by -- see the matching
+                // guard in `ships.ts` for why answering for an aircraft the
+                // map has stopped drawing is the wrong thing to do.
+                const now = new Date();
+                if (opacityForAge(ageMs(aircraft.timestamp, now), settings.get().aircraft.maxAgeMinutes) === null) return undefined;
+                const fixMs = Date.parse(aircraft.timestamp);
+                if (Number.isNaN(fixMs)) return { lat: aircraft.lat, lng: aircraft.lng };
+                return projectPosition(
+                    { lat: aircraft.lat, lng: aircraft.lng },
+                    { speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track },
+                    now.getTime() - fixMs,
+                );
+            }
+
+            /** Same shape, and the same close-the-popup-first reasoning, as `ships.ts`'s. */
+            function aircraftActions(aircraft: Aircraft): VesselActions {
+                return {
+                    following: isFollowing(aircraft.icao),
+                    onZoomTo: (): void => {
+                        const at = aircraftPosition(aircraft.icao);
+                        map.closePopup();
+                        if (at) zoomToVessel(map, at);
+                    },
+                    onToggleFollow: (): void => {
+                        const wasFollowing = isFollowing(aircraft.icao);
+                        map.closePopup();
+                        if (wasFollowing) {
+                            stopFollowing();
+                            return;
+                        }
+                        followedMemory = { aircraft, lastSeenMs: Date.now() };
+                        followVessel(map, { id: aircraft.icao, label: aircraftLabel(aircraft), layer: 'aircraft' }, () =>
+                            aircraftPosition(aircraft.icao),
+                        );
+                    },
+                };
+            }
+
             const canvasLayer = createCanvasGlyphLayer<Aircraft>(L, map, {
                 color: AIRCRAFT_GLYPH_COLOR,
                 widthPx: AIRCRAFT_WIDTH_PX,
                 heightPx: AIRCRAFT_HEIGHT_PX,
                 hitRadiusPx: HIT_RADIUS_PX,
                 shape: 'plane',
-                buildPopup: (aircraft) => buildAircraftPopup(aircraft),
+                buildPopup: (aircraft) => buildAircraftPopup(aircraft, aircraftActions(aircraft)),
                 isDistinct: isOnGround,
                 labelFor: (aircraft) => aircraftLabel(aircraft),
                 // ADS-B's `track` is course over ground already, and
@@ -247,6 +341,13 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 // sitting on a stand reports 0 and so does not move.
                 velocityFor: (aircraft) => ({ speedKt: aircraft.groundSpeedKt, courseDeg: aircraft.track }),
                 coastMs: COAST_MS,
+                // See the matching hook in `ships.ts`: the map is moved
+                // from the same frame that just redrew the glyph, and only
+                // by the layer that owns the followed vessel.
+                onMotionFrame: () => {
+                    if (followTarget.get()?.layer === 'aircraft') advanceFollow();
+                },
+                motionIntervalMs: () => (followTarget.get()?.layer === 'aircraft' ? FOLLOW_FRAME_MS : undefined) ?? MOTION_FRAME_MS,
             });
 
             const trailLayer = createTrailLayer<Aircraft>(L, map, {
@@ -261,6 +362,8 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
             const res = resource(() => fetchAircraft(map), { intervalMs: pollSeconds * 1000 });
 
             function clear(): void {
+                latestAircraft = [];
+                followedMemory = undefined;
                 canvasLayer.clear();
                 trailLayer.clear();
                 callbacks.reportCount(0, 0);
@@ -277,6 +380,8 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 }
                 const showOnGround = settings.get().aircraft.showOnGround;
                 const items = showOnGround ? state.data.aircraft : state.data.aircraft.filter((aircraft) => !isOnGround(aircraft));
+                latestAircraft = items;
+                rememberFollowed(items, Date.now());
                 const now = new Date();
                 const maxAgeMinutes = settings.get().aircraft.maxAgeMinutes;
                 const glyphs = items.map(toGlyph);
@@ -316,8 +421,17 @@ export function mountAircraftLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 res.refresh();
             });
 
+            // See the matching effect in `ships.ts`: an open popup's follow
+            // button has to keep up with a follow that started or stopped
+            // somewhere else.
+            const disposeFollowSync = effect(() => {
+                followTarget.get();
+                canvasLayer.refreshOpenPopup();
+            });
+
             return function dispose(): void {
                 disposeEffect();
+                disposeFollowSync();
                 disposeMoveRefetch();
                 res.dispose();
                 canvasLayer.dispose();

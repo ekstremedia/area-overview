@@ -15,6 +15,7 @@
 import type * as Leaflet from 'leaflet';
 import { effect } from '../../core/signal.js';
 import type { LiveLayerItem } from '../../shell/page-status.js';
+import { isProgrammaticMove } from './follow.js';
 
 export interface LiveLayerCallbacks {
     /**
@@ -89,6 +90,15 @@ export function refetchOnMapMove(map: Leaflet.Map, refresh: () => void): () => v
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     function onMoveEnd(): void {
+        // A follow recentres the map several times a second (`follow.ts`),
+        // and each of those is a `moveend`. Left to reach the debounce
+        // they would push it out forever -- every move resets it -- so a
+        // followed vessel would silently switch this refetch off for as
+        // long as it was moving. The layer's own poll still reads the
+        // viewport fresh each time, so nothing is missed; this hook is
+        // only about reacting to the visitor settling somewhere new,
+        // which is exactly what a programmatic move is not.
+        if (isProgrammaticMove()) return;
         clearTimeout(timer);
         timer = setTimeout(refresh, MOVE_REFETCH_DEBOUNCE_MS);
     }

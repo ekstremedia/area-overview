@@ -11,8 +11,11 @@
  * `MapPage.ts`/`markers.ts` per Terje's explicit choice.
  */
 import type * as Leaflet from 'leaflet';
+import { effect } from '../../core/signal.js';
+import { t } from '../../i18n/index.js';
 import type { LayerCounts, LiveLayerItem, PageStatus } from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
+import { followTarget, stopFollowing } from './follow.js';
 import { mountShipsLayer } from './ships.js';
 
 /** A layer's mount function: given the map, start whatever it needs and return its own disposer. */
@@ -24,6 +27,57 @@ export function registerMapLayer(map: Leaflet.Map, mount: MapLayerMount): () => 
 }
 
 type LayerId = keyof LayerCounts;
+
+/**
+ * The chip that appears over the map while a vessel is being followed:
+ * what is being followed, and the way out of it.
+ *
+ * It earns its place twice over. The map holding station on a moving ship
+ * is not otherwise explicable -- nothing else on screen says why the view
+ * will not stay where it is put -- and the slideshow's countdown is
+ * frozen at the same time, which without this would read as a stuck
+ * kiosk rather than as a deliberate hold.
+ *
+ * Lives in the Leaflet container rather than in `MapPage.ts`'s wrapper so
+ * it is positioned against the map itself, and is mounted here because
+ * this is already where the two live layers meet: either of them can
+ * start a follow, and there is only ever one chip.
+ */
+function mountFollowChip(L: typeof Leaflet, map: Leaflet.Map): () => void {
+    const chip = document.createElement('div');
+    chip.className = 'map-follow-chip';
+    chip.hidden = true;
+
+    const label = document.createElement('span');
+    label.className = 'map-follow-chip-label';
+
+    const stop = document.createElement('button');
+    stop.type = 'button';
+    stop.className = 'map-follow-chip-stop';
+    stop.textContent = '\u2715';
+    stop.addEventListener('click', () => {
+        stopFollowing();
+    });
+
+    chip.append(label, stop);
+    map.getContainer().append(chip);
+    // The chip sits over the map: without this, a drag started on it would
+    // pan the map underneath (and so cancel the very follow it describes).
+    L.DomEvent.disableClickPropagation(chip);
+
+    const disposeEffect = effect(() => {
+        const target = followTarget.get();
+        chip.hidden = target === null;
+        if (target === null) return;
+        label.textContent = t('map.followingVessel', { name: target.label });
+        stop.setAttribute('aria-label', t('map.stopFollowing'));
+    });
+
+    return function dispose(): void {
+        disposeEffect();
+        chip.remove();
+    };
+}
 
 /**
  * Mounts every live layer, combining their individually-reported counts
@@ -93,6 +147,8 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
     status.layerCounts({ ...counts });
     publishListing();
 
+    const disposeFollowChip = mountFollowChip(L, map);
+
     const disposeShips = registerMapLayer(map, (m) =>
         mountShipsLayer(L, m, {
             reportCount: (count, hidden) => {
@@ -122,6 +178,12 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
 
     return function dispose(): void {
         disposed = true;
+        // Before the layers, so the follow's own timer and map listener are
+        // gone while the map it holds is still alive -- and because a
+        // follow is a property of this page being open, never something to
+        // resume on whatever page comes next. Releases the slideshow too.
+        stopFollowing();
+        disposeFollowChip();
         disposeShips();
         disposeAircraft();
     };
