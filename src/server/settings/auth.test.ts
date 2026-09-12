@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { ServerConfig } from '../config.js';
-import { extractBearerToken, passwordsMatch, PRODUCTION_AUTH_FAILURE_DELAY_MS, requireSettingsPassword } from './auth.js';
+import { PRODUCTION_AUTH_FAILURE_DELAY_MS, extractBearerToken, isAuthorizedRequest, passwordsMatch, requireSettingsPassword } from './auth.js';
 
 const REAL_PASSWORD = 'a-real-password-that-is-long-enough';
 
@@ -167,5 +167,47 @@ describe('a wrong password of a different length than the real one', () => {
         expect(passwordsMatch(REAL_PASSWORD, 'x'.repeat(REAL_PASSWORD.length))).toBe(false);
 
         expect(passwordsMatch(REAL_PASSWORD, REAL_PASSWORD)).toBe(true);
+    });
+});
+
+describe('isAuthorizedRequest', () => {
+    const config = fakeConfig();
+
+    it('is true for the right password, immediately', async () => {
+        const started = Date.now();
+
+        await expect(isAuthorizedRequest(config, `Bearer ${config.settingsPassword}`, 200)).resolves.toBe(true);
+        expect(Date.now() - started).toBeLessThan(150);
+    });
+
+    it('costs nothing for an absent header, which is not a guess', async () => {
+        // Every ordinary visitor sends this on every request; charging it
+        // a second would make the public site unusable.
+        const started = Date.now();
+
+        await expect(isAuthorizedRequest(config, undefined, 200)).resolves.toBe(false);
+        expect(Date.now() - started).toBeLessThan(150);
+    });
+
+    it('costs nothing for a malformed header either', async () => {
+        const started = Date.now();
+
+        await expect(isAuthorizedRequest(config, 'Basic abc', 200)).resolves.toBe(false);
+        await expect(isAuthorizedRequest(config, 'Bearer ', 200)).resolves.toBe(false);
+        expect(Date.now() - started).toBeLessThan(150);
+    });
+
+    it('charges a present-but-wrong token the full delay', async () => {
+        // Without this the weather route would be a *faster* password
+        // oracle than the login route it sits beside, and the delay
+        // `requireSettingsPassword` charges would buy nothing.
+        const started = Date.now();
+
+        await expect(isAuthorizedRequest(config, 'Bearer wrong-password', 200)).resolves.toBe(false);
+        expect(Date.now() - started).toBeGreaterThanOrEqual(180);
+    });
+
+    it('defaults to the same production delay as the guarded routes', () => {
+        expect(PRODUCTION_AUTH_FAILURE_DELAY_MS).toBe(1000);
     });
 });

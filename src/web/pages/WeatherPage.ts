@@ -27,6 +27,7 @@ import { compassWord, humanizeSymbolCode } from '../weather-symbols.js';
 import './weather.css';
 import { activePosition, positionQuery } from '../position.js';
 import { positionLabel } from '../position-label.js';
+import { currentSourceKey } from '../weather-source.js';
 
 const WEATHER_POLL_INTERVAL_MS = 30_000;
 const SUMMARY_POLL_INTERVAL_MS = 30_000;
@@ -98,7 +99,7 @@ function buildLeftColumn(weather: Weather): HTMLElement {
 
     const label = document.createElement('div');
     label.className = 'weather-outdoor-label';
-    label.textContent = t('weather.outdoorLabel');
+    label.textContent = t(currentSourceKey(weather.current));
 
     const temp = document.createElement('div');
     temp.className = 'weather-temp';

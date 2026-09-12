@@ -54,6 +54,18 @@ export const mount: SectionMount = (container, ctx) => {
         },
     });
 
+    // Server-only: the BFF enforces the Netatmo gate, so this is the one
+    // control still genuinely password-gated after the override layer --
+    // a device-local copy of it would do nothing at all.
+    const netatmoToggle: ToggleHandle = toggle({
+        accessibleLabel: t('settings.general.useNetatmo'),
+        checked: initial.weather.useNetatmo,
+        disabled: !ctx.loggedIn,
+        onChange: (checked) => {
+            void store.patchSettings({ weather: { useNetatmo: checked } });
+        },
+    });
+
     const pageToggles = new Map<PageId, ToggleHandle>();
     const pageTogglesRow = document.createElement('div');
     pageTogglesRow.className = 'settings-page-toggles';
@@ -89,6 +101,12 @@ export const mount: SectionMount = (container, ctx) => {
             control: pageTogglesRow,
             override: overrideFor(store, 'enabledPages', (shared) => shared.map((pageId) => t(PAGE_NAV_KEYS[pageId])).join(', ')),
         }),
+        // Last, and with no override badge: the server enforces this gate,
+        // so there is nothing a device could override it with.
+        field({
+            label: t('settings.general.useNetatmo'),
+            control: netatmoToggle.el,
+        }),
     ];
     root.append(...rows.map((row) => row.el));
     container.append(root);
@@ -97,6 +115,7 @@ export const mount: SectionMount = (container, ctx) => {
         const settings = store.settings.get();
         pollStepper.setState(settings.pollIntervalSeconds, false);
         languageSelect.setState(settings.language, false);
+        netatmoToggle.setState(settings.weather.useNetatmo, !ctx.loggedIn);
         for (const [pageId, handle] of pageToggles) {
             handle.setState(settings.enabledPages.includes(pageId), false);
         }
