@@ -124,7 +124,7 @@ const AutoCycleSchema = z.object({
  */
 const DisabledCamerasSchema = z.array(z.string());
 
-export /**
+/**
  * Weather data sources.
  *
  * An object rather than a bare `weather.useNetatmo` boolean, matching
@@ -140,7 +140,7 @@ const WeatherSettingsSchema = z.object({
     useNetatmo: z.boolean().default(true),
 });
 
-const patchableFieldSchemas = {
+export const patchableFieldSchemas = {
     language: z.enum(['nb', 'en']),
     homeView: HomeViewSchema,
     pollIntervalSeconds: z.number().min(10).max(600),
