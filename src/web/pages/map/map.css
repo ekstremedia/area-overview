@@ -260,6 +260,23 @@
     margin-bottom: 4px;
 }
 
+/* Operator, type and tail number: context for the callsign above it, so
+   it sits quieter than the figures below. */
+.aircraft-popup-identity {
+    color: var(--color-muted);
+}
+
+/* Where the flight is going -- the line a passer-by actually stops to
+   read, so it sits above the figures rather than among them. Weighted
+   rather than coloured: the glyph's own red lives in `liveLayerColors.ts`
+   as a literal string (Leaflet cannot take a custom property), so there
+   is no token here to match it with, and inventing a second red that
+   drifts from it would be worse than none. */
+.aircraft-popup-route {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
 /* — ship cluster badge (a numbered `L.divIcon` marker, the same "circle
    marker" mechanism `.camera-pin` already uses -- see `ships.ts`'s doc
    comment) — the icon's own footprint is the full 44px tap-target

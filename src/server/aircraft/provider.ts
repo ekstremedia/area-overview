@@ -50,6 +50,11 @@ const RawV2AircraftSchema = z.object({
     lon: z.number().optional(),
     seen: z.number().optional(),
     seen_pos: z.number().optional(),
+    /** Registration (tail number) and ICAO type designator. Present on the community feeds, which enrich the broadcast from their own aircraft databases -- an ADS-B message itself carries neither. */
+    r: z.string().optional(),
+    t: z.string().optional(),
+    /** Barometric climb rate, feet per minute, positive up. */
+    baro_rate: z.number().optional(),
 });
 
 export type RawV2Aircraft = z.infer<typeof RawV2AircraftSchema>;
@@ -144,6 +149,13 @@ function toAircraft(raw: RawV2Aircraft, now: Date): Aircraft | undefined {
         groundSpeedKt: raw.gs ?? 0,
         track: raw.track ?? 0,
         timestamp: new Date(now.getTime() - seenPos * 1000).toISOString(),
+        // Blank strings are dropped rather than passed through: a feed
+        // that has no registration for an aircraft sometimes says so with
+        // an empty field, and an empty tail number in the popup reads as
+        // a rendering fault.
+        registration: raw.r?.trim() === '' ? undefined : raw.r?.trim(),
+        aircraftType: raw.t?.trim() === '' ? undefined : raw.t?.trim(),
+        verticalRateFpm: raw.baro_rate,
     };
 
     const parsed = AircraftSchema.safeParse(candidate);

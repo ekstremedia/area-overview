@@ -17,10 +17,15 @@ function fakePolygon() {
     const polygon = {
         tooltip: undefined as HTMLElement | undefined,
         tooltipLatLng: undefined as { lat: number; lng: number } | undefined,
+        /** Leaflet calls the bound function when a popup opens, so keeping it is what lets a test read the popup this layer would render. */
+        popupContent: undefined as (() => HTMLElement) | undefined,
         addTo: () => polygon,
         setLatLngs: () => polygon,
         setStyle: () => polygon,
-        bindPopup: () => polygon,
+        bindPopup: (content: () => HTMLElement) => {
+            polygon.popupContent = content;
+            return polygon;
+        },
         isPopupOpen: () => false,
         setPopupContent: () => polygon,
         bindTooltip: (content: HTMLElement) => {
@@ -313,6 +318,134 @@ describe('mountAircraftLayer -- name labels', () => {
         expect(listed.map((item) => item.id)).toEqual(['fresh01']);
         // And the one held back is still accounted for in the count.
         expect(reportCount).toHaveBeenLastCalledWith(1, 1);
+
+        dispose();
+    });
+});
+
+describe("mountAircraftLayer -- an aircraft's popup", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: false, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+    });
+
+    /** The BFF's full answer for a scheduled flight: the feed's own enrichment plus the route it resolved from the callsign. */
+    const widerøe = {
+        configured: true,
+        fetchedAt: '2026-09-05T12:00:00Z',
+        sources: ['adsblol'],
+        aircraft: [
+            {
+                icao: '4787aa',
+                callsign: 'WIF607',
+                lat: 68.5,
+                lng: 15.5,
+                altitudeFt: 24000,
+                groundSpeedKt: 282,
+                track: 214,
+                timestamp: '2026-09-05T12:00:00Z',
+                registration: 'LN-WDL',
+                aircraftType: 'DH8D',
+                verticalRateFpm: -1280,
+                route: {
+                    airline: 'Widerøe',
+                    origin: { code: 'BOO', name: 'Bodø Airport', municipality: 'Bodø' },
+                    destination: { code: 'TOS', name: 'Tromsø Airport', municipality: 'Tromsø' },
+                },
+            },
+        ],
+    };
+
+    async function popupFor(response: unknown): Promise<{ text: string; dispose: () => void }> {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)));
+        const createdPolygons: ReturnType<typeof fakePolygon>[] = [];
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(createdPolygons), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // Each glyph is a (visible, hitArea) pair, and the popup is bound
+        // to the hit area -- the same one the tooltip tests read.
+        const [, hitArea] = createdPolygons;
+        return { text: hitArea?.popupContent?.().textContent ?? '', dispose };
+    }
+
+    it('gives a ground speed in km/h, not knots -- a wall display is read by people who think in km/h', async () => {
+        const { text, dispose } = await popupFor(widerøe);
+
+        expect(text).toContain('522'); // 282 kn x 1.852, to the nearest km/h
+        expect(text).not.toContain('282');
+
+        dispose();
+    });
+
+    it('names where the flight came from and where it is going', async () => {
+        const { text, dispose } = await popupFor(widerøe);
+
+        expect(text).toContain('Bodø (BOO)');
+        expect(text).toContain('Tromsø (TOS)');
+        // Operator, type and tail number, all from the feed's own
+        // enrichment of a broadcast that carries none of the three.
+        expect(text).toContain('Widerøe · DH8D · LN-WDL');
+
+        dispose();
+    });
+
+    it('says a descending aircraft is descending, in whole metres a second', async () => {
+        const { text, dispose } = await popupFor(widerøe);
+
+        expect(text).toContain('7'); // 1280 ft/min down is 6.5 m/s, rounded
+        expect(text.toLowerCase()).toContain('synker');
+
+        dispose();
+    });
+
+    it('draws no route, identity or climb line for an aircraft the upstreams know nothing more about', async () => {
+        const bare = {
+            configured: true,
+            fetchedAt: '2026-09-05T12:00:00Z',
+            aircraft: [
+                {
+                    icao: 'abc123',
+                    callsign: 'TEST01',
+                    lat: 68.5,
+                    lng: 15.5,
+                    altitudeFt: 1000,
+                    groundSpeedKt: 100,
+                    track: 90,
+                    timestamp: '2026-09-05T12:00:00Z',
+                },
+            ],
+        };
+        const { text, dispose } = await popupFor(bare);
+
+        // Nothing blank, nothing invented -- the popup is simply shorter.
+        expect(text).not.toContain('·');
+        expect(text).not.toContain('→');
+        expect(text.toLowerCase()).not.toContain('synker');
+        expect(text).toContain('185'); // 100 kn in km/h, so the popup is genuinely being read
+
+        dispose();
+    });
+
+    it('credits adsbdb only while a route it resolved is actually on screen', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(widerøe)));
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(SettingsSchema.parse({ aircraft: { enabled: true, pollSeconds: 5, maxAgeMinutes: 10, showOnGround: false } }));
+        const dispose = mountAircraftLayer(fakeLeaflet(), fakeMap(), { reportCount: vi.fn(), reportAttribution, reportItems: vi.fn() });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: adsb.lol / adsbdb');
 
         dispose();
     });

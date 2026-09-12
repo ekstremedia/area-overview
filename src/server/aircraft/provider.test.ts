@@ -58,6 +58,23 @@ describe('mapRawV2AircraftToAircraft (real adsb.lol fixture)', () => {
         expect(mapped[0]?.timestamp).toBe(new Date(NOW.getTime() - 3000).toISOString());
     });
 
+    it('carries the registration, type and climb rate the feed enriches the broadcast with', () => {
+        const mapped = mapRawV2AircraftToAircraft(
+            [{ hex: '4787aa', flight: 'WIF607', lat: 68.5, lon: 16.0, alt_baro: 24000, r: 'LN-WDL', t: 'DH8D', baro_rate: -64 }],
+            testBbox,
+            NOW,
+        );
+        expect(mapped[0]?.registration).toBe('LN-WDL');
+        expect(mapped[0]?.aircraftType).toBe('DH8D');
+        expect(mapped[0]?.verticalRateFpm).toBe(-64);
+    });
+
+    it('drops a blank registration rather than passing an empty tail number to the popup', () => {
+        const mapped = mapRawV2AircraftToAircraft([{ hex: 'blank01', lat: 68.5, lon: 16.0, alt_baro: 1000, r: '  ', t: '' }], testBbox, NOW);
+        expect(mapped[0]?.registration).toBeUndefined();
+        expect(mapped[0]?.aircraftType).toBeUndefined();
+    });
+
     it('drops entries with no position', () => {
         const mapped = mapRawV2AircraftToAircraft([{ hex: 'noposition', alt_baro: 1000 }], testBbox, NOW);
         expect(mapped).toHaveLength(0);

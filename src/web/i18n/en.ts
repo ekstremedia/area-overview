@@ -54,6 +54,7 @@ export const en: Record<keyof typeof nb, string> = {
     'unit.celsius': '°C',
     'unit.nanotesla': 'nT',
     'unit.kilometersPerSecond': 'km/s',
+    'unit.kilometersPerHour': 'km/h',
     'unit.particlesPerCm3': 'p/cm³',
     'unit.centimeters': 'cm',
     'unit.metersPerSecondSea': 'm/s current',
@@ -104,6 +105,9 @@ export const en: Record<keyof typeof nb, string> = {
     'map.aircraftAltitudeShort': '{feet}',
     'map.aircraftSpeed': '{speed} speed',
     'map.aircraftTrack': '{track} track',
+    'map.aircraftRoute': '{from} → {to}',
+    'map.aircraftClimbing': 'Climbing {rate}',
+    'map.aircraftDescending': 'Descending {rate}',
 
     'map.popupUpdated': 'Updated {age}',
 
