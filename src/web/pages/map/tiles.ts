@@ -15,6 +15,34 @@ import type * as Leaflet from 'leaflet';
 
 export type Theme = 'dark' | 'light';
 
+/**
+ * A basemap that can actually be drawn. The two themed ones are what the
+ * app picked automatically before the basemap button existed; `satellite`
+ * has no themed counterpart -- aerial imagery is neither dark nor light,
+ * it is just the ground.
+ */
+export type Basemap = 'dark' | 'light' | 'satellite';
+
+/** What the device asked for: a specific basemap, or `auto` -- follow the theme, which is what the app did before this control existed. */
+export type BasemapChoice = 'auto' | Basemap;
+
+/**
+ * The order the basemap button cycles through, and the order they read in
+ * as a list: darkest to most detailed.
+ */
+export const BASEMAP_CYCLE: readonly Basemap[] = ['dark', 'light', 'satellite'];
+
+/** The basemap one press of the button moves to, wrapping at the end. */
+export function nextBasemap(current: Basemap): Basemap {
+    const index = BASEMAP_CYCLE.indexOf(current);
+    return BASEMAP_CYCLE[(index + 1) % BASEMAP_CYCLE.length] ?? 'dark';
+}
+
+/** The basemap to draw for a device's `choice` given the currently-resolved `theme`. An explicit choice wins; `auto` is the themed basemap of the same name. */
+export function resolveBasemap(choice: BasemapChoice, theme: Theme): Basemap {
+    return choice === 'auto' ? theme : choice;
+}
+
 export interface TileSpec {
     url: string;
     attribution: string;
@@ -31,7 +59,7 @@ export interface TileSpec {
  * unchanged -- only the trailing `?key=` is new. `light` (OSM) needs no
  * key at all and is unaffected by any of this.
  */
-const TILE_SPECS: Record<Theme, TileSpec> = {
+const TILE_SPECS: Record<Basemap, TileSpec> = {
     dark: {
         url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
         attribution: '© OSM · © CARTO',
@@ -40,24 +68,42 @@ const TILE_SPECS: Record<Theme, TileSpec> = {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         attribution: '© OpenStreetMap',
     },
+    /**
+     * Esri's World Imagery, the same free raster service Leaflet's own
+     * basemap-provider list ships: no key, no sign-up, and genuine
+     * coverage of Vesterålen rather than the low-resolution fallback some
+     * global imagery sets have this far north. Note the `{z}/{y}/{x}`
+     * order -- Esri's tile REST path puts row before column, unlike every
+     * other URL in this file, and swapping them silently returns tiles
+     * from somewhere else entirely rather than a 404.
+     *
+     * Imagery only, no place labels: the app draws its own labels
+     * (cameras, ships, aircraft) and a second overlay layer would double
+     * the tile traffic on a kiosk that is already polling three live
+     * sources.
+     */
+    satellite: {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attribution: '© Esri · Maxar, Earthstar Geographics',
+    },
 };
 
 /**
- * `cartoApiKey` is appended as `?key=` to the `dark` theme's URL when
- * non-empty; ignored for `light`, which is CARTO-independent. An empty
- * key leaves the URL as-is -- CARTO still serves the tile, just
- * watermarked, so this deliberately doesn't invent a fallback tile
- * source or block rendering.
+ * `cartoApiKey` is appended as `?key=` to the `dark` basemap's URL when
+ * non-empty; ignored for `light` and `satellite`, which are
+ * CARTO-independent. An empty key leaves the URL as-is -- CARTO still
+ * serves the tile, just watermarked, so this deliberately doesn't invent
+ * a fallback tile source or block rendering.
  */
-export function tileUrlFor(theme: Theme, cartoApiKey = ''): TileSpec {
-    const spec = TILE_SPECS[theme];
-    if (theme !== 'dark' || cartoApiKey === '') return spec;
+export function tileUrlFor(basemap: Basemap, cartoApiKey = ''): TileSpec {
+    const spec = TILE_SPECS[basemap];
+    if (basemap !== 'dark' || cartoApiKey === '') return spec;
     return { ...spec, url: `${spec.url}?key=${encodeURIComponent(cartoApiKey)}` };
 }
 
-/** The real host a browser will actually connect to for `theme`'s tiles, for a `<link rel="preconnect">`. Drops the `{s}.` subdomain placeholder (CARTO); OSM has none. */
-export function preconnectOriginFor(theme: Theme): string {
-    const spec = tileUrlFor(theme);
+/** The real host a browser will actually connect to for `basemap`'s tiles, for a `<link rel="preconnect">`. Drops the `{s}.` subdomain placeholder (CARTO); OSM and Esri have none. */
+export function preconnectOriginFor(basemap: Basemap): string {
+    const spec = tileUrlFor(basemap);
     return new URL(spec.url.replace('{s}.', '')).origin;
 }
 
@@ -82,20 +128,20 @@ interface TileMapState {
 const stateByMap = new WeakMap<Leaflet.Map, TileMapState>();
 
 /**
- * Applies `theme`'s tiles to `map`. A no-op if `theme`'s URL is already
+ * Applies `basemap`'s tiles to `map`. A no-op if that URL is already
  * the one currently applied (comparing against closure/WeakMap-held
- * state, not by re-deriving the theme). Otherwise: add the new layer
+ * state, not by re-deriving the basemap). Otherwise: add the new layer
  * first, and only remove the old one once the new layer's `load` event
  * fires (or the safety timeout elapses) -- never remove-then-add, which
  * would blank the map for the round trip to the tile host.
  *
  * `cartoApiKey` is threaded straight through to `tileUrlFor` -- see its
- * docstring. A no-op check based on `spec.url` (not the raw `theme`)
+ * docstring. A no-op check based on `spec.url` (not the raw `basemap`)
  * means fetching the key *after* an unkeyed `dark` tile layer is already
  * showing correctly swaps to the keyed URL on the next `applyTiles` call.
  */
-export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, theme: Theme, cartoApiKey = ''): void {
-    const spec = tileUrlFor(theme, cartoApiKey);
+export function applyTiles(L: typeof Leaflet, map: Leaflet.Map, basemap: Basemap, cartoApiKey = ''): void {
+    const spec = tileUrlFor(basemap, cartoApiKey);
     const existing = stateByMap.get(map);
     if (existing?.appliedUrl === spec.url) return;
 

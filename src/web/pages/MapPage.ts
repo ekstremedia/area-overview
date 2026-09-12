@@ -15,7 +15,7 @@
  */
 import type { DeviceSettings } from '../../shared/schemas/device-settings.js';
 import { MapConfigResponseSchema } from '../../shared/schemas/map-config.js';
-import { deviceSettings } from '../device-settings.js';
+import { deviceSettings, setDeviceSettings } from '../device-settings.js';
 import { settings as sharedSettings } from '../settings-resource.js';
 import { effect, signal } from '../core/signal.js';
 import { t } from '../i18n/index.js';
@@ -23,7 +23,8 @@ import { nightSchedule } from '../shell/night-schedule.js';
 import { claimPageStatus } from '../shell/page-status.js';
 import './map/map.css';
 import { activeMapInstance } from './map/activeMap.js';
-import { applyTiles, disposeTiles, preconnectOriginFor, type Theme } from './map/tiles.js';
+import { applyTiles, disposeTiles, preconnectOriginFor, resolveBasemap, type Basemap, type Theme } from './map/tiles.js';
+import { addMapBasemapControl } from './map/basemapControl.js';
 import { applyHomeView, startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer } from './map/markers.js';
 import { buildPopupContent } from './map/popup.js';
@@ -168,12 +169,25 @@ export function render(container: HTMLElement): () => void {
         };
         mql.addEventListener('change', onMqlChange);
 
-        const disposeThemeEffect = effect(() => {
+        /**
+         * The basemap on screen right now, derived fresh from the signals
+         * it depends on: the device's own choice first (`auto` unless
+         * someone pressed the basemap button), then the theme the night
+         * schedule and device settings resolve to. Called from inside
+         * effects on both sides -- the tile effect below and the basemap
+         * control's own -- so each tracks those signals itself.
+         */
+        function currentBasemap(): Basemap {
             const night = nightSchedule.get();
             const base = resolveBaseTheme(deviceSettings.get().theme, systemPrefersLight.get());
             const theme: Theme = night.mode === 'dark' && night.active ? 'dark' : base;
-            applyTiles(L, map, theme, cartoApiKey);
-            preconnectLink.href = preconnectOriginFor(theme);
+            return resolveBasemap(deviceSettings.get().basemap, theme);
+        }
+
+        const disposeThemeEffect = effect(() => {
+            const basemap = currentBasemap();
+            applyTiles(L, map, basemap, cartoApiKey);
+            preconnectLink.href = preconnectOriginFor(basemap);
         });
 
         // — home view: applied once now, and again on idle-reset; never
@@ -188,6 +202,18 @@ export function render(container: HTMLElement): () => void {
                 // `startHomeViewSync` applies on mount and idle-reset, not
                 // a device-local copy.
                 applyHomeView(map, sharedSettings.get().homeView);
+            },
+        });
+
+        // ...and under it, the basemap this display draws. Device-local
+        // and persisted (`setDeviceSettings`), so the kiosk comes back up
+        // on whatever was last chosen rather than reverting on every
+        // reload -- same treatment as the theme and the font scale.
+        const disposeBasemapControl = addMapBasemapControl(L, map, {
+            current: currentBasemap,
+            labelFor: (next) => t('map.basemapSwitchTo', { name: t(`map.basemap.${next}`) }),
+            onSelect: (next) => {
+                setDeviceSettings({ basemap: next });
             },
         });
 
@@ -224,6 +250,7 @@ export function render(container: HTMLElement): () => void {
             activeMapInstance.set(null);
             disposeLiveLayers?.();
             markerLayer.dispose();
+            disposeBasemapControl();
             disposeResetControl();
             disposeHomeViewSync();
             disposeThemeEffect();
