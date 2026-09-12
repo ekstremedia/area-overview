@@ -90,24 +90,31 @@ function looksLikeFlightCallsign(callsign: string, icao: string): boolean {
     return /^[A-Z]{2,3}[0-9][0-9A-Z]{0,3}$/.test(callsign.toUpperCase());
 }
 
+/** A string with something in it, or `undefined` -- so a field that is present but blank falls back the same way an absent one does. */
+function blankAsAbsent(value: string | undefined): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed === undefined || trimmed === '' ? undefined : trimmed;
+}
+
 /** adsbdb's airport, narrowed to what a wall display can use. `undefined` when it carries no code at all, which is what makes the route unusable rather than half-drawn. */
 function toAirport(raw: AdsbdbAirport): { code: string; name: string; municipality: string } | undefined {
-    const iata = raw.iata_code?.trim();
-    const icao = raw.icao_code?.trim();
     // IATA first -- `BOO` is what a departure board says -- and the ICAO
     // code only where a field has no IATA code at all.
-    const code = iata !== undefined && iata !== '' ? iata : icao;
-    if (code === undefined || code === '') return undefined;
+    const code = blankAsAbsent(raw.iata_code) ?? blankAsAbsent(raw.icao_code);
+    if (code === undefined) return undefined;
 
-    const name = raw.name?.trim();
-    const municipality = raw.municipality?.trim();
+    // Normalised to `undefined` before either is used as the other's
+    // fallback: a whitespace-only field left as `''` would satisfy `??`
+    // and render the popup as " (ENSS)".
+    const name = blankAsAbsent(raw.name);
+    const municipality = blankAsAbsent(raw.municipality);
     return {
         code,
         // Each falls back to the other, and both to the code: a route that
         // says "ENSS" is still a useful thing to read, and a blank line is
         // not.
-        name: name !== undefined && name !== '' ? name : (municipality ?? code),
-        municipality: municipality !== undefined && municipality !== '' ? municipality : (name ?? code),
+        name: name ?? municipality ?? code,
+        municipality: municipality ?? name ?? code,
     };
 }
 
@@ -146,7 +153,13 @@ export function createFlightRouteLookup(options: FlightRouteLookupOptions): Flig
         if (!response.ok) throw new Error(`adsbdb responded with status ${String(response.status)}`);
 
         const parsed = AdsbdbResponseSchema.safeParse(await response.json());
-        if (!parsed.success) return null;
+        // Thrown, not returned as "no route": a payload this cannot read
+        // is adsbdb misbehaving, and caching that as a definitive answer
+        // would blank the callsign's route for six hours over what may be
+        // a momentary error page. A throw caches nothing, so the next poll
+        // that sees the aircraft asks again -- bounded by the
+        // `MAX_LOOKUPS_PER_CALL` cap, exactly like a network failure.
+        if (!parsed.success) throw new Error('adsbdb returned a route payload that failed schema validation');
 
         const { airline, origin, destination } = parsed.data.response.flightroute;
         const from = toAirport(origin);

@@ -69,6 +69,24 @@ describe('mapRawV2AircraftToAircraft (real adsb.lol fixture)', () => {
         expect(mapped[0]?.verticalRateFpm).toBe(-64);
     });
 
+    it('reads an aircraft that reports null for the fields it has nothing to say about', () => {
+        // adsb.lol's OpenAPI schema declares every field but `hex`/`seen`
+        // as `<type> | null`, and the entries are parsed as one array --
+        // so one aircraft's null used to fail the whole response and empty
+        // the layer, not just drop that aircraft.
+        const mapped = mapRawV2AircraftToAircraft(
+            [{ hex: 'null01', flight: null, lat: 68.5, lon: 16.0, alt_baro: 1000, gs: null, track: null, r: null, t: null, baro_rate: null }],
+            testBbox,
+            NOW,
+        );
+
+        expect(mapped).toHaveLength(1);
+        expect(mapped[0]?.callsign).toBe('null01'); // a null flight falls back to the hex, same as an absent one
+        expect(mapped[0]?.groundSpeedKt).toBe(0);
+        expect(mapped[0]?.registration).toBeUndefined();
+        expect(mapped[0]?.verticalRateFpm).toBeUndefined();
+    });
+
     it('drops a blank registration rather than passing an empty tail number to the popup', () => {
         const mapped = mapRawV2AircraftToAircraft([{ hex: 'blank01', lat: 68.5, lon: 16.0, alt_baro: 1000, r: '  ', t: '' }], testBbox, NOW);
         expect(mapped[0]?.registration).toBeUndefined();

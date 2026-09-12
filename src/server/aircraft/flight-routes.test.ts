@@ -131,6 +131,35 @@ describe('createFlightRouteLookup', () => {
         expect(lookup.attach([aircraft()])[0]?.route).toBeUndefined();
     });
 
+    it('retries a payload it cannot read, rather than caching it as "this flight has no route"', async () => {
+        // adsbdb answering 200 with something unreadable is it
+        // misbehaving, not an answer about the flight -- caching it would
+        // blank the route for six hours over a momentary error page.
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(new Response('<html>502</html>', { status: 200, headers: { 'Content-Type': 'text/html' } }))
+            .mockResolvedValue(routeResponse());
+        const lookup = createFlightRouteLookup({ upstreamTimeoutMs: 1_000, fetchImpl: fetchMock });
+
+        lookup.attach([aircraft()]);
+        await lookup.settled();
+        lookup.attach([aircraft()]);
+        await lookup.settled();
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(lookup.attach([aircraft()])[0]?.route?.destination.code).toBe('TOS');
+    });
+
+    it('treats a blank airport name as absent rather than rendering an empty label', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(routeResponse({ origin: { iata_code: 'BOO', name: '   ', municipality: '' } }));
+        const lookup = createFlightRouteLookup({ upstreamTimeoutMs: 1_000, fetchImpl: fetchMock });
+
+        lookup.attach([aircraft()]);
+        await lookup.settled();
+
+        expect(lookup.attach([aircraft()])[0]?.route?.origin).toEqual({ code: 'BOO', name: 'BOO', municipality: 'BOO' });
+    });
+
     it('falls back to the ICAO code and to the code as a name for a sparser airport entry', async () => {
         const fetchMock = vi.fn().mockResolvedValue(routeResponse({ origin: { icao_code: 'ENSS' } }));
         const lookup = createFlightRouteLookup({ upstreamTimeoutMs: 1_000, fetchImpl: fetchMock });
