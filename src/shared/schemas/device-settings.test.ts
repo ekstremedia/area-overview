@@ -3,7 +3,7 @@ import { DeviceSettingsSchema } from './device-settings.js';
 
 describe('DeviceSettingsSchema', () => {
     it('parses an empty object into a fully populated DeviceSettings', () => {
-        expect(DeviceSettingsSchema.parse({})).toEqual({ theme: 'dark', fontScale: 1 });
+        expect(DeviceSettingsSchema.parse({})).toEqual({ theme: 'dark', fontScale: 1, basemap: 'auto' });
     });
 
     it('rejects a fontScale outside its allowed range', () => {
@@ -17,5 +17,13 @@ describe('DeviceSettingsSchema', () => {
 
     it('rejects an invalid theme value', () => {
         expect(DeviceSettingsSchema.safeParse({ theme: 'blue' }).success).toBe(false);
+    });
+
+    it('rejects an invalid basemap value', () => {
+        expect(DeviceSettingsSchema.safeParse({ basemap: 'terrain' }).success).toBe(false);
+    });
+
+    it('keeps an explicit basemap choice', () => {
+        expect(DeviceSettingsSchema.parse({ basemap: 'satellite' }).basemap).toBe('satellite');
     });
 });

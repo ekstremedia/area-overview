@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as Leaflet from 'leaflet';
-import { applyTiles, disposeTiles, preconnectOriginFor, tileUrlFor } from './tiles.js';
+import { applyTiles, disposeTiles, nextBasemap, preconnectOriginFor, resolveBasemap, tileUrlFor } from './tiles.js';
 
 const SAFETY_TIMEOUT_MS = 4_000;
 
@@ -109,6 +109,38 @@ describe('tileUrlFor', () => {
             attribution: '© OpenStreetMap',
         });
     });
+
+    it("returns Esri's World Imagery template and attribution for satellite, with no key appended", () => {
+        expect(tileUrlFor('satellite', 'my-carto-key')).toEqual({
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attribution: '© Esri · Maxar, Earthstar Geographics',
+        });
+    });
+
+    it("keeps Esri's row-before-column tile path ({z}/{y}/{x}, unlike every other source here)", () => {
+        expect(tileUrlFor('satellite').url.endsWith('/{z}/{y}/{x}')).toBe(true);
+    });
+});
+
+describe('resolveBasemap', () => {
+    it('follows the theme when the device has made no choice', () => {
+        expect(resolveBasemap('auto', 'dark')).toBe('dark');
+        expect(resolveBasemap('auto', 'light')).toBe('light');
+    });
+
+    it('lets an explicit choice win over the theme', () => {
+        expect(resolveBasemap('satellite', 'dark')).toBe('satellite');
+        expect(resolveBasemap('light', 'dark')).toBe('light');
+        expect(resolveBasemap('dark', 'light')).toBe('dark');
+    });
+});
+
+describe('nextBasemap', () => {
+    it('cycles dark to light to satellite and back', () => {
+        expect(nextBasemap('dark')).toBe('light');
+        expect(nextBasemap('light')).toBe('satellite');
+        expect(nextBasemap('satellite')).toBe('dark');
+    });
 });
 
 describe('preconnectOriginFor', () => {
@@ -118,6 +150,10 @@ describe('preconnectOriginFor', () => {
 
     it('is the OSM tile host for light (no placeholder to drop)', () => {
         expect(preconnectOriginFor('light')).toBe('https://tile.openstreetmap.org');
+    });
+
+    it('is the Esri tile host for satellite', () => {
+        expect(preconnectOriginFor('satellite')).toBe('https://server.arcgisonline.com');
     });
 });
 

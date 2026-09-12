@@ -174,6 +174,21 @@
     justify-content: center;
 }
 
+/* The basemap button sits directly under the reset control, close enough
+   to read as the same column but with the same gap the reset control took
+   from the zoom pair above it. */
+.map-basemap-control {
+    margin-top: var(--space-2) !important;
+}
+
+.map-basemap-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
 /* — live-layer (ships/aircraft, Phase 7) popups: the same dark card
    treatment as `.camera-popup-wrapper`, kept as its own class so a third
    future live layer can share it without coupling to the camera-specific

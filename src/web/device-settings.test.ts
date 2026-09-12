@@ -14,25 +14,25 @@ afterEach(() => {
 describe('deviceSettings', () => {
     it('falls back to schema defaults when nothing is stored', async () => {
         const { deviceSettings } = await import('./device-settings.js');
-        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1 });
+        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1, basemap: 'auto' });
     });
 
     it('falls back to schema defaults on corrupt JSON, without throwing', async () => {
         localStorage.setItem(STORAGE_KEY, '{not json');
         const { deviceSettings } = await import('./device-settings.js');
-        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1 });
+        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1, basemap: 'auto' });
     });
 
     it('falls back to schema defaults on a value that fails schema validation', async () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: 'ultraviolet', fontScale: 99 }));
         const { deviceSettings } = await import('./device-settings.js');
-        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1 });
+        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1, basemap: 'auto' });
     });
 
     it('reads back a previously stored valid value', async () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: 'light', fontScale: 1.3 }));
         const { deviceSettings } = await import('./device-settings.js');
-        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1.3 });
+        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1.3, basemap: 'auto' });
     });
 });
 
@@ -41,13 +41,13 @@ describe('setDeviceSettings', () => {
         const { deviceSettings, setDeviceSettings } = await import('./device-settings.js');
 
         setDeviceSettings({ theme: 'light' });
-        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1 });
+        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1, basemap: 'auto' });
 
         setDeviceSettings({ fontScale: 1.4 });
-        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1.4 });
+        expect(deviceSettings.get()).toEqual({ theme: 'light', fontScale: 1.4, basemap: 'auto' });
 
         const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-        expect(stored).toEqual({ theme: 'light', fontScale: 1.4 });
+        expect(stored).toEqual({ theme: 'light', fontScale: 1.4, basemap: 'auto' });
     });
 
     it('throws on a patch that fails schema validation, leaving the signal unchanged', async () => {
@@ -55,6 +55,6 @@ describe('setDeviceSettings', () => {
         expect(() => {
             setDeviceSettings({ fontScale: 99 });
         }).toThrow();
-        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1 });
+        expect(deviceSettings.get()).toEqual({ theme: 'dark', fontScale: 1, basemap: 'auto' });
     });
 });
