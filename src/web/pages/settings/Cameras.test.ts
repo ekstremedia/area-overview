@@ -5,6 +5,7 @@ import { SettingsSchema, type Settings } from '../../../shared/schemas/settings.
 import { signal } from '../../core/signal.js';
 import type { ResourceState } from '../../core/resource.js';
 import type { SettingsStore } from '../../settings/sharedStore.js';
+import { fakeSettingsStore } from './test-helpers.js';
 
 const camerasState = signal<ResourceState<CameraListResponse>>({ status: 'idle' });
 vi.mock('../../camera-resource.js', () => ({ camerasResource: { state: camerasState } }));
@@ -40,7 +41,7 @@ function fakeStore(initial: Settings) {
         settings.set({ ...settings.get(), placements });
         return Promise.resolve(ok(settings.get()));
     });
-    const store: SettingsStore = { settings, patchSettings: vi.fn(), setPlacement, dispose: vi.fn() };
+    const store: SettingsStore = fakeSettingsStore({ settings, patchSettings: vi.fn(), setPlacement, dispose: vi.fn() });
     return { store, settings, setPlacement };
 }
 

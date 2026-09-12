@@ -28,10 +28,12 @@
  * where a poll can clobber the second write's optimistic value.
  */
 import { err, ok, type Result } from '../../shared/result.js';
-import { SettingsSchema, type Placement, type Settings, type SettingsPatch } from '../../shared/schemas/settings.js';
+import { SettingsSchema, type Placement, type Settings, type SettingsOverride, type SettingsPatch } from '../../shared/schemas/settings.js';
+import { mergeSettings } from '../../shared/settings-merge.js';
 import { resource } from '../core/resource.js';
-import { effect, signal, type ReadonlySignal } from '../core/signal.js';
-import { authHeaders, logout } from './session.js';
+import { computed, effect, signal, type ReadonlySignal } from '../core/signal.js';
+import { clearLocalOverride, localOverrides, setLocalOverride } from './localOverrides.js';
+import { authHeaders, isLoggedIn, logout } from './session.js';
 
 const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
 
@@ -60,18 +62,41 @@ function isUnauthorized(status: number): boolean {
 }
 
 export interface SettingsStore {
+    /** What this device is actually running on: the shared settings with its own overrides laid over them. This is what a control renders from. */
     settings: ReadonlySignal<Settings>;
+    /** The shared settings as the server reports them, un-overridden -- for showing "the shared value is X" beside a row this device has taken over. */
+    serverSettings: ReadonlySignal<Settings>;
+    /** Which fields this device has taken over, and what it set them to. */
+    overrides: ReadonlySignal<SettingsOverride>;
+    /**
+     * Applies `patch` to wherever this device's edits belong: the shared
+     * settings when logged in, this browser's own overrides when not.
+     * Either way the result is the new *effective* settings, so a caller
+     * (and `autosave.ts`) cannot tell the two apart and does not have to.
+     */
     patchSettings(patch: SettingsPatch): Promise<Result<Settings>>;
+    /** Hands one field back to the shared value. */
+    clearOverride(field: keyof SettingsOverride): Promise<Result<Settings>>;
+    /** Hands every field back at once. */
+    clearAllOverrides(): Promise<Result<Settings>>;
     setPlacement(cameraId: string, placement: Placement | null): Promise<Result<Settings>>;
     dispose(): void;
 }
 
 export interface CreateSettingsStoreOptions {
     pollIntervalMs?: number;
+    /**
+     * Whether this device may write to the shared settings. Read at write
+     * time, not at construction, so logging in mid-session changes where
+     * the next edit lands without rebuilding the store. Injectable for
+     * tests; production passes nothing and gets the real session signal.
+     */
+    loggedIn?: ReadonlySignal<boolean>;
 }
 
 export function createSettingsStore(options: CreateSettingsStoreOptions = {}): SettingsStore {
     const pollIntervalMs = options.pollIntervalMs ?? SHARED_STORE_POLL_INTERVAL_MS;
+    const loggedIn = options.loggedIn ?? isLoggedIn;
 
     // `current` is the reactive signal exposed to callers; `state` is the
     // plain, non-reactive mirror this module reads/writes internally via
@@ -149,7 +174,36 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
         return next as Settings;
     }
 
+    /**
+     * The effective settings: the server's values with this device's
+     * overrides on top. Recomputed reactively, so clearing an override
+     * immediately reveals whatever the shared value currently is.
+     */
+    const effective: ReadonlySignal<Settings> = computed(() => mergeSettings(current.get(), localOverrides.get()));
+
+    /** Every write resolves with the new *effective* settings, so a caller cannot tell a local write from a shared one. */
+    function okEffective(): Result<Settings> {
+        return ok(effective.get());
+    }
+
+    /**
+     * Writes `patch` into this device's own overrides. Used when nobody is
+     * logged in: a visitor edits their own copy rather than the one file
+     * every other visitor and the kiosk are reading.
+     */
+    function patchLocally(patch: SettingsPatch): Result<Settings> {
+        for (const [field, value] of Object.entries(patch)) {
+            if (value === undefined) continue;
+            setLocalOverride(field as keyof SettingsOverride, value as NonNullable<SettingsOverride[keyof SettingsOverride]>);
+        }
+        return okEffective();
+    }
+
     async function patchSettings(patch: SettingsPatch): Promise<Result<Settings>> {
+        // Read at write time rather than captured at construction: logging
+        // in or out mid-session must change where the *next* edit lands.
+        if (!loggedIn.get()) return patchLocally(patch);
+
         const fields = Object.keys(patch) as (keyof Settings)[];
         const stateAsRecord = state as Record<keyof Settings, unknown>;
         const previousValues: Record<string, unknown> = {};
@@ -199,7 +253,12 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
 
             release();
             mergeServerSnapshot(parsed.data);
-            return ok(parsed.data);
+            // The shared value for these fields has just been set
+            // deliberately, so this device's own override of them is stale
+            // intent -- and leaving it would mask the very change that was
+            // just made, which reads as the write having failed.
+            for (const field of fields) clearLocalOverride(field as keyof SettingsOverride);
+            return okEffective();
         } catch (cause) {
             rollback();
             return err({ message: 'Network error while saving settings', cause });
@@ -269,10 +328,36 @@ export function createSettingsStore(options: CreateSettingsStoreOptions = {}): S
         }
     }
 
+    /**
+     * Hands `field` back to the shared value. Async and `Result`-shaped
+     * only so it composes with `autosave.ts` and the other write paths --
+     * it touches nothing but `localStorage` and cannot fail.
+     */
+    function clearOverride(field: keyof SettingsOverride): Promise<Result<Settings>> {
+        clearLocalOverride(field);
+        return Promise.resolve(okEffective());
+    }
+
+    function clearAllOverrides(): Promise<Result<Settings>> {
+        for (const field of Object.keys(localOverrides.get()) as (keyof SettingsOverride)[]) {
+            clearLocalOverride(field);
+        }
+        return Promise.resolve(okEffective());
+    }
+
     function dispose(): void {
         disposePollEffect();
         poll.dispose();
     }
 
-    return { settings: current, patchSettings, setPlacement, dispose };
+    return {
+        settings: effective,
+        serverSettings: current,
+        overrides: localOverrides,
+        patchSettings,
+        clearOverride,
+        clearAllOverrides,
+        setPlacement,
+        dispose,
+    };
 }

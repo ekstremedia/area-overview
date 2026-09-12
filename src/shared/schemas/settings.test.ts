@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PlacementSchema, SettingsPatchSchema, SettingsSchema } from './settings.js';
+import { OVERRIDABLE_FIELDS, PlacementSchema, SettingsOverrideSchema, SettingsPatchSchema, SettingsSchema } from './settings.js';
 
 describe('SettingsSchema', () => {
     it('parses an empty object into a fully populated Settings, using only schema defaults', () => {
@@ -95,5 +95,40 @@ describe('PlacementSchema', () => {
 
     it('rejects a placement missing lat', () => {
         expect(PlacementSchema.safeParse({ lng: 15.5 }).success).toBe(false);
+    });
+});
+
+describe('SettingsOverrideSchema', () => {
+    it('keeps exactly the keys given, never backfilling defaults', () => {
+        // The same `.partial()` trap `SettingsPatchSchema` documents: an
+        // override object that quietly carries all eleven fields would
+        // pin every setting on the device the moment one was changed.
+        const parsed = SettingsOverrideSchema.parse({ brightness: 60 });
+
+        expect(Object.keys(parsed)).toEqual(['brightness']);
+    });
+
+    it('parses an empty object to no overrides at all', () => {
+        expect(SettingsOverrideSchema.parse({})).toEqual({});
+    });
+
+    it('validates a value exactly as a PATCH of the same field would', () => {
+        expect(SettingsOverrideSchema.safeParse({ brightness: 5000 }).success).toBe(false);
+        expect(SettingsOverrideSchema.safeParse({ homeView: { lat: 91, lng: 0, zoom: 11 } }).success).toBe(false);
+        expect(SettingsOverrideSchema.safeParse({ language: 'klingon' }).success).toBe(false);
+    });
+
+    it('offers no override of camera placements, which are shared content rather than a preference', () => {
+        expect('placements' in SettingsOverrideSchema.shape).toBe(false);
+        // And an attempt to smuggle one through is dropped rather than honoured.
+        expect(SettingsOverrideSchema.parse({ placements: { 'cam-1': { lat: 1, lng: 2 } } })).toEqual({});
+    });
+
+    it('offers no override of updatedAt, which the server sets', () => {
+        expect('updatedAt' in SettingsOverrideSchema.shape).toBe(false);
+    });
+
+    it('covers every patchable field except the ones deliberately excluded', () => {
+        expect(OVERRIDABLE_FIELDS.sort()).toEqual(Object.keys(SettingsPatchSchema.shape).sort());
     });
 });

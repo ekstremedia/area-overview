@@ -124,7 +124,7 @@ const AutoCycleSchema = z.object({
  */
 const DisabledCamerasSchema = z.array(z.string());
 
-const patchableFieldSchemas = {
+export const patchableFieldSchemas = {
     language: z.enum(['nb', 'en']),
     homeView: HomeViewSchema,
     pollIntervalSeconds: z.number().min(10).max(600),
@@ -183,3 +183,49 @@ export const SettingsPatchSchema = z.object({
 });
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
+
+/**
+ * A device's own overrides, laid over the shared server settings for that
+ * browser alone (`src/web/settings/localOverrides.ts`).
+ *
+ * This exists because the app is public now. The shared settings are one
+ * JSON file that every visitor reads and a logged-in device writes; a
+ * stranger in Oslo who wants the map centred on Oslo, or the page in
+ * English, must not have to move Terje's kiosk to get it. So when nobody
+ * is logged in, an edit lands here instead of in a `PATCH`.
+ *
+ * Built from the same undecorated `patchableFieldSchemas` bases wrapped in
+ * a bare `.optional()`, for the same reason `SettingsPatchSchema` is --
+ * see the long comment above those bases on why `.partial()` silently
+ * backfills defaults. It is deliberately NOT an alias of
+ * `SettingsPatchSchema`: the two are allowed to diverge, and already do.
+ *
+ * What is missing, and why:
+ *
+ * - `placements` -- where a camera sits on the map is shared content
+ *   rather than a viewer preference, and stays password-only.
+ * - `updatedAt` -- server-set on every write.
+ *
+ * Anything a visitor can sensibly want differently on their own screen is
+ * here, including the kiosk-operations fields: the schema minimums bound
+ * the poll intervals, and the server's own caches and outbound gates make
+ * upstream cost independent of what any one client asks for.
+ */
+export const SettingsOverrideSchema = z.object({
+    language: patchableFieldSchemas.language.optional(),
+    homeView: patchableFieldSchemas.homeView.optional(),
+    pollIntervalSeconds: patchableFieldSchemas.pollIntervalSeconds.optional(),
+    enabledPages: patchableFieldSchemas.enabledPages.optional(),
+    idleResetSeconds: patchableFieldSchemas.idleResetSeconds.optional(),
+    night: patchableFieldSchemas.night.optional(),
+    brightness: patchableFieldSchemas.brightness.optional(),
+    ships: patchableFieldSchemas.ships.optional(),
+    aircraft: patchableFieldSchemas.aircraft.optional(),
+    autoCycle: patchableFieldSchemas.autoCycle.optional(),
+    disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
+});
+
+export type SettingsOverride = z.infer<typeof SettingsOverrideSchema>;
+
+/** The fields a device may override, for iterating without hand-maintaining a second list that can drift from the schema. */
+export const OVERRIDABLE_FIELDS = Object.keys(SettingsOverrideSchema.shape) as (keyof SettingsOverride)[];

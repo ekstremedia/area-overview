@@ -3,9 +3,13 @@ import { SettingsSchema } from '../../shared/schemas/settings.js';
 
 const TEST_PASSWORD = 'a-test-password-used-only-in-this-session';
 
+// These tests exercise the *shared* write path, so the mocked session is
+// logged in throughout. The logged-out path -- where an edit lands in this
+// device's own overrides instead -- has its own describe block at the end.
 vi.mock('./session.js', () => ({
     authHeaders: vi.fn(() => ({ Authorization: `Bearer ${TEST_PASSWORD}` })),
     logout: vi.fn(),
+    isLoggedIn: { get: () => true },
 }));
 
 const { createSettingsStore } = await import('./sharedStore.js');
