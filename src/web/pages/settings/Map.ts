@@ -19,45 +19,17 @@
 import { HomeViewNumberSchema, type Settings } from '../../../shared/schemas/settings.js';
 import { numberField, type NumberFieldHandle } from '../../components/NumberField.js';
 import { effect } from '../../core/signal.js';
-import { t } from '../../i18n/index.js';
+import { formatNumber, t } from '../../i18n/index.js';
 import { activeMapInstance } from '../map/activeMap.js';
 import { readCurrentView } from '../map/homeView.js';
+import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
-
-function field(labelText: string, control: HTMLElement): HTMLElement;
-function field(labelText: string, inputId: string, control: HTMLElement): HTMLElement;
-function field(labelText: string, inputIdOrControl: string | HTMLElement, control?: HTMLElement): HTMLElement {
-    // If only two args: labelText and control (backward compat, no inputId)
-    // If three args: labelText, inputId, control
-    let actualControl: HTMLElement;
-    let inputId: string | undefined;
-
-    if (typeof inputIdOrControl === 'string') {
-        // This is the 3-arg form: labelText, inputId, control
-        inputId = inputIdOrControl;
-        actualControl = control ?? document.createElement('div');
-    } else {
-        // This is the 2-arg form: labelText, control
-        actualControl = inputIdOrControl;
-        inputId = undefined;
-    }
-
-    const row = document.createElement('div');
-    row.className = 'settings-field';
-    const label = document.createElement('label');
-    label.className = 'settings-field-label';
-    if (inputId) label.htmlFor = inputId;
-    label.textContent = labelText;
-    row.append(label, actualControl);
-    return row;
-}
 
 export const mount: SectionMount = (container, ctx) => {
     const root = document.createElement('div');
     root.className = 'settings-section-map';
 
     const { store } = ctx;
-    const loggedIn = ctx.loggedIn;
     const initial = store.settings.get();
 
     const draft: Settings['homeView'] = { ...initial.homeView };
@@ -70,7 +42,6 @@ export const mount: SectionMount = (container, ctx) => {
         value: draft.lat,
         schema: HomeViewNumberSchema.lat,
         step: '0.0001',
-        disabled: !loggedIn,
         id: 'settings-homeview-lat',
         write: (value) => {
             draft.lat = value;
@@ -82,7 +53,6 @@ export const mount: SectionMount = (container, ctx) => {
         value: draft.lng,
         schema: HomeViewNumberSchema.lng,
         step: '0.0001',
-        disabled: !loggedIn,
         id: 'settings-homeview-lng',
         write: (value) => {
             draft.lng = value;
@@ -94,7 +64,6 @@ export const mount: SectionMount = (container, ctx) => {
         value: draft.zoom,
         schema: HomeViewNumberSchema.zoom,
         step: '1',
-        disabled: !loggedIn,
         id: 'settings-homeview-zoom',
         write: (value) => {
             draft.zoom = value;
@@ -102,13 +71,16 @@ export const mount: SectionMount = (container, ctx) => {
         },
     });
 
+    // Three inputs, one `homeView` object: the badge belongs to the row
+    // that holds all three, not to each number.
+    const coordinateRows: FieldHandle[] = [
+        field({ label: t('settings.map.lat'), inputId: 'settings-homeview-lat', control: latField.el }),
+        field({ label: t('settings.map.lng'), inputId: 'settings-homeview-lng', control: lngField.el }),
+        field({ label: t('settings.map.zoom'), inputId: 'settings-homeview-zoom', control: zoomField.el }),
+    ];
     const row = document.createElement('div');
     row.className = 'settings-homeview-row';
-    row.append(
-        field(t('settings.map.lat'), 'settings-homeview-lat', latField.el),
-        field(t('settings.map.lng'), 'settings-homeview-lng', lngField.el),
-        field(t('settings.map.zoom'), 'settings-homeview-zoom', zoomField.el),
-    );
+    row.append(...coordinateRows.map((one) => one.el));
 
     const useCurrentButton = document.createElement('button');
     useCurrentButton.type = 'button';
@@ -116,7 +88,7 @@ export const mount: SectionMount = (container, ctx) => {
     useCurrentButton.textContent = t('settings.map.useCurrentView');
     useCurrentButton.addEventListener('click', () => {
         const map = activeMapInstance.get();
-        if (!map || !loggedIn) return;
+        if (!map) return;
         const view = readCurrentView(map);
         draft.lat = view.lat;
         draft.lng = view.lng;
@@ -131,7 +103,17 @@ export const mount: SectionMount = (container, ctx) => {
     notMountedHint.className = 'settings-use-current-view-hint';
     notMountedHint.textContent = t('settings.map.mapNotMounted');
 
-    root.append(field(t('settings.map.homeView'), row), useCurrentButton, notMountedHint);
+    const homeViewRow = field({
+        label: t('settings.map.homeView'),
+        control: row,
+        override: overrideFor(
+            store,
+            'homeView',
+            (shared) => `${formatNumber(shared.lat)}, ${formatNumber(shared.lng)} \u00b7 ${t('settings.map.zoom')} ${formatNumber(shared.zoom)}`,
+        ),
+    });
+    const rows: FieldHandle[] = [homeViewRow, ...coordinateRows];
+    root.append(homeViewRow.el, useCurrentButton, notMountedHint);
     container.append(root);
 
     const disposeStoreEffect = effect(() => {
@@ -144,20 +126,21 @@ export const mount: SectionMount = (container, ctx) => {
         if (!lngFocused) draft.lng = settings.homeView.lng;
         if (!zoomFocused) draft.zoom = settings.homeView.zoom;
 
-        latField.update(settings.homeView.lat, !loggedIn);
-        lngField.update(settings.homeView.lng, !loggedIn);
-        zoomField.update(settings.homeView.zoom, !loggedIn);
+        latField.update(settings.homeView.lat, false);
+        lngField.update(settings.homeView.lng, false);
+        zoomField.update(settings.homeView.zoom, false);
     });
 
     const disposeMapEffect = effect(() => {
         const hasMap = activeMapInstance.get() !== null;
-        useCurrentButton.disabled = !hasMap || !loggedIn;
+        useCurrentButton.disabled = !hasMap;
         notMountedHint.style.display = hasMap ? 'none' : '';
     });
 
     return function dispose(): void {
         disposeStoreEffect();
         disposeMapEffect();
+        for (const one of rows) one.dispose();
         root.remove();
     };
 };

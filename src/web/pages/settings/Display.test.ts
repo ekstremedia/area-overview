@@ -113,13 +113,13 @@ describe('Display section', () => {
         dispose();
     });
 
-    it('idle reset is disabled when logged out', async () => {
+    it('leaves idle reset editable when logged out -- the edit lands on this device instead', async () => {
         const { mount } = await import('./Display.js');
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: false });
 
-        expect(container.querySelector<HTMLButtonElement>('.stepper-button--increment')?.disabled).toBe(true);
+        expect(container.querySelector<HTMLButtonElement>('.stepper-button--increment')?.disabled).toBe(false);
 
         dispose();
     });
@@ -198,15 +198,15 @@ describe('Display section', () => {
         dispose();
     });
 
-    it('auto-cycle controls are disabled when logged out', async () => {
+    it('leaves auto-cycle editable when logged out -- a visitor may cycle their own screen', async () => {
         const { mount } = await import('./Display.js');
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: false });
 
         const enabledToggle = container.querySelectorAll<HTMLButtonElement>('.settings-field > .toggle-row > .toggle')[0];
-        expect(enabledToggle?.disabled).toBe(true);
-        expect(container.querySelectorAll<HTMLButtonElement>('.settings-page-toggles .toggle')[0]?.disabled).toBe(true);
+        expect(enabledToggle?.disabled).toBe(false);
+        expect(container.querySelectorAll<HTMLButtonElement>('.settings-page-toggles .toggle')[0]?.disabled).toBe(false);
 
         dispose();
     });

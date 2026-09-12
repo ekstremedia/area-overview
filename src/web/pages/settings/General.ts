@@ -11,7 +11,8 @@ import { selectField, type SelectFieldHandle } from '../../components/SelectFiel
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
 import { effect } from '../../core/signal.js';
-import { t } from '../../i18n/index.js';
+import { formatNumber, t } from '../../i18n/index.js';
+import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
 const PAGE_IDS: readonly PageId[] = ['map', 'weather', 'aurora', 'tide', 'cameras'];
@@ -24,30 +25,18 @@ const PAGE_NAV_KEYS: Record<PageId, 'nav.map' | 'nav.weather' | 'nav.aurora' | '
     cameras: 'nav.cameras',
 };
 
-function field(labelText: string, control: HTMLElement): HTMLElement {
-    const row = document.createElement('div');
-    row.className = 'settings-field';
-    const label = document.createElement('div');
-    label.className = 'settings-field-label';
-    label.textContent = labelText;
-    row.append(label, control);
-    return row;
-}
-
 export const mount: SectionMount = (container, ctx) => {
     const root = document.createElement('div');
     root.className = 'settings-section-general';
 
     const { store } = ctx;
     const initial = store.settings.get();
-    const loggedIn = ctx.loggedIn;
 
     const pollStepper: StepperHandle = stepper({
         value: initial.pollIntervalSeconds,
         min: 10,
         max: 600,
         step: 10,
-        disabled: !loggedIn,
         formatValue: (v) => `${String(v)} ${t('unit.seconds')}`,
         onChange: (next) => {
             void store.patchSettings({ pollIntervalSeconds: next });
@@ -56,7 +45,6 @@ export const mount: SectionMount = (container, ctx) => {
 
     const languageSelect: SelectFieldHandle<Settings['language']> = selectField({
         value: initial.language,
-        disabled: !loggedIn,
         options: [
             { value: 'nb', label: t('settings.general.languageNb') },
             { value: 'en', label: t('settings.general.languageEn') },
@@ -73,7 +61,6 @@ export const mount: SectionMount = (container, ctx) => {
         const handle = toggle({
             label: t(PAGE_NAV_KEYS[pageId]),
             checked: initial.enabledPages.includes(pageId),
-            disabled: !loggedIn,
             onChange: (checked) => {
                 const current = store.settings.get().enabledPages;
                 const next = checked
@@ -86,24 +73,38 @@ export const mount: SectionMount = (container, ctx) => {
         pageTogglesRow.append(handle.el);
     }
 
-    root.append(
-        field(t('settings.general.pollInterval'), pollStepper.el),
-        field(t('settings.general.language'), languageSelect.el),
-        field(t('settings.general.enabledPages'), pageTogglesRow),
-    );
+    const rows: FieldHandle[] = [
+        field({
+            label: t('settings.general.pollInterval'),
+            control: pollStepper.el,
+            override: overrideFor(store, 'pollIntervalSeconds', (shared) => `${formatNumber(shared)} ${t('unit.seconds')}`),
+        }),
+        field({
+            label: t('settings.general.language'),
+            control: languageSelect.el,
+            override: overrideFor(store, 'language', (shared) => t(shared === 'nb' ? 'settings.general.languageNb' : 'settings.general.languageEn')),
+        }),
+        field({
+            label: t('settings.general.enabledPages'),
+            control: pageTogglesRow,
+            override: overrideFor(store, 'enabledPages', (shared) => shared.map((pageId) => t(PAGE_NAV_KEYS[pageId])).join(', ')),
+        }),
+    ];
+    root.append(...rows.map((row) => row.el));
     container.append(root);
 
     const disposeEffect = effect(() => {
         const settings = store.settings.get();
-        pollStepper.setState(settings.pollIntervalSeconds, !loggedIn);
-        languageSelect.setState(settings.language, !loggedIn);
+        pollStepper.setState(settings.pollIntervalSeconds, false);
+        languageSelect.setState(settings.language, false);
         for (const [pageId, handle] of pageToggles) {
-            handle.setState(settings.enabledPages.includes(pageId), !loggedIn);
+            handle.setState(settings.enabledPages.includes(pageId), false);
         }
     });
 
     return function dispose(): void {
         disposeEffect();
+        for (const row of rows) row.dispose();
         root.remove();
     };
 };

@@ -229,7 +229,7 @@ export const nb = {
     'settings.loggedOutStatus': 'Ikke innlogget · skrivebeskyttet',
     'settings.logIn': 'Logg inn',
     'settings.logOut': 'Logg ut',
-    'settings.loggedOutNotice': 'Logg inn for å redigere innstillinger.',
+    'settings.loggedOutNotice': 'Endringer lagres bare på denne enheten. Logg inn for å endre for alle skjermer.',
 
     'settings.section.cameras': 'Kameraer',
     'settings.section.map': 'Kart',
@@ -296,6 +296,13 @@ export const nb = {
     'settings.general.languageNb': 'Norsk',
     'settings.general.languageEn': 'Engelsk',
     'settings.general.enabledPages': 'Synlige sider',
+
+    'settings.override.thisDeviceOnly': 'Bare denne enheten',
+    'settings.override.useShared': 'Bruk delt verdi ({value})',
+    'settings.override.savedHere': 'Endringer lagres bare på denne enheten. Logg inn for å endre for alle skjermer.',
+    'settings.override.resetAll': 'Nullstill lokale endringer ({count})',
+    'settings.override.resetAllNone': 'Ingen lokale endringer',
+    'settings.override.resetAllNote': 'Lar denne enheten følge de delte innstillingene igjen.',
 
     'settings.account.loggedIn': 'Innlogget',
     'settings.account.loggedOut': 'Ikke innlogget',
