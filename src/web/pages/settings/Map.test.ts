@@ -119,3 +119,67 @@ describe('Map section', () => {
         dispose();
     });
 });
+
+describe('Map section -- use my position', () => {
+    it('writes the located position as a device override, never a shared write, even when logged in', async () => {
+        vi.doMock('../../geolocation.js', () => ({
+            requestPosition: vi.fn(() => Promise.resolve({ kind: 'ok', lat: 59.91, lng: 10.75, accuracyM: 20 })),
+        }));
+        const setLocalOverride = vi.fn();
+        vi.doMock('../../settings/localOverrides.js', () => ({
+            setLocalOverride,
+            clearLocalOverride: vi.fn(),
+            clearAllLocalOverrides: vi.fn(),
+            localOverrides: { get: () => ({}) },
+        }));
+        vi.resetModules();
+        const { mount: mountFresh } = await import('./Map.js');
+
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mountFresh(container, { store, loggedIn: true });
+
+        container.querySelector<HTMLButtonElement>('.settings-use-my-position')?.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(setLocalOverride).toHaveBeenCalledWith('homeView', { lat: 59.91, lng: 10.75, zoom: 12 });
+        // A visitor's position is theirs; it must never move the kiosk.
+        expect(patchSettings).not.toHaveBeenCalled();
+
+        dispose();
+        vi.doUnmock('../../geolocation.js');
+        vi.doUnmock('../../settings/localOverrides.js');
+        vi.resetModules();
+    });
+
+    it('explains a refused permission instead of moving the map', async () => {
+        vi.doMock('../../geolocation.js', () => ({
+            requestPosition: vi.fn(() => Promise.resolve({ kind: 'denied' })),
+        }));
+        const setLocalOverride = vi.fn();
+        vi.doMock('../../settings/localOverrides.js', () => ({
+            setLocalOverride,
+            clearLocalOverride: vi.fn(),
+            clearAllLocalOverrides: vi.fn(),
+            localOverrides: { get: () => ({}) },
+        }));
+        vi.resetModules();
+        const { mount: mountFresh } = await import('./Map.js');
+
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mountFresh(container, { store, loggedIn: false });
+
+        container.querySelector<HTMLButtonElement>('.settings-use-my-position')?.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(setLocalOverride).not.toHaveBeenCalled();
+        const hints = [...container.querySelectorAll<HTMLElement>('.settings-use-current-view-hint')];
+        expect(hints.some((hint) => !hint.hidden && /avslått/i.test(hint.textContent))).toBe(true);
+
+        dispose();
+        vi.doUnmock('../../geolocation.js');
+        vi.doUnmock('../../settings/localOverrides.js');
+        vi.resetModules();
+    });
+});

@@ -25,7 +25,10 @@ import './map/map.css';
 import { activeMapInstance } from './map/activeMap.js';
 import { applyTiles, disposeTiles, preconnectOriginFor, resolveBasemap, type Basemap, type Theme } from './map/tiles.js';
 import { addMapBasemapControl } from './map/basemapControl.js';
-import { applyHomeView, startHomeViewSync } from './map/homeView.js';
+import { addMapLocateControl, type LocateState } from './map/locateControl.js';
+import { requestPosition } from '../geolocation.js';
+import { setLocalOverride } from '../settings/localOverrides.js';
+import { LOCATED_ZOOM, applyHomeView, startHomeViewSync } from './map/homeView.js';
 import { createCameraMarkerLayer } from './map/markers.js';
 import { buildPopupContent } from './map/popup.js';
 import { addMapResetControl } from './map/resetControl.js';
@@ -198,9 +201,13 @@ export function render(container: HTMLElement): () => void {
         const disposeResetControl = addMapResetControl(L, map, {
             label: t('map.resetView'),
             onReset: () => {
-                // The shared, server-persisted home view -- the same one
-                // `startHomeViewSync` applies on mount and idle-reset, not
-                // a device-local copy.
+                // This device's effective home view -- the same one
+                // `startHomeViewSync` applies on mount and idle-reset.
+                // That is the shared, server-persisted one until somebody
+                // presses locate below, after which "back to the home
+                // view" means back to *their* position rather than to
+                // Sortland. Reading the server value here instead would
+                // make the locate button look broken five minutes later.
                 applyHomeView(map, sharedSettings.get().homeView);
             },
         });
@@ -214,6 +221,33 @@ export function render(container: HTMLElement): () => void {
             labelFor: (next) => t('map.basemapSwitchTo', { name: t(`map.basemap.${next}`) }),
             onSelect: (next) => {
                 setDeviceSettings({ basemap: next });
+            },
+        });
+
+        // ...and under that, the visitor's own position. Writes a
+        // device-local override rather than a shared `PATCH`, even for a
+        // logged-in device: "my position" is per-device by definition, and
+        // writing it to `data/settings.json` would move the kiosk's home
+        // view for everybody. This is the one deliberate exception to the
+        // logged-in-writes-are-shared rule, which is why it calls
+        // `setLocalOverride` directly rather than going through the store.
+        const locateState = signal<LocateState>('idle');
+        const disposeLocateControl = addMapLocateControl(L, map, {
+            state: () => locateState.get(),
+            labelFor: (state) => t(`map.locate.${state}`),
+            messageFor: (state) => (state === 'idle' || state === 'locating' || state === 'located' ? null : t(`map.locate.${state}`)),
+            onLocate: () => {
+                locateState.set('locating');
+                void requestPosition().then((outcome) => {
+                    if (outcome.kind !== 'ok') {
+                        locateState.set(outcome.kind === 'denied' ? 'denied' : 'unavailable');
+                        return;
+                    }
+                    const homeView = { lat: outcome.lat, lng: outcome.lng, zoom: LOCATED_ZOOM };
+                    setLocalOverride('homeView', homeView);
+                    applyHomeView(map, homeView);
+                    locateState.set('located');
+                });
             },
         });
 
@@ -250,6 +284,7 @@ export function render(container: HTMLElement): () => void {
             activeMapInstance.set(null);
             disposeLiveLayers?.();
             markerLayer.dispose();
+            disposeLocateControl();
             disposeBasemapControl();
             disposeResetControl();
             disposeHomeViewSync();

@@ -21,7 +21,9 @@ import { numberField, type NumberFieldHandle } from '../../components/NumberFiel
 import { effect } from '../../core/signal.js';
 import { formatNumber, t } from '../../i18n/index.js';
 import { activeMapInstance } from '../map/activeMap.js';
-import { readCurrentView } from '../map/homeView.js';
+import { LOCATED_ZOOM, readCurrentView } from '../map/homeView.js';
+import { requestPosition } from '../../geolocation.js';
+import { setLocalOverride } from '../../settings/localOverrides.js';
 import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
@@ -99,6 +101,43 @@ export const mount: SectionMount = (container, ctx) => {
         void writeHomeView();
     });
 
+    // "Use my position" lives here as well as on the map, because the map
+    // control is only reachable while the map page is open -- and the
+    // settings page is where someone goes looking for it.
+    const useMyPositionButton = document.createElement('button');
+    useMyPositionButton.type = 'button';
+    useMyPositionButton.className = 'settings-use-my-position';
+    useMyPositionButton.textContent = t('settings.map.useMyPosition');
+
+    const positionHint = document.createElement('div');
+    positionHint.className = 'settings-use-current-view-hint';
+    positionHint.hidden = true;
+
+    useMyPositionButton.addEventListener('click', () => {
+        useMyPositionButton.disabled = true;
+        positionHint.textContent = t('map.locate.locating');
+        positionHint.hidden = false;
+        void requestPosition().then((outcome) => {
+            useMyPositionButton.disabled = false;
+            if (outcome.kind !== 'ok') {
+                positionHint.textContent = t(outcome.kind === 'denied' ? 'map.locate.denied' : 'map.locate.unavailable');
+                return;
+            }
+            positionHint.hidden = true;
+            // Straight to the device's own overrides, never a shared
+            // write -- see `MapPage.ts`'s locate control for why this is
+            // the one deliberate exception to the usual routing.
+            const next = { lat: outcome.lat, lng: outcome.lng, zoom: LOCATED_ZOOM };
+            draft.lat = next.lat;
+            draft.lng = next.lng;
+            draft.zoom = next.zoom;
+            latField.update(next.lat);
+            lngField.update(next.lng);
+            zoomField.update(next.zoom);
+            setLocalOverride('homeView', next);
+        });
+    });
+
     const notMountedHint = document.createElement('div');
     notMountedHint.className = 'settings-use-current-view-hint';
     notMountedHint.textContent = t('settings.map.mapNotMounted');
@@ -113,7 +152,7 @@ export const mount: SectionMount = (container, ctx) => {
         ),
     });
     const rows: FieldHandle[] = [homeViewRow, ...coordinateRows];
-    root.append(homeViewRow.el, useCurrentButton, notMountedHint);
+    root.append(homeViewRow.el, useCurrentButton, notMountedHint, useMyPositionButton, positionHint);
     container.append(root);
 
     const disposeStoreEffect = effect(() => {

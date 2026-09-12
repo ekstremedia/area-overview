@@ -15,6 +15,18 @@ import type { ReadonlySignal } from '../../core/signal.js';
 import { IDLE_RESET_EVENT } from '../../shell/idle.js';
 import { settings as sharedSettings } from '../../settings-resource.js';
 
+/**
+ * The zoom a located position lands at.
+ *
+ * The shared home view sits at 11 because it frames a region; a located
+ * position is a point, so it earns one step tighter. Deliberately not
+ * closer than that: coordinates are rounded to two decimals before they
+ * ever reach this code (`web/geolocation.ts`), and drawing the map at a
+ * zoom finer than the datum would imply a precision that was thrown away
+ * on purpose.
+ */
+export const LOCATED_ZOOM = 12;
+
 export function applyHomeView(map: Leaflet.Map, homeView: Settings['homeView']): void {
     map.setView([homeView.lat, homeView.lng], homeView.zoom);
 }
