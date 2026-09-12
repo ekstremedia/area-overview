@@ -106,14 +106,15 @@ describe('Map section', () => {
         dispose();
     });
 
-    it('renders all number fields disabled and the button disabled when logged out', () => {
+    it("leaves the home view editable when logged out -- it becomes this device's own home view", () => {
         activeMapInstance.set({} as unknown as Parameters<typeof activeMapInstance.set>[0]);
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: false });
 
-        expect(container.querySelector<HTMLInputElement>('.number-field-input')?.disabled).toBe(true);
-        expect(container.querySelector<HTMLButtonElement>('.settings-use-current-view')?.disabled).toBe(true);
+        expect(container.querySelector<HTMLInputElement>('.number-field-input')?.disabled).toBe(false);
+        // "Use the current view" needs a mounted map, not a password.
+        expect(container.querySelector<HTMLButtonElement>('.settings-use-current-view')?.disabled).toBe(false);
 
         dispose();
     });

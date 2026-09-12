@@ -96,6 +96,67 @@
     color: var(--color-muted);
 }
 
+/* — The "this device only" badge on an overridden field — */
+.settings-field-override {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: 2px;
+}
+
+/* Any `display` on a class beats the user-agent rule for `[hidden]`, so
+   the attribute alone would be inert here and every row would wear a
+   badge whether it was overridden or not. Caught in the browser, not by a
+   unit test: `el.hidden === true` was perfectly true the whole time. */
+.settings-field-override[hidden] {
+    display: none;
+}
+
+.settings-field-override-badge {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+/* A link rather than a button: it undoes a choice, and should not compete
+   with the control it sits under for attention. Still a real <button>
+   element, so it is keyboard-reachable and announces as an action. */
+.settings-field-override-reset {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--color-muted);
+    text-decoration: underline;
+    cursor: pointer;
+    /* The whole row is well under the 44px tap minimum on its own, so the
+       hit area is grown with padding that doesn't move the text. */
+    min-height: var(--tap-min);
+    display: inline-flex;
+    align-items: center;
+}
+
+.settings-field-override-reset:hover,
+.settings-field-override-reset:focus-visible {
+    color: var(--color-text);
+}
+
+.settings-account-reset-overrides {
+    align-self: flex-start;
+    min-height: var(--tap-min);
+}
+
+.settings-account-reset-overrides:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .settings-page-toggles {
     display: flex;
     flex-wrap: wrap;

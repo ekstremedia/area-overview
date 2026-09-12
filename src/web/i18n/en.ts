@@ -217,7 +217,7 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.loggedOutStatus': 'Not logged in · read-only',
     'settings.logIn': 'Log in',
     'settings.logOut': 'Log out',
-    'settings.loggedOutNotice': 'Log in to edit settings.',
+    'settings.loggedOutNotice': 'Changes are saved on this device only. Log in to change them for every screen.',
 
     'settings.section.cameras': 'Cameras',
     'settings.section.map': 'Map',
@@ -284,6 +284,13 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.general.languageNb': 'Norwegian',
     'settings.general.languageEn': 'English',
     'settings.general.enabledPages': 'Visible pages',
+
+    'settings.override.thisDeviceOnly': 'This device only',
+    'settings.override.useShared': 'Use the shared value ({value})',
+    'settings.override.savedHere': 'Changes are saved on this device only. Log in to change them for every screen.',
+    'settings.override.resetAll': 'Reset local changes ({count})',
+    'settings.override.resetAllNone': 'No local changes',
+    'settings.override.resetAllNote': 'Lets this device follow the shared settings again.',
 
     'settings.account.loggedIn': 'Logged in',
     'settings.account.loggedOut': 'Not logged in',

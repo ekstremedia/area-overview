@@ -116,3 +116,11 @@ img {
     background-size: 3px 3px;
     mix-blend-mode: multiply;
 }
+
+/* `hidden` must actually hide, even on an element whose own class sets a
+   `display`. Without this the attribute is inert wherever a component
+   declares `display: flex` (or grid, or block) on the same element, which
+   reads as a rendering bug a long way from its cause. */
+[hidden] {
+    display: none !important;
+}

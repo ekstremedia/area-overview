@@ -57,14 +57,14 @@ describe('General section', () => {
         dispose();
     });
 
-    it('renders every control disabled when logged out', () => {
+    it('leaves every control editable when logged out -- the edit lands on this device instead', () => {
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: false });
 
-        expect(container.querySelector<HTMLButtonElement>('.stepper-button--increment')?.disabled).toBe(true);
-        expect(container.querySelector<HTMLButtonElement>('.select-field-tile')?.disabled).toBe(true);
-        expect(container.querySelector<HTMLButtonElement>('.toggle')?.disabled).toBe(true);
+        expect(container.querySelector<HTMLButtonElement>('.stepper-button--increment')?.disabled).toBe(false);
+        expect(container.querySelector<HTMLButtonElement>('.select-field-tile')?.disabled).toBe(false);
+        expect(container.querySelector<HTMLButtonElement>('.toggle')?.disabled).toBe(false);
 
         dispose();
     });

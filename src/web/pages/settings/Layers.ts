@@ -19,7 +19,8 @@ import type { Settings, SettingsPatch } from '../../../shared/schemas/settings.j
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
 import { effect } from '../../core/signal.js';
-import { t, type ParamlessKey } from '../../i18n/index.js';
+import { formatNumber, t, type ParamlessKey } from '../../i18n/index.js';
+import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
 const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER];
@@ -70,25 +71,15 @@ async function checkShipsConfigured(): Promise<boolean | null> {
     }
 }
 
-function field(labelText: string, control: HTMLElement): HTMLElement {
-    const row = document.createElement('div');
-    row.className = 'settings-field';
-    const label = document.createElement('div');
-    label.className = 'settings-field-label';
-    label.textContent = labelText;
-    row.append(label, control);
-    return row;
-}
-
 export const mount: SectionMount = (container, ctx) => {
     const root = document.createElement('div');
     root.className = 'settings-section-layers';
 
     const { store } = ctx;
-    const loggedIn = ctx.loggedIn;
     const initial = store.settings.get();
 
     const disposers: (() => void)[] = [];
+    const rows: FieldHandle[] = [];
 
     for (const layer of LAYERS) {
         const block = document.createElement('div');
@@ -107,7 +98,6 @@ export const mount: SectionMount = (container, ctx) => {
 
         const enabledToggle: ToggleHandle = toggle({
             checked: layerSettings.enabled,
-            disabled: !loggedIn,
             onChange: (checked) => {
                 write({ enabled: checked });
             },
@@ -118,7 +108,6 @@ export const mount: SectionMount = (container, ctx) => {
             min: layer.minPollSeconds,
             max: layer.maxPollSeconds,
             step: 5,
-            disabled: !loggedIn,
             formatValue: (v) => `${String(v)} ${t('unit.seconds')}`,
             onChange: (next) => {
                 write({ pollSeconds: next });
@@ -130,7 +119,6 @@ export const mount: SectionMount = (container, ctx) => {
             min: layer.maxAgeMinutesMin,
             max: layer.maxAgeMinutesMax,
             step: 1,
-            disabled: !loggedIn,
             formatValue: (v) => `${String(v)} ${t('unit.minutes')}`,
             onChange: (next) => {
                 write({ maxAgeMinutes: next });
@@ -141,23 +129,36 @@ export const mount: SectionMount = (container, ctx) => {
         headingRow.className = 'settings-layer-heading-row';
         headingRow.append(heading, enabledToggle.el);
 
-        block.append(
-            headingRow,
-            field(t('settings.layers.pollSeconds'), pollStepper.el),
-            field(t('settings.layers.maxAgeMinutes'), maxAgeStepper.el),
-        );
+        // Every field in a block patches the one `ships`/`aircraft`
+        // object, so the block carries a single override on its first row
+        // rather than one badge per control promising a granularity the
+        // schema does not have.
+        // `LiveLayerSpec.id` is a plain `string`, but `LAYERS` is exactly
+        // the two layers whose ids are also `Settings` keys -- the same
+        // correspondence `getLayerSettings`/`buildPatch` above rely on.
+        const overrideKey = layer.id === 'aircraft' ? 'aircraft' : 'ships';
+        const pollRow = field({
+            label: t('settings.layers.pollSeconds'),
+            control: pollStepper.el,
+            override: overrideFor(store, overrideKey, (shared) => `${formatNumber(shared.pollSeconds)} ${t('unit.seconds')}`),
+        });
+        const maxAgeRow = field({ label: t('settings.layers.maxAgeMinutes'), control: maxAgeStepper.el });
+        rows.push(pollRow, maxAgeRow);
+
+        block.append(headingRow, pollRow.el, maxAgeRow.el);
 
         // Aircraft-only field -- the one documented per-layer-id special case.
         let showOnGroundToggle: ToggleHandle | undefined;
         if (layer.id === 'aircraft') {
             showOnGroundToggle = toggle({
                 checked: layerSettings.showOnGround ?? false,
-                disabled: !loggedIn,
                 onChange: (checked) => {
                     write({ showOnGround: checked });
                 },
             });
-            block.append(field(t('settings.layers.showOnGround'), showOnGroundToggle.el));
+            const showOnGroundRow = field({ label: t('settings.layers.showOnGround'), control: showOnGroundToggle.el });
+            rows.push(showOnGroundRow);
+            block.append(showOnGroundRow.el);
         }
 
         // Ships-only read-only credentials line.
@@ -182,10 +183,10 @@ export const mount: SectionMount = (container, ctx) => {
 
         const disposeEffect = effect(() => {
             const current = getLayerSettings(store.settings.get(), layer.id);
-            enabledToggle.setState(current.enabled, !loggedIn);
-            pollStepper.setState(current.pollSeconds, !loggedIn);
-            maxAgeStepper.setState(current.maxAgeMinutes, !loggedIn);
-            showOnGroundToggle?.setState(current.showOnGround ?? false, !loggedIn);
+            enabledToggle.setState(current.enabled, false);
+            pollStepper.setState(current.pollSeconds, false);
+            maxAgeStepper.setState(current.maxAgeMinutes, false);
+            showOnGroundToggle?.setState(current.showOnGround ?? false, false);
         });
         disposers.push(disposeEffect);
     }
@@ -194,6 +195,7 @@ export const mount: SectionMount = (container, ctx) => {
 
     return function dispose(): void {
         for (const disposeOne of disposers) disposeOne();
+        for (const row of rows) row.dispose();
         root.remove();
     };
 };
