@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { AircraftSchema, type Aircraft, type AdsbSource } from '../../shared/schemas/aircraft.js';
 import { err, ok, type Result } from '../../shared/result.js';
 import type { Bbox } from '../layers/bbox.js';
+import type { OutboundGate } from '../outbound-gate.js';
 
 export type AdsbProvider = AdsbSource;
 
@@ -430,8 +431,25 @@ export interface FetchAircraftOptions {
     openSkyCredentials?: OpenSkyCredentials | undefined;
     /** Bounded deadline for every request this call makes -- see `upstream.ts`'s `fetchUpstream()` for the same pattern. Always `config.upstreamTimeoutMs` in production. */
     upstreamTimeoutMs: number;
+    /**
+     * Bounds how often this process calls the primary ADS-B provider,
+     * across every viewport at once (`src/server/outbound-gate.ts`).
+     * Shared with the background trail poller, because the aggregators
+     * see one caller -- this app -- not one per visitor. Omitted, the
+     * provider is called on every miss, which is only appropriate in
+     * tests and in a single-client deployment.
+     *
+     * A refused take is reported as a `Result` error so the route takes
+     * the same stale-then-remembered path it already takes for an
+     * upstream outage. The secondary OpenSky lookup is deliberately not
+     * gated here: it has its own, stricter account-wide gate.
+     */
+    gate?: OutboundGate | undefined;
     fetchImpl?: typeof fetch;
 }
+
+/** Reported when the gate is shut, so the route's fallback chain can tell this apart from a provider that actually failed. */
+const GATE_CLOSED_MESSAGE = 'ADS-B request skipped: outbound rate gate is closed';
 
 /**
  * How long an OpenSky answer is reused before asking again, and how much
@@ -608,6 +626,13 @@ export interface FetchAircraftResult {
 /** Dispatches to the configured ADS-B provider and returns aircraft mapped onto the shared `Aircraft` shape, already filtered to `bbox`. */
 export async function fetchAircraft(bbox: Bbox, options: FetchAircraftOptions): Promise<Result<FetchAircraftResult>> {
     const fetchImpl = options.fetchImpl ?? fetch;
+
+    // Checked once, before any primary request: the gate governs this
+    // app's total outbound rate, and a refusal must cost nothing.
+    if (options.gate && !options.gate.tryTake()) {
+        return err({ message: GATE_CLOSED_MESSAGE });
+    }
+
     if (options.provider === 'opensky') {
         const result = await fetchOpenSky(bbox, options.openSkyCredentials, options.upstreamTimeoutMs, fetchImpl);
         return result.ok ? ok({ aircraft: result.value, sources: ['opensky'] }) : result;

@@ -37,6 +37,8 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         aircraftCacheTtlMs: 20,
         shipsSnapshotRefreshMs: 20,
         shipsSnapshotMaxStaleMs: 10 * 60_000,
+        adsbMinIntervalMs: 2000,
+        adsbBurst: 4,
         cartoApiKey: '',
         trailsPollSeconds: 30,
         trailsAreaBbox: '14.4,68.35,16.6,69.05',

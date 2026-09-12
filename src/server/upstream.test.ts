@@ -20,6 +20,8 @@ const config: ServerConfig = {
     aircraftCacheTtlMs: 10_000,
     shipsSnapshotRefreshMs: 10_000,
     shipsSnapshotMaxStaleMs: 10 * 60_000,
+    adsbMinIntervalMs: 2000,
+    adsbBurst: 4,
     cartoApiKey: '',
     trailsPollSeconds: 30,
     trailsAreaBbox: '14.4,68.35,16.6,69.05',

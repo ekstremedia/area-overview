@@ -157,3 +157,93 @@ describe('GET /api/aircraft', () => {
         }
     });
 });
+
+/** Only the ADS-B provider's own calls: a response also fires off adsbdb route lookups, which the gate deliberately does not govern. */
+function providerCalls(fetchMock: { mock: { calls: unknown[][] } }): unknown[][] {
+    return fetchMock.mock.calls.filter(([url]) => String(url).includes('api.adsb.lol'));
+}
+
+describe('GET /api/aircraft -- the outbound ADS-B gate', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("serves this viewport's stale response without calling the provider when the gate is shut", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        // One token in the bucket and a very long refill: the warm-up
+        // request spends it, so the next one finds the gate shut.
+        const app = buildTestApp({ adsbProvider: 'adsblol', aircraftCacheTtlMs: 10, adsbMinIntervalMs: 600_000, adsbBurst: 1 });
+
+        const warm = await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` });
+        expect(warm.statusCode).toBe(200);
+        const callsAfterWarmup = providerCalls(fetchMock).length;
+
+        await sleep(20); // this viewport's cache expires
+
+        const gated = await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` });
+
+        expect(gated.statusCode).toBe(200);
+        expect(gated.headers['x-cache']).toBe('stale');
+        // The point of the gate: nothing left this process.
+        expect(providerCalls(fetchMock).length).toBe(callsAfterWarmup);
+    });
+
+    it('serves remembered aircraft on a cold viewport while the gate is shut', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ adsbProvider: 'adsblol', aircraftCacheTtlMs: 10, adsbMinIntervalMs: 600_000, adsbBurst: 1 });
+
+        // One good response fills the BFF's memory and spends the token.
+        const warm = await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` });
+        expect(warm.statusCode).toBe(200);
+        const callsAfterWarmup = providerCalls(fetchMock).length;
+
+        await sleep(20);
+        // A neighbouring viewport, so the cache miss is unambiguous.
+        const cold = await app.inject({ method: 'GET', url: '/api/aircraft?bbox=15.55,67.95,17.45,69.85' });
+
+        expect(cold.statusCode).toBe(200);
+        const body = AircraftResponseSchema.parse(cold.json());
+        if (!body.configured) throw new Error('expected a configured response');
+        expect(body.aircraft.length).toBeGreaterThan(0);
+        expect(providerCalls(fetchMock).length).toBe(callsAfterWarmup);
+    });
+
+    it('responds 502 when the gate is shut and there is nothing remembered at all', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        // Burst 1 and a long refill, but nothing has ever succeeded: the
+        // very first request spends the token on a bbox far from anything
+        // the fixture covers, so the second finds an empty store too.
+        const app = buildTestApp({ adsbProvider: 'adsblol', adsbMinIntervalMs: 600_000, adsbBurst: 1 });
+
+        await app.inject({ method: 'GET', url: `/api/aircraft?${VALID_BBOX}` });
+        const gated = await app.inject({ method: 'GET', url: '/api/aircraft?bbox=-60.0,-40.0,-59.0,-39.0' });
+
+        expect(gated.statusCode).toBe(502);
+    });
+
+    it('bounds the provider call rate across many different viewports, not per viewport', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(adsbLolFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ adsbProvider: 'adsblol', adsbMinIntervalMs: 600_000, adsbBurst: 2 });
+
+        // Six distinct viewports, the way six visitors would arrive. Each
+        // is its own cache key, so before the gate every one of them was
+        // its own provider call.
+        const bboxes = [
+            '15.5,67.9,17.5,69.9',
+            '10.0,59.0,12.0,61.0',
+            '5.0,60.0,7.0,62.0',
+            '18.0,69.0,20.0,70.0',
+            '8.0,58.0,10.0,60.0',
+            '20.0,70.0,22.0,71.0',
+        ];
+        for (const bbox of bboxes) {
+            await app.inject({ method: 'GET', url: `/api/aircraft?bbox=${bbox}` });
+        }
+
+        expect(providerCalls(fetchMock).length).toBeLessThanOrEqual(2);
+    });
+});

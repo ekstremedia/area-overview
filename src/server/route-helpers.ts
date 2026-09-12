@@ -21,13 +21,62 @@ class UpstreamFetchError extends Error {
     }
 }
 
-function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, stale: boolean): void {
+export interface ServeCachedOptions {
+    /**
+     * Emits `Cache-Control: public, max-age=<n>, stale-while-revalidate=60`.
+     * Worth having now that there are many clients rather than one kiosk:
+     * the ETag/304 path underneath already makes a repeat poll cheap, but
+     * only after a round trip, and `max-age` removes the round trip too.
+     * Derived from each route's own TTL by its caller, so a cached
+     * response is never advertised as fresh for longer than this server
+     * would itself consider it fresh. Omitted, no header is sent.
+     */
+    maxAgeSeconds?: number;
+}
+
+/**
+ * A window for revalidating in the background after `max-age` lapses.
+ * Short on purpose: this is live data, and a browser reusing a response
+ * for a minute while it refetches is the most staleness worth accepting.
+ */
+const STALE_WHILE_REVALIDATE_SECONDS = 60;
+
+/**
+ * A route's own TTL as whole seconds, for `Cache-Control: max-age`.
+ * Rounded DOWN, and never below 1: advertising a response as fresh for
+ * longer than this server considers it fresh would let a browser sit on
+ * data the BFF has already replaced, and `max-age=0` would throw away the
+ * saved round trip this header exists for.
+ */
+export function cacheSeconds(ttlMs: number): number {
+    return Math.max(1, Math.floor(ttlMs / 1000));
+}
+
+function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, stale: boolean, options: ServeCachedOptions = {}): void {
     const body = JSON.stringify(value);
     const etag = `"${createHash('sha1').update(body).digest('hex')}"`;
 
     reply.header('ETag', etag);
     if (stale) {
         reply.header('X-Cache', 'stale');
+        // `no-cache` (store it, but revalidate before every reuse) rather
+        // than simply omitting the header. Two reasons, and the second is
+        // the subtle one:
+        //
+        // - This body is one the server has already given up on, so a
+        //   browser must come back and ask before showing it again.
+        // - A `304` below would otherwise be actively harmful. Per RFC
+        //   9111 a 304 *updates the stored response's headers*, and a
+        //   stored copy from when this route was fresh still carries the
+        //   `max-age` sent then. Saying nothing leaves that `max-age` in
+        //   place, so a revalidation that learns the data is stale would
+        //   hand the client another full freshness lifetime of it.
+        reply.header('Cache-Control', 'no-cache');
+    } else if (options.maxAgeSeconds !== undefined) {
+        reply.header(
+            'Cache-Control',
+            `public, max-age=${String(options.maxAgeSeconds)}, stale-while-revalidate=${String(STALE_WHILE_REVALIDATE_SECONDS)}`,
+        );
     }
 
     if (request.headers['if-none-match'] === etag) {
@@ -52,6 +101,7 @@ export async function serveCached<T>(
     cache: TtlCache<T>,
     key: string,
     fetcher: () => Promise<Result<T>>,
+    options: ServeCachedOptions = {},
 ): Promise<void> {
     try {
         const value = await cache.getOrLoad(key, async () => {
@@ -61,7 +111,7 @@ export async function serveCached<T>(
             }
             return result.value;
         });
-        sendJson(reply, request, value, false);
+        sendJson(reply, request, value, false, options);
     } catch (error) {
         const stale = cache.get(key);
         if (stale) {
