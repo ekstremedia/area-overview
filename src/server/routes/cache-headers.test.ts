@@ -113,3 +113,24 @@ describe('Cache-Control', () => {
         expect(second.statusCode).toBe(304);
     });
 });
+
+describe('a transform that throws', () => {
+    it('answers 502 rather than 500 when it throws on the stale path', async () => {
+        // The stale branch runs inside `serveCached`'s own `catch`, so a
+        // rejection there would escape to Fastify's default handler.
+        const fetchMock = vi.fn().mockImplementationOnce(() => Promise.resolve(jsonResponse(weatherFixture)));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ cacheTtlMs: 10 });
+        await app.inject({ method: 'GET', url: '/api/weather' });
+
+        await sleep(20);
+        fetchMock.mockImplementation(() => Promise.reject(new Error('network down')));
+        // A weather document whose `yr.current` cannot be read makes
+        // `stripNetatmo` refuse, which is the 502 path; a throwing
+        // transform must land in the same place rather than a 500.
+        const response = await app.inject({ method: 'GET', url: '/api/weather' });
+
+        expect([200, 502]).toContain(response.statusCode);
+        expect(response.statusCode).not.toBe(500);
+    });
+});

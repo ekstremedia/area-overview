@@ -173,7 +173,20 @@ export async function serveCached<T>(
             // transform exists to remove -- the Netatmo gate would leak
             // the station to everyone for the whole of an upstream
             // outage. A transform that refuses still means 502.
-            const staleServed = options.transform ? await options.transform(stale.value) : stale.value;
+            // Wrapped: this runs inside the `catch` clause, so a transform
+            // that rejects here would escape `serveCached` entirely and
+            // reach Fastify's default handler as a 500 rather than the
+            // controlled 502 below. `ServeCachedTransform` is allowed to
+            // be async, so that is a reachable shape even though today's
+            // two transforms do not reject.
+            let staleServed: T | null;
+            try {
+                staleServed = options.transform ? await options.transform(stale.value) : stale.value;
+            } catch (transformError) {
+                request.log.error({ err: transformError }, `transform for "${logKey}" threw while serving the stale document`);
+                reply.code(502).send({ error: 'Upstream unavailable' });
+                return;
+            }
             if (staleServed === null) {
                 request.log.error({ err: error }, `upstream fetch for "${logKey}" failed and the stale document cannot be served either`);
                 reply.code(502).send({ error: 'Upstream unavailable' });

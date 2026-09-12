@@ -40,3 +40,24 @@ describe('currentSourceKey', () => {
         expect(currentSourceKey(offline.current)).toBe('weather.sourceYr');
     });
 });
+
+describe('currentSourceKey -- the rain gauge', () => {
+    it('counts the rain gauge, which is a station module of its own', () => {
+        // The gauge can be reporting while the outdoor module is not. The
+        // page renders its readings, so that column is not "Yr".
+        const offline = WeatherSchema.parse(offlineFixture);
+        const gaugeOnly = {
+            ...offline.current,
+            rain: { current: 0, last_hour: 0.2, last_24h: 1.4, source: 'netatmo' },
+        };
+
+        expect(currentSourceKey(gaugeOnly)).toBe('weather.sourceMixed');
+    });
+
+    it('still reads as Yr when the stripped response reduces rain to its source', () => {
+        const offline = WeatherSchema.parse(offlineFixture);
+
+        expect(offline.current.rain).toEqual({ source: 'yr' });
+        expect(currentSourceKey(offline.current)).toBe('weather.sourceYr');
+    });
+});

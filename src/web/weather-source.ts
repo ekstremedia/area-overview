@@ -21,7 +21,18 @@ export type WeatherSourceKey = 'weather.sourceNetatmo' | 'weather.sourceYr' | 'w
  * actually say where these numbers came from.
  */
 export function currentSourceKey(current: Weather['current']): WeatherSourceKey {
-    const sources = [current.temperature.source, current.humidity.source, current.pressure.source, current.wind.source, current.conditions.source];
+    const sources = [
+        current.temperature.source,
+        current.humidity.source,
+        current.pressure.source,
+        current.wind.source,
+        // The rain gauge is a Netatmo module of its own, and the page
+        // renders its readings, so a response where only the gauge is
+        // reporting still has station data on screen -- leaving it out
+        // would label that column "Yr".
+        current.rain.source,
+        current.conditions.source,
+    ];
 
     const hasNetatmo = sources.includes('netatmo');
     if (!hasNetatmo) return 'weather.sourceYr';
