@@ -42,6 +42,23 @@ export interface ServeCachedOptions {
      * every route whose key is a fixed name.
      */
     logKey?: string;
+    /**
+     * Emits `private` rather than `public` in `Cache-Control`.
+     *
+     * Set for a response whose content depended on the request's
+     * credentials: a shared cache between this server and the browser
+     * must never hand one visitor's authorised body to another visitor.
+     */
+    privateCache?: boolean;
+    /**
+     * Emits `Vary`, naming the request headers the body depended on.
+     *
+     * Without `Vary: Authorization` a cache is entitled to treat an
+     * authorised and an unauthorised response as interchangeable, which
+     * for the Netatmo gate would mean serving a logged-in body to the
+     * open internet.
+     */
+    vary?: string;
 }
 
 /**
@@ -81,6 +98,9 @@ function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, 
     const etag = `"${createHash('sha1').update(body).digest('hex')}"`;
 
     reply.header('ETag', etag);
+    if (options.vary !== undefined) {
+        reply.header('Vary', options.vary);
+    }
     if (stale) {
         reply.header('X-Cache', 'stale');
         // `no-cache` (store it, but revalidate before every reuse) rather
@@ -97,9 +117,10 @@ function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, 
         //   hand the client another full freshness lifetime of it.
         reply.header('Cache-Control', 'no-cache');
     } else if (options.maxAgeSeconds !== undefined) {
+        const visibility = options.privateCache === true ? 'private' : 'public';
         reply.header(
             'Cache-Control',
-            `public, max-age=${String(options.maxAgeSeconds)}, stale-while-revalidate=${String(STALE_WHILE_REVALIDATE_SECONDS)}`,
+            `${visibility}, max-age=${String(options.maxAgeSeconds)}, stale-while-revalidate=${String(STALE_WHILE_REVALIDATE_SECONDS)}`,
         );
     }
 
@@ -146,8 +167,20 @@ export async function serveCached<T>(
         const logKey = options.logKey ?? key;
         const stale = cache.get(key);
         if (stale) {
+            // The transform runs here too, and that is not a detail: the
+            // cache holds the raw upstream document, so serving
+            // `stale.value` directly would hand out exactly what the
+            // transform exists to remove -- the Netatmo gate would leak
+            // the station to everyone for the whole of an upstream
+            // outage. A transform that refuses still means 502.
+            const staleServed = options.transform ? await options.transform(stale.value) : stale.value;
+            if (staleServed === null) {
+                request.log.error({ err: error }, `upstream fetch for "${logKey}" failed and the stale document cannot be served either`);
+                reply.code(502).send({ error: 'Upstream unavailable' });
+                return;
+            }
             request.log.error({ err: error }, `upstream fetch for "${logKey}" failed, serving stale cache`);
-            sendJson(reply, request, stale.value, true);
+            sendJson(reply, request, staleServed, true, options.vary === undefined ? {} : { vary: options.vary });
             return;
         }
 

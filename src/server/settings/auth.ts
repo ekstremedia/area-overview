@@ -63,6 +63,42 @@ export function extractBearerToken(header: string | undefined): string | null {
 }
 
 /**
+ * Whether a request carries the settings password, without gating on it.
+ *
+ * Used by `GET /api/weather` to decide whether to include Terje's own
+ * Netatmo readings -- a *content* decision rather than an access one, so
+ * this returns a boolean instead of answering 401.
+ *
+ * The delay rule is the subtle part, and the reason this is not simply
+ * `presented !== null && passwordsMatch(...)`:
+ *
+ * - An **absent** header is not a guess. It is what every ordinary
+ *   visitor sends on every request, so it must cost nothing.
+ * - A header that is **present but wrong** is a guess, and pays exactly
+ *   what the same guess pays at `POST /api/settings/login`.
+ *
+ * Without that second half this route would be a *faster* password
+ * oracle than the login route itself: a guesser would simply move here,
+ * where a wrong answer came back instantly, and the 1s cost that
+ * `requireSettingsPassword` charges would be worth nothing.
+ *
+ * Holds no state across requests, exactly as this file's header comment
+ * requires. `presented` is never logged.
+ */
+export async function isAuthorizedRequest(
+    config: ServerConfig,
+    authorization: string | undefined,
+    failureDelayMs: number = PRODUCTION_AUTH_FAILURE_DELAY_MS,
+): Promise<boolean> {
+    const presented = extractBearerToken(authorization);
+    if (presented === null) return false;
+    if (passwordsMatch(config.settingsPassword, presented)) return true;
+
+    await sleep(failureDelayMs);
+    return false;
+}
+
+/**
  * Builds the Fastify `preHandler` hook. `failureDelayMs` defaults to the
  * real production delay; tests inject a much shorter value so the suite
  * doesn't spend a second per auth test, while a separate test asserts

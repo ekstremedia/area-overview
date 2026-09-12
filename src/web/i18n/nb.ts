@@ -165,7 +165,9 @@ export const nb = {
     'compass.nw': 'nordvest',
 
     'weather.position': 'Posisjon: {place}',
-    'weather.outdoorLabel': 'Netatmo · ute',
+    'weather.sourceNetatmo': 'Netatmo · ute',
+    'weather.sourceMixed': 'Netatmo + Yr',
+    'weather.sourceYr': 'Yr · varsel',
     'weather.wind': 'Vind',
     'weather.humidity': 'Fukt',
     'weather.pressure': 'Trykk',
@@ -306,6 +308,7 @@ export const nb = {
     'settings.general.language': 'Språk',
     'settings.general.languageNb': 'Norsk',
     'settings.general.languageEn': 'Engelsk',
+    'settings.general.useNetatmo': 'Bruk Netatmo-stasjonen',
     'settings.general.enabledPages': 'Synlige sider',
 
     'settings.override.thisDeviceOnly': 'Bare denne enheten',

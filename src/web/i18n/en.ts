@@ -153,7 +153,9 @@ export const en: Record<keyof typeof nb, string> = {
     'compass.nw': 'northwest',
 
     'weather.position': 'Position: {place}',
-    'weather.outdoorLabel': 'Netatmo · outdoors',
+    'weather.sourceNetatmo': 'Netatmo · outdoors',
+    'weather.sourceMixed': 'Netatmo + Yr',
+    'weather.sourceYr': 'Yr · forecast',
     'weather.wind': 'Wind',
     'weather.humidity': 'Humidity',
     'weather.pressure': 'Pressure',
@@ -294,6 +296,7 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.general.language': 'Language',
     'settings.general.languageNb': 'Norwegian',
     'settings.general.languageEn': 'English',
+    'settings.general.useNetatmo': 'Use the Netatmo station',
     'settings.general.enabledPages': 'Visible pages',
 
     'settings.override.thisDeviceOnly': 'This device only',

@@ -128,7 +128,39 @@ describe('SettingsOverrideSchema', () => {
         expect('updatedAt' in SettingsOverrideSchema.shape).toBe(false);
     });
 
-    it('covers every patchable field except the ones deliberately excluded', () => {
-        expect(OVERRIDABLE_FIELDS.sort()).toEqual(Object.keys(SettingsPatchSchema.shape).sort());
+    it('covers every patchable field except the ones a device may not take over', () => {
+        // The two schemas are allowed to diverge and now do. `weather` is
+        // patchable but not overridable: the server enforces the Netatmo
+        // gate, so a device-local override of it would be a control that
+        // visibly does nothing.
+        const patchable = Object.keys(SettingsPatchSchema.shape);
+        const serverOnly = ['weather'];
+
+        expect(OVERRIDABLE_FIELDS.sort()).toEqual(patchable.filter((field) => !serverOnly.includes(field)).sort());
+    });
+
+    it('offers no override of the Netatmo gate, which only the server can enforce', () => {
+        expect('weather' in SettingsOverrideSchema.shape).toBe(false);
+        expect(SettingsOverrideSchema.parse({ weather: { useNetatmo: false } })).toEqual({});
+    });
+});
+
+describe('weather settings', () => {
+    it('defaults to using Netatmo, so nothing changes for an existing deployment', () => {
+        expect(SettingsSchema.parse({}).weather.useNetatmo).toBe(true);
+    });
+
+    it('parses an existing settings file that predates the field', () => {
+        // `data/settings.json` on the NUC has no `weather` key at all.
+        const existing = { language: 'nb', brightness: 100 };
+
+        expect(SettingsSchema.parse(existing).weather).toEqual({ useNetatmo: true });
+    });
+
+    it('is patchable on its own, without dragging in every other field', () => {
+        const parsed = SettingsPatchSchema.parse({ weather: { useNetatmo: false } });
+
+        expect(Object.keys(parsed)).toEqual(['weather']);
+        expect(parsed.weather).toEqual({ useNetatmo: false });
     });
 });

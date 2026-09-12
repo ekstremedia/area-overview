@@ -124,7 +124,23 @@ const AutoCycleSchema = z.object({
  */
 const DisabledCamerasSchema = z.array(z.string());
 
-export const patchableFieldSchemas = {
+export /**
+ * Weather data sources.
+ *
+ * An object rather than a bare `weather.useNetatmo` boolean, matching
+ * `ships`/`aircraft`, so a later weather preference needs no new
+ * top-level settings key.
+ *
+ * Deliberately NOT device-overridable (see `SettingsOverrideSchema`): the
+ * server enforces this gate, so a local override would be a control that
+ * visibly does nothing.
+ */
+const WeatherSettingsSchema = z.object({
+    /** When false, `/api/weather` serves Yr-only readings to every device, logged in or not. */
+    useNetatmo: z.boolean().default(true),
+});
+
+const patchableFieldSchemas = {
     language: z.enum(['nb', 'en']),
     homeView: HomeViewSchema,
     pollIntervalSeconds: z.number().min(10).max(600),
@@ -136,6 +152,7 @@ export const patchableFieldSchemas = {
     aircraft: AircraftSettingsSchema,
     autoCycle: AutoCycleSchema,
     disabledCameras: DisabledCamerasSchema,
+    weather: WeatherSettingsSchema,
 };
 
 /**
@@ -156,6 +173,7 @@ export const SettingsSchema = z.object({
     aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
     autoCycle: patchableFieldSchemas.autoCycle.default({ enabled: false, intervalSeconds: 180, pages: [] }),
     disabledCameras: patchableFieldSchemas.disabledCameras.default([]),
+    weather: patchableFieldSchemas.weather.default({ useNetatmo: true }),
     updatedAt: IsoTimestampSchema.default(() => new Date().toISOString()),
 });
 
@@ -180,6 +198,7 @@ export const SettingsPatchSchema = z.object({
     aircraft: patchableFieldSchemas.aircraft.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
     disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
+    weather: patchableFieldSchemas.weather.optional(),
 });
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;

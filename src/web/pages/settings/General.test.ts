@@ -23,7 +23,9 @@ describe('General section', () => {
         const dispose = mount(container, { store, loggedIn: true });
 
         expect(container.querySelector('.stepper-value')?.textContent).toBe('60 s');
-        expect(container.querySelectorAll('.toggle-row')).toHaveLength(5);
+        // Scoped to the page-toggle row: the section also carries the
+        // Netatmo toggle now, which is not one of the five pages.
+        expect(container.querySelectorAll('.settings-page-toggles .toggle-row')).toHaveLength(5);
 
         dispose();
     });

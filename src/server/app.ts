@@ -83,7 +83,20 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
 
     registerHealthzRoute(app, config);
     registerMapConfigRoute(app, config);
-    registerWeatherRoutes(app, config);
+    // Registered before the weather route because that route needs the
+    // store: the Netatmo gate reads `settings.weather.useNetatmo` and
+    // `settings.homeView` on every request, and there must be exactly one
+    // store (it owns the file and its write queue).
+    const settingsStore = registerSettingsRoutes(
+        app,
+        config,
+        options.settingsAuthFailureDelayMs === undefined ? {} : { authFailureDelayMs: options.settingsAuthFailureDelayMs },
+    );
+
+    registerWeatherRoutes(app, config, {
+        settings: settingsStore,
+        ...(options.settingsAuthFailureDelayMs === undefined ? {} : { authFailureDelayMs: options.settingsAuthFailureDelayMs }),
+    });
     registerAuroraRoutes(app, config, options.ovation === undefined ? {} : { ovation: options.ovation });
     registerTideRoutes(app, config);
     registerCameraRoutes(app, config);
@@ -114,12 +127,6 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     const trails = createTrailSupport(config, { shipsSnapshot, aircraftGate });
     registerShipsRoutes(app, config, { trails: trails.ships, snapshot: shipsSnapshot });
     registerAircraftRoutes(app, config, { trails: trails.aircraft, gate: aircraftGate });
-    registerSettingsRoutes(
-        app,
-        config,
-        options.settingsAuthFailureDelayMs === undefined ? {} : { authFailureDelayMs: options.settingsAuthFailureDelayMs },
-    );
-
     registerStaticPlugin(app);
 
     // Started once the server is up (never during `buildApp`, so a test
