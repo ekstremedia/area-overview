@@ -57,14 +57,26 @@ function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, 
     const etag = `"${createHash('sha1').update(body).digest('hex')}"`;
 
     reply.header('ETag', etag);
-    if (options.maxAgeSeconds !== undefined) {
+    if (stale) {
+        reply.header('X-Cache', 'stale');
+        // `no-cache` (store it, but revalidate before every reuse) rather
+        // than simply omitting the header. Two reasons, and the second is
+        // the subtle one:
+        //
+        // - This body is one the server has already given up on, so a
+        //   browser must come back and ask before showing it again.
+        // - A `304` below would otherwise be actively harmful. Per RFC
+        //   9111 a 304 *updates the stored response's headers*, and a
+        //   stored copy from when this route was fresh still carries the
+        //   `max-age` sent then. Saying nothing leaves that `max-age` in
+        //   place, so a revalidation that learns the data is stale would
+        //   hand the client another full freshness lifetime of it.
+        reply.header('Cache-Control', 'no-cache');
+    } else if (options.maxAgeSeconds !== undefined) {
         reply.header(
             'Cache-Control',
             `public, max-age=${String(options.maxAgeSeconds)}, stale-while-revalidate=${String(STALE_WHILE_REVALIDATE_SECONDS)}`,
         );
-    }
-    if (stale) {
-        reply.header('X-Cache', 'stale');
     }
 
     if (request.headers['if-none-match'] === etag) {
@@ -104,9 +116,6 @@ export async function serveCached<T>(
         const stale = cache.get(key);
         if (stale) {
             request.log.error({ err: error }, `upstream fetch for "${key}" failed, serving stale cache`);
-            // Deliberately no `max-age` on a stale body: this server has
-            // already given up on it being current, so letting a browser
-            // hold it without revalidating would compound the staleness.
             sendJson(reply, request, stale.value, true);
             return;
         }

@@ -59,7 +59,34 @@ describe('Cache-Control', () => {
         const stale = await app.inject({ method: 'GET', url: '/api/weather' });
 
         expect(stale.headers['x-cache']).toBe('stale');
-        expect(stale.headers['cache-control']).toBeUndefined();
+        // `no-cache`, not an absent header: a browser must ask before
+        // showing this again.
+        expect(stale.headers['cache-control']).toBe('no-cache');
+    });
+
+    it('overrides a stored max-age on the 304 path, rather than granting a stale body a fresh lifetime', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(weatherFixture));
+        vi.stubGlobal('fetch', fetchMock);
+        const app = buildTestApp({ cacheTtlMs: 10 });
+
+        // A client that already holds this exact body, from back when the
+        // route was fresh and sent `max-age`.
+        const fresh = await app.inject({ method: 'GET', url: '/api/weather' });
+        const etag = String(fresh.headers.etag);
+        expect(fresh.headers['cache-control']).toContain('max-age=');
+
+        await sleep(20);
+        fetchMock.mockRejectedValue(new Error('network down'));
+
+        const revalidated = await app.inject({ method: 'GET', url: '/api/weather', headers: { 'if-none-match': etag } });
+
+        // RFC 9111: a 304 updates the stored response's headers. Without a
+        // `Cache-Control` here, the stored `max-age` from the fresh
+        // response would survive -- so a revalidation that *learns the
+        // data is stale* would hand the client another full freshness
+        // lifetime of it.
+        expect(revalidated.statusCode).toBe(304);
+        expect(revalidated.headers['cache-control']).toBe('no-cache');
     });
 
     it('tells clients never to store settings, the one thing that changes from another device', async () => {

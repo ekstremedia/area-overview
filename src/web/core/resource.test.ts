@@ -389,3 +389,22 @@ describe('resource backoff on repeated failure', () => {
         res.dispose();
     });
 });
+
+describe('resource backoff ceiling validation', () => {
+    it('never polls a failing resource faster than a healthy one, whatever ceiling the caller passes', async () => {
+        vi.useFakeTimers();
+        for (const maxBackoffMs of [0, -1000, Number.NaN, Number.POSITIVE_INFINITY]) {
+            const fetcher = vi.fn<() => Promise<Result<string>>>().mockResolvedValue(err({ message: 'upstream down' }));
+            const res = resource(fetcher, { intervalMs: 1_000, maxBackoffMs });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(fetcher).toHaveBeenCalledTimes(1);
+
+            // A ceiling below `intervalMs` would make this fire sooner --
+            // a "backoff" that speeds up under failure.
+            await vi.advanceTimersByTimeAsync(999);
+            expect(fetcher).toHaveBeenCalledTimes(1);
+
+            res.dispose();
+        }
+    });
+});

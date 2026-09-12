@@ -84,7 +84,15 @@ export function resource<T>(fetcher: () => Promise<Result<T>>, options: Resource
      */
     function currentIntervalMs(): number {
         if (failures === 0) return options.intervalMs;
-        const ceiling = options.maxBackoffMs ?? options.intervalMs * DEFAULT_MAX_BACKOFF_FACTOR;
+        // Clamped to at least `intervalMs`: a caller passing zero, a
+        // negative, or a non-finite ceiling would otherwise make a failing
+        // resource poll *faster* than a healthy one -- the exact opposite
+        // of what a backoff is for, and a `setInterval(0)` at worst.
+        const requested = options.maxBackoffMs;
+        const ceiling =
+            requested !== undefined && Number.isFinite(requested)
+                ? Math.max(options.intervalMs, requested)
+                : options.intervalMs * DEFAULT_MAX_BACKOFF_FACTOR;
         return Math.min(ceiling, options.intervalMs * 2 ** failures);
     }
 
