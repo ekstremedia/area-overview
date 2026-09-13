@@ -124,6 +124,31 @@ export const en: Record<keyof typeof nb, string> = {
     'map.followingVessel': 'Following {name}',
     'map.stopFollowing': 'Stop following',
 
+    'map.roadKind.roadworks': 'Roadworks',
+    'map.roadKind.obstruction': 'Obstruction',
+    'map.roadKind.weather': 'Weather and road conditions',
+    'map.roadKind.accident': 'Accident',
+    'map.roadKind.ferry': 'Ferry',
+    'map.roadKind.event': 'Event',
+    'map.roadKind.management': 'Traffic management',
+    'map.roadKind.other': 'Road notice',
+
+    'map.roadEffect.roadClosed': 'Road closed',
+    'map.roadEffect.intermittentShortTermClosures': 'Short closures',
+    'map.roadEffect.laneClosures': 'Lanes closed',
+    'map.roadEffect.narrowLanes': 'Narrow lanes',
+    'map.roadEffect.contraflow': 'Contraflow',
+    'map.roadEffect.temporaryTrafficLights': 'Temporary traffic lights',
+    'map.roadEffect.trafficBeingManuallyDirected': 'Traffic directed manually',
+
+    'map.roadValidUntil': 'until {when}',
+    'map.roadValidFrom': 'from {when}',
+    'map.roadValidOpenEnded': 'until further notice',
+    'map.roadPeriodic': 'applies in periods',
+    'map.roadStatus.scheduled': 'Not active now',
+    'map.roadStatus.planned': 'Planned',
+    'map.roadSource': 'Statens vegvesen',
+
     'map.popupUpdated': 'Updated {age}',
 
     'error.staleData': 'Could not refresh · showing earlier data.',

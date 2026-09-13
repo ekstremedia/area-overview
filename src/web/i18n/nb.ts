@@ -136,6 +136,34 @@ export const nb = {
     'map.followingVessel': 'Følger {name}',
     'map.stopFollowing': 'Slutt å følge',
 
+    'map.roadKind.roadworks': 'Vegarbeid',
+    'map.roadKind.obstruction': 'Hindring',
+    'map.roadKind.weather': 'Vær og føre',
+    'map.roadKind.accident': 'Ulykke',
+    'map.roadKind.ferry': 'Ferje',
+    'map.roadKind.event': 'Arrangement',
+    'map.roadKind.management': 'Trafikkregulering',
+    'map.roadKind.other': 'Vegmelding',
+
+    'map.roadEffect.roadClosed': 'Vegen er stengt',
+    'map.roadEffect.intermittentShortTermClosures': 'Korte stengninger',
+    'map.roadEffect.laneClosures': 'Felt stengt',
+    'map.roadEffect.narrowLanes': 'Smale felt',
+    'map.roadEffect.contraflow': 'Trafikk i motgående felt',
+    'map.roadEffect.temporaryTrafficLights': 'Midlertidig lysregulering',
+    'map.roadEffect.trafficBeingManuallyDirected': 'Manuell dirigering',
+
+    'map.roadValidUntil': 'til {when}',
+    'map.roadValidFrom': 'fra {when}',
+    'map.roadValidOpenEnded': 'inntil videre',
+    'map.roadPeriodic': 'gjelder i perioder',
+    'map.roadStatus.scheduled': 'Ikke aktiv nå',
+    'map.roadStatus.planned': 'Planlagt',
+    // Shown under the description in the English UI only: the message
+    // itself stays Norwegian (NPRA's terms forbid translating it), and a
+    // source line is what makes that read as a quote rather than a bug.
+    'map.roadSource': 'Statens vegvesen',
+
     'map.popupUpdated': 'Oppdatert {age}',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',

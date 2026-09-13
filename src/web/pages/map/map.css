@@ -549,3 +549,149 @@
     border: none;
     cursor: pointer;
 }
+
+/* — road situation pin (`roads.ts`) — an `L.divIcon`, the same "circle
+   marker" mechanism `.camera-pin` and `.ship-cluster-badge` already use:
+   the icon's own footprint is the full 44px tap minimum, and the visible
+   plate inside it is smaller and centred. The plate exists because the
+   sign faces are vendored artwork with transparent corners
+   (`signs/README.md`) -- against a satellite basemap a bare triangle or
+   disc has nothing to sit on, and the ring is also where the state
+   colour goes: red closed, amber in force, grey not in force now. That
+   colour arrives inline as `--road-situation-color` from
+   `liveLayerColors.ts`, since a Leaflet path and a canvas need the same
+   literal and no design token matches it (same split as
+   `--ship-cluster-underway-color`). */
+.road-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.road-pin-plate {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: var(--color-bg);
+    box-shadow:
+        0 0 0 2px var(--road-situation-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* 26px inside a 32px plate: the sign has to keep a little air around it,
+   or the plate's coloured ring reads as part of the sign's own border. */
+.road-pin-sign,
+.road-pin-sign svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+}
+
+/* — road situation popup — shares the dark card treatment the ship and
+   aircraft popups use, under its own wrapper class so the two can drift
+   apart without touching each other (`bindPopup`'s `className`). */
+.road-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.road-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.road-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.road-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    /* Wide enough for a Vegvesen message to break at words rather than
+       mid-name, narrow enough to leave the 1024x600 kiosk a map around
+       it. */
+    min-width: 230px;
+    max-width: 300px;
+}
+
+.road-popup-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* The same sign face as the pin, at the size the plan asks for where
+   there is room: big enough here to be recognised as the sign it is
+   rather than inferred from the colour. */
+.road-popup-sign,
+.road-popup-sign svg {
+    width: 48px;
+    height: 48px;
+    display: block;
+    flex: none;
+}
+
+.road-popup-heading {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.road-popup-kind {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+    color: var(--road-situation-color);
+}
+
+.road-popup-where {
+    color: var(--color-muted);
+}
+
+/* Vegvesen's own Norwegian text, verbatim in both UI languages (NPRA's
+   terms forbid translating it). `pre-line` because upstream's `|` line
+   breaks survive the server mapper as real newlines and are part of how
+   the message reads. */
+.road-popup-description {
+    margin: 4px 0 0;
+    white-space: pre-line;
+}
+
+/* Only rendered in the English UI, where the paragraph above is the one
+   thing on screen that did not switch language. */
+.road-popup-source {
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
+.road-popup-effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.road-popup-effect {
+    padding: 2px 6px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--color-text);
+}
+
+.road-popup-validity,
+.road-popup-status,
+.road-popup-updated {
+    color: var(--color-muted);
+    font-size: 13px;
+}

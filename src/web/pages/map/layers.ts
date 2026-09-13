@@ -16,6 +16,7 @@ import { t } from '../../i18n/index.js';
 import type { LayerCounts, LiveLayerItem, PageStatus } from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
 import { followTarget, stopFollowing } from './follow.js';
+import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
 
 /** A layer's mount function: given the map, start whatever it needs and return its own disposer. */
@@ -27,6 +28,25 @@ export function registerMapLayer(map: Leaflet.Map, mount: MapLayerMount): () => 
 }
 
 type LayerId = keyof LayerCounts;
+
+/**
+ * Every layer that reports through this registry -- which is now one
+ * more than `LayerCounts` has slots for.
+ *
+ * `LayerCounts` still enumerates the `{ships, aircraft}` pair by hand,
+ * and re-keying it (and `LiveLayerListing`, and the masthead that reads
+ * both) by a group id is Phase E of the roads plan, not this one. Until
+ * then the roads layer's attribution reaches the footer and its
+ * count/items are accepted and held here without a masthead slot to go
+ * into -- deliberately the minimum that compiles, not a second counting
+ * mechanism to unpick later.
+ */
+type ReportingLayerId = LayerId | 'roads';
+
+/** `true` for the ids `LayerCounts` actually has a slot for. Phase E deletes this along with the hand-enumerated pair. */
+function hasCountSlot(id: ReportingLayerId): id is LayerId {
+    return id !== 'roads';
+}
 
 /**
  * The chip that appears over the map while a vessel is being followed:
@@ -96,11 +116,11 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
     // is going away, so teardown says nothing at all.
     let disposed = false;
     const counts: LayerCounts = { ships: 0, aircraft: 0, hiddenByAge: 0 };
-    const attributions = new Map<LayerId, string>();
+    const attributions = new Map<ReportingLayerId, string>();
     // Per-layer, so one layer's report never clobbers the other's share of
     // the single combined figure the masthead shows.
-    const hiddenByAge = new Map<LayerId, number>();
-    const items = new Map<LayerId, LiveLayerItem[]>();
+    const hiddenByAge = new Map<ReportingLayerId, number>();
+    const items = new Map<ReportingLayerId, LiveLayerItem[]>();
 
     /**
      * Zoomed in far enough that the vessel fills the view rather than
@@ -120,28 +140,38 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         });
     }
 
-    function reportItems(id: LayerId, next: readonly LiveLayerItem[]): void {
+    function reportItems(id: ReportingLayerId, next: readonly LiveLayerItem[]): void {
         if (disposed) return;
         items.set(id, [...next]);
         publishListing();
     }
 
-    function reportCount(id: LayerId, count: number, hidden: number): void {
+    function reportCount(id: ReportingLayerId, count: number, hidden: number): void {
         if (disposed) return;
-        counts[id] = count;
+        // Roads has no slot in `LayerCounts` yet (see `ReportingLayerId`),
+        // and no age filter either, so its `0` hidden changes nothing.
+        if (hasCountSlot(id)) counts[id] = count;
         hiddenByAge.set(id, hidden);
         counts.hiddenByAge = [...hiddenByAge.values()].reduce((total, value) => total + value, 0);
         status.layerCounts({ ...counts });
     }
 
-    function reportAttribution(id: LayerId, text: string | undefined): void {
+    /**
+     * De-duplicated **by text**, not just by layer id: the roads layer's
+     * situations and its road cameras (Phase D) are both "Data: Statens
+     * vegvesen", and a footer naming the same operator twice reads as a
+     * bug in the footer. A `Set` over the values keeps first-registered
+     * order, which is the order the layers mount in.
+     */
+    function reportAttribution(id: ReportingLayerId, text: string | undefined): void {
         if (disposed) return;
         if (text === undefined) {
             attributions.delete(id);
         } else {
             attributions.set(id, text);
         }
-        status.attribution(attributions.size === 0 ? null : [...attributions.values()].join(' · '));
+        const unique = [...new Set(attributions.values())];
+        status.attribution(unique.length === 0 ? null : unique.join(' · '));
     }
 
     status.layerCounts({ ...counts });
@@ -176,6 +206,20 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeRoads = registerMapLayer(map, (m) =>
+        mountRoadsLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('roads', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('roads', text);
+            },
+            reportItems: (next) => {
+                reportItems('roads', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -186,5 +230,6 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeFollowChip();
         disposeShips();
         disposeAircraft();
+        disposeRoads();
     };
 }
