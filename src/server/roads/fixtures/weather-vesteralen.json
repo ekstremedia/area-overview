@@ -11,13 +11,13 @@
             "properties": {
                 "REFERENCE_ID": "3000420",
                 "LOCATION_DESCRIPTION": "Tjeldsundbrua øst",
-                "MEASUREMENT_TIME": "2026-09-13T11:50:00+02:00",
-                "AIR_TEMPERATURE": 4.5,
-                "ROAD_SURFACE_TEMPERATURE": 6.1,
-                "WIND_SPEED": 55.0,
-                "MAXIMUM_WIND_SPEED": 62.0,
+                "MEASUREMENT_TIME": "2026-09-13T20:30:00+02:00",
+                "AIR_TEMPERATURE": 9.2,
+                "ROAD_SURFACE_TEMPERATURE": 7.8,
+                "WIND_SPEED": 14.8,
+                "MAXIMUM_WIND_SPEED": 54.4,
                 "WIND_DIRECTION_COMPASS": null,
-                "PRECIPITATION_INTENSITY": 0.4,
+                "PRECIPITATION_INTENSITY": 0.0,
                 "PRECIPITATION_TYPE": null,
                 "DEPTH_OF_SNOW": null
             }

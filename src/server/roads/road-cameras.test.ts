@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RoadCameraSchema, RoadCameraSiteWeatherSchema } from '../../shared/schemas/road-cameras.js';
+import { RoadCameraSchema, RoadCameraSiteWeatherSchema, type RoadCameraSiteWeather } from '../../shared/schemas/road-cameras.js';
 import type { Bbox } from '../layers/bbox.js';
 import { createOutboundGate } from '../outbound-gate.js';
 import cctvFixture from './fixtures/cctv-vesteralen.json' with { type: 'json' };
@@ -127,15 +127,19 @@ describe('mapSiteWeather', () => {
         expect(weatherBySite['3000905']).toBeUndefined();
     });
 
-    it(`passes a believable wind reading through and discards one above ${String(MAX_PLAUSIBLE_WIND_MPS)} m/s`, () => {
+    it('drops a gust that is nearly four times its own mean, and keeps the mean', () => {
         const tjeldsundbrua = weatherBySite['3000420'];
 
-        // The 55 m/s outlier actually observed is implausible but within
-        // what a Norwegian station could record, so it is shown; the 62
-        // is past every wind speed ever measured on the mainland and is
-        // not believed.
-        expect(tjeldsundbrua?.windSpeed).toBe(55);
+        // Real data, fetched through this route on 2026-09-13: a 54.4 m/s
+        // gust (196 km/h) against a 14.8 m/s mean on a 9 °C September
+        // evening -- a gust factor of 3.7 where the weather produces
+        // 1.3-1.6. Under a 60 m/s cutoff alone it went onto the wall
+        // display as a hurricane.
+        expect(tjeldsundbrua?.windSpeed).toBe(14.8);
         expect(tjeldsundbrua?.windGust).toBeNull();
+        // The mean is a separate measurement and is not suspect: it is
+        // the gust the ratio test disbelieves.
+        expect(tjeldsundbrua?.airTemperature).toBe(9.2);
     });
 
     it('carries nulls as nulls, never as zeroes', () => {
@@ -151,6 +155,72 @@ describe('mapSiteWeather', () => {
         for (const reading of Object.values(weatherBySite)) {
             expect(() => RoadCameraSiteWeatherSchema.parse(reading)).not.toThrow();
         }
+    });
+});
+
+/** One station's readings, for the wind cases that are easier to state directly than to encode in a fixture. */
+function stationWeather(readings: { windSpeed?: number | null; windGust?: number | null }): RoadCameraSiteWeather | undefined {
+    const features: RawFeature[] = [
+        {
+            geometry: { type: 'Point', coordinates: [16.1, 68.5] },
+            properties: {
+                REFERENCE_ID: '3000001',
+                MEASUREMENT_TIME: '2026-09-13T20:30:00+02:00',
+                AIR_TEMPERATURE: 9.2,
+                ROAD_SURFACE_TEMPERATURE: 7.8,
+                WIND_SPEED: readings.windSpeed ?? null,
+                MAXIMUM_WIND_SPEED: readings.windGust ?? null,
+                PRECIPITATION_INTENSITY: 0,
+            },
+        },
+    ];
+    return mapSiteWeather(features, new Set(['3000001']))['3000001'];
+}
+
+describe('mapSiteWeather -- what a wind reading has to be believed', () => {
+    it(`refuses either reading above ${String(MAX_PLAUSIBLE_WIND_MPS)} m/s, whatever the other one says`, () => {
+        // 62 against a 40 mean is a perfectly ordinary gust factor of
+        // 1.55 -- and still past every wind speed ever recorded on the
+        // Norwegian mainland, so the absolute cap fires on its own.
+        expect(stationWeather({ windSpeed: 40, windGust: 62 })?.windGust).toBeNull();
+        expect(stationWeather({ windSpeed: 40, windGust: 62 })?.windSpeed).toBe(40);
+        expect(stationWeather({ windSpeed: 61, windGust: null })?.windSpeed).toBeNull();
+    });
+
+    it('keeps a real storm intact', () => {
+        // 28 m/s mean with a 41 m/s gust is 1.5x: a severe gale off the
+        // Vesterålen coast, and exactly the night this display exists
+        // for. If a future tightening of the ratio breaks this, it should
+        // break loudly.
+        const storm = stationWeather({ windSpeed: 28, windGust: 41 });
+
+        expect(storm?.windSpeed).toBe(28);
+        expect(storm?.windGust).toBe(41);
+    });
+
+    it('keeps a gust from a station that reports no mean at all', () => {
+        // Wind is null on roughly 200 of the 464 stations. With nothing
+        // to take a ratio against, the gust keeps the absolute cap and
+        // nothing more -- a missing mean is not evidence against it.
+        expect(stationWeather({ windSpeed: null, windGust: 30 })?.windGust).toBe(30);
+        expect(stationWeather({ windSpeed: null, windGust: 62 })?.windGust).toBeNull();
+    });
+
+    it('does not apply the ratio in near-calm air', () => {
+        // 4 m/s off the fjord against a 0.5 m/s mean is an ordinary
+        // afternoon, not a fault, and a ratio test at this resolution
+        // measures rounding rather than wind. A mean of exactly zero is
+        // the same case, and must not divide.
+        expect(stationWeather({ windSpeed: 0.5, windGust: 4 })?.windGust).toBe(4);
+        expect(stationWeather({ windSpeed: 0, windGust: 3 })?.windGust).toBe(3);
+    });
+
+    it(`applies the ratio once the mean is worth dividing by`, () => {
+        // Just above the floor: 2 m/s mean, and the gust judged at 1.8x.
+        expect(stationWeather({ windSpeed: 2, windGust: 3.5 })?.windGust).toBe(3.5);
+        expect(stationWeather({ windSpeed: 2, windGust: 3.7 })?.windGust).toBeNull();
+        expect(stationWeather({ windSpeed: 10, windGust: 18 })?.windGust).toBe(18);
+        expect(stationWeather({ windSpeed: 10, windGust: 18.1 })?.windGust).toBeNull();
     });
 });
 

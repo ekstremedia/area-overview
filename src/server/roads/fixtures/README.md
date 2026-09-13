@@ -94,9 +94,18 @@ and NPRA_1011, the two open-ended situations.
 
 `weather-vesteralen.json` -- 5 stations:
 
-- **3000420** carries `WIND_SPEED: 55` (the outlier actually observed) and
-  `MAXIMUM_WIND_SPEED: 62`. The rule is "above 60 m/s is not believed", so 55
-  is passed through and 62 becomes `null`.
+- **3000420** carries `WIND_SPEED: 14.8` with `MAXIMUM_WIND_SPEED: 54.4`,
+  at 9.2 °C. **These are real numbers**, not invented: station 1800428
+  reported exactly this through this route at 20:30 on 2026-09-13. A
+  54.4 m/s gust is 196 km/h, against a measured mean of 14.8 -- a gust
+  factor of 3.7 where real weather produces 1.3-1.6, on a calm September
+  evening. It is a sensor artifact, and it sits comfortably under the
+  60 m/s absolute cap, which is why `road-cameras.ts` also judges a gust
+  against its own mean (`MAX_PLAUSIBLE_GUST_RATIO`). Here the gust
+  becomes `null` and the 14.8 mean is served as measured.
+  The cases the ratio must _not_ touch -- a real 28/41 storm, a gust from
+  a station with no mean, near-calm air -- are asserted directly in
+  `../road-cameras.test.ts` rather than through this fixture.
 - **3000957** Hadselbrua: nulls where the station measures nothing.
 - **3000700** Raftsundet: a full set of readings for the site whose only
   camera is faulted -- it must not reach the response.

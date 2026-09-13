@@ -36,17 +36,52 @@ import { CCTV_TYPE_NAME, fetchFeatures, WEATHER_TYPE_NAME, type RawFeature } fro
 export const ROAD_CAMERA_IMAGE_HOST = 'kamera.atlas.vegvesen.no';
 
 /**
- * Above this, a wind reading is not believed.
+ * Above this, a wind reading is not believed at all -- the absolute
+ * backstop, applied to the mean and the gust alike.
  *
  * The WFS does not document its wind unit; Datex II says m/s and the
- * medians (2.5 and 4.4) agree, but one station was seen reporting 55 --
- * hurricane force, on a day that was not. Rather than guess which
- * sensor lies, anything beyond what a Norwegian road station could
- * plausibly measure is treated as missing, and a missing reading is
- * simply omitted from the display. 60 m/s is past every wind speed ever
- * recorded on the Norwegian mainland, so nothing real is discarded.
+ * medians (2.5 and 4.4) agree. 60 m/s is past every wind speed ever
+ * recorded on the Norwegian mainland, so a reading beyond it is a broken
+ * sensor rather than weather, and nothing real is discarded by refusing
+ * it. A refused reading is omitted from the display, never shown as a
+ * dash or a zero.
  */
 export const MAX_PLAUSIBLE_WIND_MPS = 60;
+
+/**
+ * How far above the mean wind speed a gust may claim to be before it is
+ * treated as a sensor artifact rather than a gust.
+ *
+ * The absolute cap alone is not enough, and that is measured, not
+ * supposed: station 1800428 reported a 54.4 m/s gust (196 km/h) against
+ * a 14.8 m/s mean at 20:30 on a 9 °C September evening -- a gust factor
+ * of 3.7. Real gust factors over open terrain sit around 1.3-1.6, and
+ * even a violent squall does not reach 3x the ten-minute mean. That
+ * reading sailed straight under a 60 m/s cutoff and onto the wall
+ * display as a hurricane.
+ *
+ * So when there is a mean to compare against, the gust is checked
+ * against it. 1.8 leaves real gustiness a wide margin above the 1.6 a
+ * rough site actually produces, while catching the artifacts, which miss
+ * by a factor of two rather than by a few per cent. This app would
+ * rather show one honest number than two where one is a lie.
+ */
+export const MAX_PLAUSIBLE_GUST_RATIO = 1.8;
+
+/**
+ * The mean wind speed below which the ratio test is not applied.
+ *
+ * Two reasons, and neither is the division by zero (though that is real
+ * too, and a calm station reporting exactly 0 is common). First, a
+ * genuine gust factor *is* large in light air: 4 m/s off a fjord against
+ * a 1 m/s mean is an ordinary afternoon, not a fault, and a ratio test
+ * there would throw away good data on every calm day. Second, a mean
+ * this small is at the resolution limit of the instrument, so the ratio
+ * it produces says more about rounding than about the wind. Below the
+ * floor, only the absolute cap applies -- and at these speeds a gust
+ * that is wrong is not a gust anyone would act on anyway.
+ */
+export const MIN_MEAN_FOR_GUST_RATIO_MPS = 2;
 
 const NumericSchema = z.union([z.number(), z.string()]).nullish();
 
@@ -181,6 +216,25 @@ function windReading(value: number | null): number | null {
 }
 
 /**
+ * A gust reading, judged against the mean it is supposed to be a gust
+ * of.
+ *
+ * The absolute cap first, then the ratio -- and the ratio only when
+ * there is a mean worth dividing by. Wind is null on roughly 200 of the
+ * 464 stations, and a gust from a station that reports no mean is not
+ * suspect for that reason alone, so it keeps the cap and nothing more.
+ *
+ * The mean is never dropped when its gust is: the two are separate
+ * measurements, and the one this test finds implausible is the gust.
+ */
+function gustReading(gust: number | null, mean: number | null): number | null {
+    const capped = windReading(gust);
+    if (capped === null) return null;
+    if (mean === null || mean < MIN_MEAN_FOR_GUST_RATIO_MPS) return capped;
+    return capped > mean * MAX_PLAUSIBLE_GUST_RATIO ? null : capped;
+}
+
+/**
  * Maps the `WeatherSimple_v2` features onto readings keyed by the camera
  * site they belong to, keeping only the stations `siteIds` actually has
  * cameras for.
@@ -205,12 +259,16 @@ export function mapSiteWeather(features: readonly RawFeature[], siteIds: Readonl
         // picture.
         if (props.MEASUREMENT_TIME == null) continue;
 
+        // The mean is judged on its own; the gust is judged against the
+        // mean that survived, so a mean the cap refused cannot drag a
+        // plausible gust down with it.
+        const windSpeed = windReading(asNumber(props.WIND_SPEED));
         const candidate = {
             measuredAt: props.MEASUREMENT_TIME,
             airTemperature: asNumber(props.AIR_TEMPERATURE),
             roadTemperature: asNumber(props.ROAD_SURFACE_TEMPERATURE),
-            windSpeed: windReading(asNumber(props.WIND_SPEED)),
-            windGust: windReading(asNumber(props.MAXIMUM_WIND_SPEED)),
+            windSpeed,
+            windGust: gustReading(asNumber(props.MAXIMUM_WIND_SPEED), windSpeed),
             precipitationIntensity: asNumber(props.PRECIPITATION_INTENSITY),
         };
 
