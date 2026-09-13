@@ -37,7 +37,9 @@ merged with ~570 passing unit tests. None of these were caught by that test
 suite — happy-dom doesn't do real layout, and mocked fetch/fixtures don't
 capture what a real upstream actually sends. **A periodic sweep against a
 real browser and real live data is not optional polish; it is the only thing
-that has ever caught this class of bug here.**
+that has ever caught this class of bug here.** The last three entries were
+added in phase 12 and found the same way, by probing the real service
+instead of believing its documentation.
 
 - **CSS percentage-height chains break silently under flex.** For a
   descendant's `height: 100%` to resolve, every ancestor up to `html` needs a
@@ -73,3 +75,41 @@ image/png` -- it's just watermarked "API key required" in the pixels. A
   status-code check (or an inattentive glance) would never catch this; only
   diffing the actual image bytes against a keyed request did. See
   `src/web/pages/map/tiles.ts` and ADR 0003.
+- **A WFS `bbox` is longitude-first, and getting it wrong returns `200` with
+  nothing in it.** The WFS specification suggests a lat-first axis order for
+  EPSG:4326, and Statens vegvesen's GeoServer wants
+  `minLng,minLat,maxLng,maxLat,EPSG:4326` -- the same order this app's own
+  `?bbox=` uses. Hand it the spec's order and it does not complain: it
+  matches _nothing_, 0 features where the correct order returns 54 for the
+  same Vesterålen box. That failure is invisible by construction, because an
+  empty road-notice list looks exactly like "nothing is happening on the
+  roads", which is a perfectly plausible answer most of the time. Only
+  `src/server/roads/vegvesen-wfs.ts` builds the parameter, and
+  `vegvesen-wfs.test.ts` asserts the literal string it produces. Output
+  coordinates are ordinary GeoJSON `[lng, lat]`, swapped to Leaflet's
+  `[lat, lng]` once, in `roads/situations.ts`.
+- **An upstream flag named `ACTIVE` did not mean "happening now".** On
+  `datex_3_1:SituationSimple_v2` it is `1` only for a situation that _has_
+  validity periods (`NUM_PERIODS > 0`, e.g. "08:00-21:00 weekdays") and is
+  inside one at this moment. A situation with no periods at all is never
+  `ACTIVE`, however live it is: 997 probed situations sat inside their own
+  `START_TIME..END_TIME` window carrying `ACTIVE=0`, and the wind warnings
+  on Tjeldsundbrua were among them. Filtering on the obvious-looking flag
+  would have dropped exactly the notices a wall display exists to show, and
+  left a map that looked healthy. "Current" is instead computed from the
+  timestamps, with `ACTIVE` consulted only when there are periods
+  (`classifySituation` in `src/server/roads/situations.ts`). See also
+  ADR 0004.
+- **A hand-authored fixture can only test the field name its author
+  guessed.** Three upstream attribute names were written into the phase plan
+  from memory and into fixtures from the plan: `LOCATION_DESCRIPTOR` for
+  what is really `LOCATION_DESCRIPTION`, `MAX_WIND_SPEED` for
+  `MAXIMUM_WIND_SPEED`, and a main-record flag assumed not to exist at all
+  when upstream in fact publishes `IS_MAIN_RECORD`. Every test built on
+  those fixtures passed, because the fixtures agreed with the code about a
+  name the service has never used -- in production those fields would simply
+  have been `null`, so road notices would have had no place name and every
+  wind gust would have been missing. One `DescribeFeatureType` call settled
+  all three. Capture fixtures from the real service, or at minimum check the
+  field list against it before writing a schema; this is the same lesson as
+  the nullability entry above, one step earlier.

@@ -6,7 +6,12 @@ infrastructure detail beyond the public hostname `area.nesthus.no`.
 
 ## Frontend pages
 
-The app has six pages: map, weather, aurora, tide, cameras, and settings.
+The app has five pages in its navigation: map, weather, aurora, tide, and
+settings. A sixth, the camera viewer for the site owner's own webcams, is
+dormant rather than removed: the page and its route still exist and still
+resolve, but nothing links to them and the map draws no camera pins (see
+`docs/adr/0004-vegvesen-layers-and-dormant-cameras.md`). Vegvesen's road
+cameras, added in phase 12, are a separate thing and live on the map.
 
 ## Phases
 
@@ -22,3 +27,4 @@ The app has six pages: map, weather, aurora, tide, cameras, and settings.
 - Phase 9: The settings page (autosave, no save button)
 - Phase 10: Publish at area.nesthus.no
 - Phase 11: The Pi kiosk
+- Phase 12: The Veg layer: road situations and road cameras (Statens vegvesen)

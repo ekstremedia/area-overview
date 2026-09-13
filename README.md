@@ -1,8 +1,8 @@
 # area-overview
 
 A kiosk dashboard for one stretch of coast: a live map of the ships and
-aircraft passing through it, plus weather, aurora, tide and webcam pages
-that cycle on their own on a wall display.
+aircraft passing through it and of what is happening on its roads, plus
+weather, aurora and tide pages that cycle on their own on a wall display.
 
 The frontend is vanilla TypeScript -- no framework, its own small reactive
 primitives -- built with Vite, with Leaflet for the map. Behind it sits a
@@ -84,6 +84,17 @@ brings the stack up. The `Makefile` has the rest (`build`, `up`, `down`,
 Hostname, DNS and certificate setup -- the parts that need a human -- are in
 `deploy/manual-steps.md`.
 
-## Licence
+## Licence and attribution
 
 MIT.
+
+The road notices, road cameras and traffic-sign artwork on the map come
+from Statens vegvesen under NLOD, which requires attribution:
+
+> Inneholder data under norsk lisens for offentlige data (NLOD)
+> tilgjengeliggjort av Statens vegvesen.
+
+The sign faces are vendored in `src/web/pages/map/signs/`; that
+directory's `README.md` records where they came from, what was changed
+and why they are only ever drawn small. The map footer carries the short
+form, `Data: Statens vegvesen`.
