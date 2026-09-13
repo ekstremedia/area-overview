@@ -23,14 +23,16 @@ decisions.
 ## Requirements
 
 - Node 22 or newer, and npm.
-- Optional upstream credentials, all set in `.env`. Without them the app
+- Optional provider credentials, all set in `.env`. Without them the app
   runs and those pages simply report that they are not configured:
     - `BARENTSWATCH_CLIENT_ID` / `_SECRET` -- AIS ship positions.
     - `OPENSKY_CLIENT_ID` / `_SECRET` -- aircraft, if `ADSB_PROVIDER=opensky`;
       the default `adsblol` needs no credentials.
     - `CARTO_API_KEY` -- unwatermarked dark basemap tiles.
-- `SETTINGS_PASSWORD` (at least 16 characters) is required to open the
-  in-app settings page.
+    - Statens vegvesen's road data is keyless; nothing to set.
+- `SETTINGS_PASSWORD` (at least 16 characters) is required -- the BFF
+  refuses to start without it. It is the one passphrase that authorises
+  edits from the settings page; reading is public.
 
 ## Setup
 

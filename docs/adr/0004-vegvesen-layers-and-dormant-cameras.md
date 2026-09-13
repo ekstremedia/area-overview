@@ -110,7 +110,7 @@ that directory's `README.md`, and the map footer carries the short form
 
 **Camera stills are hotlinked, never proxied.** The browser fetches
 `https://kamera.atlas.vegvesen.no/api/images/<id>` itself, as it already
-does for the basemap tiles and NOAA's aurora oval; the BFF never moves
+does for the basemap tiles and NOAA's aurora-oval image; the BFF never moves
 image bytes. The host is asserted server-side, so a future upstream change
 cannot quietly make this app hotlink somewhere else.
 

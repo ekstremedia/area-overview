@@ -12,7 +12,7 @@
 # cage+start-kiosk.sh+chromium stack together -- including a fresh healthz
 # wait. That is deliberately the restart boundary: restarting cage and
 # Chromium as one unit is simpler than an inner restart loop here, and the
-# plan's "restarts Chromium if it exits" requirement doesn't need anything
+# requirement -- Chromium comes back if it exits -- doesn't need anything
 # finer-grained than that.
 #
 # Never put the settings password here, in an env var, on the Chromium

@@ -4,7 +4,7 @@ import situationsFixture from '../roads/fixtures/situations-vesteralen.json' wit
 import { SITUATION_RECORD_LIMIT } from '../roads/vegvesen-wfs.js';
 import { buildTestApp, jsonResponse, sleep } from './test-helpers.js';
 
-/** The Vesterålen viewport from the plan's probe commands. */
+/** The Vesterålen viewport from the "Re-probing" commands in `roads/fixtures/README.md`. */
 const VALID_BBOX = 'bbox=14.5,68.35,16.5,69.05';
 
 /**

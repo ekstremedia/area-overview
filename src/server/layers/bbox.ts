@@ -3,8 +3,8 @@
  * (`ships.ts`, `aircraft.ts`, and any future one) that takes a
  * `?bbox=` viewport query parameter.
  *
- * Query format is the conventional GIS ordering the plan's own example
- * uses -- `minLng,minLat,maxLng,maxLat` (e.g. `14.5,68.3,16.5,69.1`) --
+ * Query format is the conventional GIS ordering
+ * `minLng,minLat,maxLng,maxLat` (e.g. `14.5,68.3,16.5,69.1`) --
  * even though `Bbox` itself is stored/returned as
  * `{minLat,minLng,maxLat,maxLng}` for readability at every other call
  * site in this module.

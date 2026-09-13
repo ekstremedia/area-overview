@@ -1,8 +1,8 @@
 /**
  * A tiny in-memory, `Map`-backed TTL cache. There is no persistence and no
- * eviction beyond overwrite-on-`set` -- this is intentional for phase 2
- * (see the plan's non-goals): a restart clears everything, which is fine
- * for data this short-lived.
+ * eviction beyond overwrite-on-`set` -- this is intentional for phase 2,
+ * where persistence and real eviction are explicit non-goals: a restart
+ * clears everything, which is fine for data this short-lived.
  *
  * Two behaviours routes depend on:
  *

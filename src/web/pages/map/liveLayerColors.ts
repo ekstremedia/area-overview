@@ -8,7 +8,7 @@
  * exactly, and must be kept in sync by hand if those tokens ever change.
  *
  * The 400 step specifically (the dark-edition resolved accent, not 500,
- * the light-edition default) is the exact pair the plan names for these
+ * the light-edition default) is the exact pair chosen for these
  * glyphs; it is not conditioned on the shell's current light/dark theme
  * here (unlike `tiles.ts`'s tile choice), since a single fixed, always-
  * legible glyph colour against the map's photographic tiles is simpler

@@ -48,7 +48,7 @@ The tile layer under everything else, chosen by theme.
 _Avoid_: tiles, background, basemap
 
 **Live layer**:
-A set of moving markers on the map fed by a polled bbox query to the BFF,
+A set of markers on the map fed by a polled bbox query to the BFF,
 with its own settings block, attribution and on/off toggle.
 _Avoid_: overlay, feature, plugin, data layer
 
@@ -143,6 +143,7 @@ Never locks by itself.
 _Avoid_: unlocked, admin, authenticated session
 
 **Provider credentials**:
-Secrets the BFF uses to talk to a provider (BarentsWatch client id/secret).
-Never leave the server.
+Secrets the BFF uses to talk to a provider (BarentsWatch client id/secret;
+OpenSky client id/secret when that ADS-B provider is chosen). Never leave the
+server.
 _Avoid_: token, API key

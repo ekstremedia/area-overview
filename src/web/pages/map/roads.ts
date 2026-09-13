@@ -164,10 +164,10 @@ function formatMoment(iso: string): string {
  *
  * A `planned` situation says when it *starts* instead -- "fra 15. sep
  * 08:00" -- since that is the question its pin raises. Note what is
- * missing: the plan asked for "gyldig 08:30-21:00" for a periodic
+ * missing: a "gyldig 08:30-21:00" line was the intent for a periodic
  * situation, but `RoadSituationSchema` carries only `periodic: boolean`,
  * not the period clock times, so the daily hours cannot be shown without
- * a contract change (Phase A is committed and reviewed). The periodic
+ * a contract change. The periodic
  * case says that it applies in periods, and leaves the hours to the
  * description, which is where upstream writes them anyway.
  */

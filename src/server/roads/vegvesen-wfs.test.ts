@@ -5,7 +5,7 @@ import situationsFixture from './fixtures/situations-vesteralen.json' with { typ
 import { mapSituations } from './situations.js';
 import { fetchFeatures, SITUATION_QUERY_EXTRA, SITUATIONS_TYPE_NAME, VEGVESEN_WFS_URL, wfsQuery } from './vegvesen-wfs.js';
 
-/** The Vesterålen box from the plan's probe commands -- 54 records, 26 situations, 0.2s. */
+/** The Vesterålen box from `fixtures/README.md`'s "Re-probing" commands -- 54 records, 26 situations, 0.2s. */
 const VESTERALEN: Bbox = { minLng: 14.5, minLat: 68.35, maxLng: 16.5, maxLat: 69.05 };
 
 function jsonResponse(body: unknown, status = 200): Response {

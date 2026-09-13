@@ -14,9 +14,9 @@ GeoServer at `https://ogckart-sn1.atlas.vegvesen.no/ows`:
 Unlike `../../aircraft/fixtures/adsb-lol-live.json`, nothing here came off
 the wire: every **value** is written by hand. The **attribute names** are
 not guesses, though -- all three layers were run through
-`DescribeFeatureType` on 2026-09-13 (the command is in
-`plans/Vegvesend.md`'s appendix), and every name used here and in the code
-that reads it comes from that output. Notably:
+`DescribeFeatureType` on 2026-09-13 (the command is under "Re-probing"
+below), and every name used here and in the code that reads it comes from
+that output. Notably:
 
 - The situations layer really does carry **`IS_MAIN_RECORD`**, so
   main-versus-consequence is upstream's own statement rather than
@@ -117,6 +117,24 @@ and NPRA_1011, the two open-ended situations.
 
 ## Re-probing
 
-The commands are in `plans/Vegvesend.md`'s appendix. Note the trap they
-encode: `bbox` is `minLng,minLat,maxLng,maxLat,EPSG:4326`, and the other
-axis order returns an empty, entirely valid-looking answer.
+Note the trap these commands encode: `bbox` is
+`minLng,minLat,maxLng,maxLat,EPSG:4326`, and the other axis order returns
+an empty, entirely valid-looking answer.
+
+```sh
+# The datex_3_1 feature types this GeoServer offers (GetCapabilities is ~528 KB)
+curl -s 'https://ogckart-sn1.atlas.vegvesen.no/ows?service=wfs&version=2.0.0&request=GetCapabilities' \
+  | grep -oE '<Name>datex_3_1:[^<]+' | sort -u
+
+# Field list for a layer (swap typeNames for CctvSimple_v2 / WeatherSimple_v2)
+curl -s 'https://ogckart-sn1.atlas.vegvesen.no/ows?service=wfs&version=2.0.0&request=DescribeFeatureType&typeNames=datex_3_1:SituationSimple_v2'
+
+# Vesterålen situations as GeoJSON -- note the lng,lat bbox order
+curl -s 'https://ogckart-sn1.atlas.vegvesen.no/ows?service=wfs&version=2.0.0&request=GetFeature&typeNames=datex_3_1:SituationSimple_v2&outputFormat=application/json&srsName=EPSG:4326&bbox=14.5,68.35,16.5,69.05,EPSG:4326' -o situations.json
+
+# Hit count only, no bodies
+curl -s 'https://ogckart-sn1.atlas.vegvesen.no/ows?service=wfs&version=2.0.0&request=GetFeature&typeNames=datex_3_1:SituationSimple_v2&resultType=hits&bbox=14.5,68.35,16.5,69.05,EPSG:4326' | grep -oE 'numberMatched="[^"]+"'
+
+# A still image, keyless
+curl -sI https://kamera.atlas.vegvesen.no/api/images/3000957_1
+```

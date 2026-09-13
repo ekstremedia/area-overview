@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "type": "module",
-    "description": "Reactive vanilla-TypeScript live map and weather/aurora/tide/camera overview, with a Fastify BFF in front of nesthus.no.",
+    "description": "Kiosk dashboard for one stretch of coast: a live map of ships, aircraft and road situations, plus weather, aurora and tide pages, behind a Fastify BFF in front of nesthus.no.",
     "scripts": {
         "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
         "dev:server": "tsx watch src/server/index.ts",
