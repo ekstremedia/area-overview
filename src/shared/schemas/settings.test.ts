@@ -10,7 +10,11 @@ describe('SettingsSchema', () => {
             homeView: { lat: 68.6984, lng: 15.4129, zoom: 11 },
             placements: {},
             pollIntervalSeconds: 30,
-            enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'],
+            // No 'cameras': Terje's own cameras are dormant, so a display
+            // with no settings file yet never shows that tab. The page id
+            // itself is still valid -- see the "existing settings.json"
+            // case below.
+            enabledPages: ['map', 'weather', 'aurora', 'tide'],
             idleResetSeconds: 300,
             night: { enabled: false, from: '23:00', to: '06:00', mode: 'dim' },
             brightness: 100,
@@ -29,6 +33,34 @@ describe('SettingsSchema', () => {
     it('accepts a settings object with an extra unknown field', () => {
         const result = SettingsSchema.safeParse({ unexpectedNewField: 'value' });
         expect(result.success).toBe(true);
+    });
+
+    /**
+     * The compatibility half of "cameras go dormant": nothing was
+     * deleted, so `data/settings.json` as it stands on the NUC today --
+     * `'cameras'` among `enabledPages`, two `placements` -- must keep
+     * parsing unchanged. Only the *default* dropped the page (see the
+     * defaults test above); `PageIdSchema` still accepts it, and the
+     * placements ride along untouched, so flipping the flag back brings
+     * the display's own settings with it.
+     */
+    it('parses an existing settings file that still enables the cameras page and carries placements', () => {
+        const existing = {
+            language: 'nb',
+            enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'],
+            placements: {
+                sigerfjordveien_01: { lat: 68.6984, lng: 15.4129 },
+                spjutvika_01: { lat: 68.72, lng: 15.35 },
+            },
+        };
+
+        const parsed = SettingsSchema.parse(existing);
+
+        expect(parsed.enabledPages).toEqual(['map', 'weather', 'aurora', 'tide', 'cameras']);
+        expect(parsed.placements).toEqual(existing.placements);
+        // And a patch of the same shape is still accepted, so a device
+        // that writes its page list back does not have it rejected.
+        expect(SettingsPatchSchema.safeParse({ enabledPages: existing.enabledPages }).success).toBe(true);
     });
 
     it('accepts a real placements record keyed by camera_id', () => {

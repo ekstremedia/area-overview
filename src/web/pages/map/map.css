@@ -695,3 +695,203 @@
     color: var(--color-muted);
     font-size: 13px;
 }
+
+/* — road-camera pins (the Veg layer's other half) — deliberately quieter
+   than the situation signs above: a closed road has to be read across the
+   room, a camera is something you go looking for. Hence `--color-muted`,
+   no state colour and no sign face. The 44px outer box is the tap target;
+   the visible plate inside it is 28px, same arrangement as `.road-pin`. */
+.road-camera-pin {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.road-camera-pin-plate {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 14px;
+    background: var(--color-bg);
+    color: var(--color-muted);
+    box-shadow:
+        0 0 0 1.5px var(--color-muted),
+        0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.road-camera-pin-glyph,
+.road-camera-pin-glyph svg {
+    width: 17px;
+    height: 17px;
+    display: block;
+}
+.road-camera-cluster-count {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+/* — the road-camera modal — a real overlay on `document.body`, not a
+   Leaflet popup: this is a 800x600 photograph on a 1024x600 screen, and a
+   popup anchored to its own pin would spend its life fighting the map
+   edges. See `cameraModal.ts`'s doc comment. */
+/* Above `.display-overlay` (shell.css, z-index 1000) deliberately: at
+   night `mode: 'off'` the veil goes fully black, and a picture somebody
+   just tapped a pin to see would be a black rectangle 30 seconds later
+   when the tap-lift expires. The idle reset closes this anyway, so it
+   cannot sit bright on the wall for long. */
+.road-camera-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.road-camera-modal-veil {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--color-overlay) 74%, transparent);
+}
+.road-camera-modal-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(94vw, 960px);
+    max-height: 94vh;
+    padding: 12px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.road-camera-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.road-camera-modal-headings {
+    flex: 1;
+    min-width: 0;
+}
+.road-camera-modal-title {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 20px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.road-camera-modal-where {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+/* Both head controls are full `--tap-min` targets: this is the one
+   overlay on the kiosk with no route behind it to navigate away from. */
+.road-camera-modal-back,
+.road-camera-modal-close {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 0 10px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+}
+.road-camera-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+.road-camera-modal-stage {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--color-overlay);
+    cursor: pointer;
+}
+.road-camera-modal-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 72vh;
+    object-fit: contain;
+    margin: 0 auto;
+}
+/* Full screen in place: the picture alone, nothing else on the glass. */
+.road-camera-modal-stage:fullscreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.road-camera-modal-stage:fullscreen .road-camera-modal-image {
+    max-height: 100%;
+    max-width: 100%;
+}
+.road-camera-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+.road-camera-thumb {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    border: 1px solid var(--color-divider);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+}
+/* A fixed box before the image arrives, so a grid of deferred loads does
+   not reflow tile by tile as each one lands. */
+.road-camera-thumb-image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--color-overlay);
+}
+.road-camera-thumb-label {
+    padding: 0 6px 6px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-muted);
+}
+.road-camera-modal-show-all {
+    min-height: var(--tap-min);
+    margin-top: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--color-divider);
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+}
+.road-camera-modal-weather {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.road-camera-modal-weather-item {
+    padding: 2px 6px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text);
+}

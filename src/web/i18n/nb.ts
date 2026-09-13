@@ -53,6 +53,7 @@ export const nb = {
     'unit.hours': 't',
     'unit.days': 'døgn',
     'unit.metersPerSecond': 'm/s',
+    'unit.millimetersPerHour': 'mm/t',
     'unit.millimeters': 'mm',
     'unit.knots': 'kn',
     'unit.feet': 'ft',
@@ -163,6 +164,23 @@ export const nb = {
     // itself stays Norwegian (NPRA's terms forbid translating it), and a
     // source line is what makes that read as a quote rather than a bug.
     'map.roadSource': 'Statens vegvesen',
+
+    // — road cameras (the Veg layer's other half) — every reading in the
+    // weather line is omitted when upstream sent null, which is the
+    // normal case, so anything on screen here is a real measurement.
+    'map.roadCameraLabel': 'Vegkamera',
+    'map.roadCameraCluster': '{count} vegkamera',
+    'map.roadCameraBack': '← Tilbake',
+    'map.roadCameraClose': 'Lukk',
+    'map.roadCameraShowAll': 'Vis alle ({count} til)',
+    'map.roadCameraFullscreen': 'Vis bildet i fullskjerm',
+    'map.roadCameraImageAlt': 'Vegkamera {name}',
+    'map.roadCameraAir': 'Luft {value}',
+    'map.roadCameraRoad': 'Vegbane {value}',
+    'map.roadCameraWind': 'Vind {value}',
+    'map.roadCameraWindGust': 'Vind {value} (kast {gust})',
+    'map.roadCameraGust': 'Vindkast {value}',
+    'map.roadCameraPrecipitation': 'Nedbør {value}',
 
     'map.popupUpdated': 'Oppdatert {age}',
 

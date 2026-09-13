@@ -16,6 +16,7 @@ import { t } from '../../i18n/index.js';
 import type { LayerCounts, LiveLayerItem, PageStatus } from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
 import { followTarget, stopFollowing } from './follow.js';
+import { mountRoadCamerasLayer } from './roadCameras.js';
 import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
 
@@ -36,16 +37,17 @@ type LayerId = keyof LayerCounts;
  * `LayerCounts` still enumerates the `{ships, aircraft}` pair by hand,
  * and re-keying it (and `LiveLayerListing`, and the masthead that reads
  * both) by a group id is Phase E of the roads plan, not this one. Until
- * then the roads layer's attribution reaches the footer and its
- * count/items are accepted and held here without a masthead slot to go
- * into -- deliberately the minimum that compiles, not a second counting
- * mechanism to unpick later.
+ * then the roads layer's and the road cameras' attribution reaches the
+ * footer and their counts/items are accepted and held here without a
+ * masthead slot to go into -- deliberately the minimum that compiles,
+ * not a second counting mechanism to unpick later. Phase E gives both
+ * `roadSituations` and `roadCameras` real slots.
  */
-type ReportingLayerId = LayerId | 'roads';
+type ReportingLayerId = LayerId | 'roads' | 'roadCameras';
 
 /** `true` for the ids `LayerCounts` actually has a slot for. Phase E deletes this along with the hand-enumerated pair. */
 function hasCountSlot(id: ReportingLayerId): id is LayerId {
-    return id !== 'roads';
+    return id !== 'roads' && id !== 'roadCameras';
 }
 
 /**
@@ -148,8 +150,9 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
 
     function reportCount(id: ReportingLayerId, count: number, hidden: number): void {
         if (disposed) return;
-        // Roads has no slot in `LayerCounts` yet (see `ReportingLayerId`),
-        // and no age filter either, so its `0` hidden changes nothing.
+        // Neither roads group has a slot in `LayerCounts` yet (see
+        // `ReportingLayerId`), and neither has an age filter, so their
+        // `0` hidden changes nothing.
         if (hasCountSlot(id)) counts[id] = count;
         hiddenByAge.set(id, hidden);
         counts.hiddenByAge = [...hiddenByAge.values()].reduce((total, value) => total + value, 0);
@@ -220,6 +223,20 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeRoadCameras = registerMapLayer(map, (m) =>
+        mountRoadCamerasLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('roadCameras', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('roadCameras', text);
+            },
+            reportItems: (next) => {
+                reportItems('roadCameras', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -231,5 +248,6 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeShips();
         disposeAircraft();
         disposeRoads();
+        disposeRoadCameras();
     };
 }

@@ -190,7 +190,13 @@ export const SettingsSchema = z.object({
     homeView: patchableFieldSchemas.homeView.default({ lat: 68.6984, lng: 15.4129, zoom: 11 }),
     placements: z.record(z.string(), PlacementSchema).default({}),
     pollIntervalSeconds: patchableFieldSchemas.pollIntervalSeconds.default(30),
-    enabledPages: patchableFieldSchemas.enabledPages.default(['map', 'weather', 'aurora', 'tide', 'cameras']),
+    // No `'cameras'`: Terje's own cameras are dormant, so a display with
+    // no settings file yet comes up without that tab (see
+    // `src/web/pages/cameras/dormancy.ts`, which is the flag that
+    // governs everything else about it). `'cameras'` deliberately stays
+    // in `PageIdSchema` above -- an existing `data/settings.json` that
+    // lists it must still parse, and does.
+    enabledPages: patchableFieldSchemas.enabledPages.default(['map', 'weather', 'aurora', 'tide']),
     idleResetSeconds: patchableFieldSchemas.idleResetSeconds.default(300),
     night: patchableFieldSchemas.night.default({ enabled: false, from: '23:00', to: '06:00', mode: 'dim' }),
     brightness: patchableFieldSchemas.brightness.default(100),

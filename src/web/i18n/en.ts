@@ -44,6 +44,7 @@ export const en: Record<keyof typeof nb, string> = {
     'unit.hours': 'h',
     'unit.days': 'days',
     'unit.metersPerSecond': 'm/s',
+    'unit.millimetersPerHour': 'mm/h',
     'unit.millimeters': 'mm',
     'unit.knots': 'kn',
     'unit.feet': 'ft',
@@ -148,6 +149,20 @@ export const en: Record<keyof typeof nb, string> = {
     'map.roadStatus.scheduled': 'Not active now',
     'map.roadStatus.planned': 'Planned',
     'map.roadSource': 'Statens vegvesen',
+
+    'map.roadCameraLabel': 'Road camera',
+    'map.roadCameraCluster': '{count} road cameras',
+    'map.roadCameraBack': '← Back',
+    'map.roadCameraClose': 'Close',
+    'map.roadCameraShowAll': 'Show all ({count} more)',
+    'map.roadCameraFullscreen': 'Show the picture full screen',
+    'map.roadCameraImageAlt': 'Road camera {name}',
+    'map.roadCameraAir': 'Air {value}',
+    'map.roadCameraRoad': 'Road {value}',
+    'map.roadCameraWind': 'Wind {value}',
+    'map.roadCameraWindGust': 'Wind {value} (gust {gust})',
+    'map.roadCameraGust': 'Gust {value}',
+    'map.roadCameraPrecipitation': 'Precipitation {value}',
 
     'map.popupUpdated': 'Updated {age}',
 

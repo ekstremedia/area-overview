@@ -21,6 +21,7 @@ import type { Route } from '../core/router.js';
 import { currentRoute } from '../core/router.js';
 import { effect, signal, type ReadonlySignal, type Signal } from '../core/signal.js';
 import { settings as sharedSettings } from '../settings-resource.js';
+import { CAMERAS_DORMANT } from '../pages/cameras/dormancy.js';
 
 /**
  * Cycling order -- `registry.ts`'s `NAV_PAGES` display order, duplicated
@@ -31,7 +32,14 @@ import { settings as sharedSettings } from '../settings-resource.js';
  * other two places this order would need to change in lockstep, same as
  * today).
  */
-const CYCLE_ORDER: readonly PageId[] = ['map', 'weather', 'aurora', 'tide', 'cameras'];
+const CYCLE_ORDER: readonly PageId[] = (['map', 'weather', 'aurora', 'tide', 'cameras'] as const).filter(
+    // Terje's own cameras are dormant (`pages/cameras/dormancy.ts`): the
+    // slideshow must not stop on a page that has left the navigation,
+    // even on a display whose `enabledPages` still lists it from before.
+    // Importing one `boolean` const keeps this module DOM-free, as its
+    // doc comment requires.
+    (id) => !(CAMERAS_DORMANT && id === 'cameras'),
+);
 
 /**
  * Given the currently-shown route and the live settings, returns the

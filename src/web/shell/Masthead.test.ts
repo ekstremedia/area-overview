@@ -19,14 +19,18 @@ function setSettings(patch: Partial<Settings>): void {
 }
 
 describe('mountMasthead', () => {
-    it('renders five tabs and the settings gear in one row, marking the active tab', () => {
+    it('renders the nav tabs and the settings gear in one row, marking the active tab -- with no cameras tab, even when settings still list it', () => {
+        // `'cameras'` is deliberately still a legal `enabledPages` entry
+        // (an existing `data/settings.json` carries it), but the tab row
+        // is built from `NAV_PAGES`, which the dormancy flag has already
+        // filtered -- so the stale entry produces no tab.
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/weather');
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
 
         const tabs = [...container.querySelectorAll<HTMLAnchorElement>('.masthead-tab')];
-        expect(tabs.map((tab) => tab.textContent)).toEqual(['Kart', 'Vær', 'Nordlys', 'Tidevann', 'Kameraer']);
+        expect(tabs.map((tab) => tab.textContent)).toEqual(['Kart', 'Vær', 'Nordlys', 'Tidevann']);
 
         const activeTab = container.querySelector('.masthead-tab--active');
         expect(activeTab?.textContent).toBe('Vær');

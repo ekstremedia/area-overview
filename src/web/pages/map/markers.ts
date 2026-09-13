@@ -23,6 +23,7 @@ import type * as Leaflet from 'leaflet';
 import type { Camera } from '../../../shared/schemas/camera.js';
 import type { Settings } from '../../../shared/schemas/settings.js';
 import { isCameraEnabled } from '../cameras/enabledCameras.js';
+import { CAMERAS_DORMANT } from '../cameras/dormancy.js';
 import { computed, effect, type ReadonlySignal } from '../../core/signal.js';
 import { camerasResource } from '../../camera-resource.js';
 import { settings } from '../../settings-resource.js';
@@ -184,9 +185,20 @@ export function createCameraMarkerLayer(L: typeof Leaflet, map: Leaflet.Map, bui
         rafHandle = requestAnimationFrame(flush);
     }
 
-    const disposeEffect = effect(() => {
-        scheduleSync(markerData.get());
-    });
+    /*
+     * Terje's own cameras are dormant (`cameras/dormancy.ts`): the map
+     * draws none of them. The subscription is skipped rather than the
+     * data being emptied, so `markerData`/`computeMarkerData` keep their
+     * meaning for anything else that reads them and nothing here has to
+     * be unpicked when the flag is flipped back -- and an empty
+     * `layerGroup` is still added to and removed from the map, so the
+     * lifecycle the caller sees is unchanged.
+     */
+    const disposeEffect = CAMERAS_DORMANT
+        ? (): void => undefined
+        : effect(() => {
+              scheduleSync(markerData.get());
+          });
 
     return {
         dispose(): void {

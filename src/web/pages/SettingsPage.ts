@@ -30,6 +30,7 @@ import * as DisplaySection from './settings/Display.js';
 import * as GeneralSection from './settings/General.js';
 import * as LayersSection from './settings/Layers.js';
 import * as MapSection from './settings/Map.js';
+import { CAMERAS_DORMANT } from './cameras/dormancy.js';
 import type { SectionMount } from './settings/sectionContext.js';
 import './settings/settings.css';
 
@@ -41,14 +42,27 @@ interface SectionDescriptor {
     mount: SectionMount;
 }
 
-const SECTIONS: readonly SectionDescriptor[] = [
-    { id: 'cameras', navKey: 'settings.section.cameras', mount: CamerasSection.mount },
-    { id: 'map', navKey: 'settings.section.map', mount: MapSection.mount },
-    { id: 'display', navKey: 'settings.section.display', mount: DisplaySection.mount },
-    { id: 'layers', navKey: 'settings.section.layers', mount: LayersSection.mount },
-    { id: 'general', navKey: 'settings.section.general', mount: GeneralSection.mount },
-    { id: 'account', navKey: 'settings.section.account', mount: AccountSection.mount },
-];
+/**
+ * The Kameraer section is the placement editor for Terje's own cameras,
+ * which are dormant (`cameras/dormancy.ts`) -- so it is filtered out of
+ * the sub-nav here rather than removed: `settings/Cameras.ts` is
+ * untouched and mounts again the moment the flag is flipped. Filtering
+ * here rather than blanking the section keeps the sub-nav from showing a
+ * tab that leads to an empty page.
+ */
+const SECTIONS: readonly SectionDescriptor[] = (
+    [
+        { id: 'cameras', navKey: 'settings.section.cameras', mount: CamerasSection.mount },
+        { id: 'map', navKey: 'settings.section.map', mount: MapSection.mount },
+        { id: 'display', navKey: 'settings.section.display', mount: DisplaySection.mount },
+        { id: 'layers', navKey: 'settings.section.layers', mount: LayersSection.mount },
+        { id: 'general', navKey: 'settings.section.general', mount: GeneralSection.mount },
+        { id: 'account', navKey: 'settings.section.account', mount: AccountSection.mount },
+    ] satisfies readonly SectionDescriptor[]
+).filter((section) => !(CAMERAS_DORMANT && section.id === 'cameras'));
+
+/** Whichever section survives first -- `map` while the cameras are dormant, `cameras` when they are not. */
+const DEFAULT_SECTION_ID: SectionId = SECTIONS[0]?.id ?? 'map';
 
 export function render(container: HTMLElement): () => void {
     const status = claimPageStatus();
@@ -81,7 +95,7 @@ export function render(container: HTMLElement): () => void {
     const store = createSettingsStore();
     const keyboard = mountOnScreenKeyboard(wrapper);
 
-    let activeSectionId: SectionId = 'cameras';
+    let activeSectionId: SectionId = DEFAULT_SECTION_ID;
     let disposeSection: (() => void) | undefined;
     let loginDialog: LoginDialogHandle | undefined;
     let disposed = false;

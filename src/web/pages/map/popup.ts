@@ -15,6 +15,7 @@
  */
 import type { Camera } from '../../../shared/schemas/camera.js';
 import { encodeCameraId } from '../../core/router.js';
+import { CAMERAS_DORMANT } from '../cameras/dormancy.js';
 import { t } from '../../i18n/index.js';
 import { formatAge } from '../../shell/staleness.js';
 
@@ -93,12 +94,24 @@ export function buildPopupContent(camera: Camera, callbacks: PopupCallbacks, now
     location.className = 'camera-popup-location';
     location.textContent = camera.location;
 
-    const link = document.createElement('a');
-    link.className = 'camera-popup-link';
-    link.href = `#/cameras/${encodeCameraId(camera.camera_id)}`;
-    link.textContent = t('map.openCamera');
+    footer.append(location);
 
-    footer.append(location, link);
+    /*
+     * "Open camera →" goes wherever the camera pins went: while Terje's
+     * own cameras are dormant (`cameras/dormancy.ts`) the cameras page has
+     * left the navigation, and a link into a page with no tab is a dead
+     * end on a kiosk with no back button. The route itself still
+     * resolves, so this is about not offering the trip, not about the
+     * destination being gone.
+     */
+    if (!CAMERAS_DORMANT) {
+        const link = document.createElement('a');
+        link.className = 'camera-popup-link';
+        link.href = `#/cameras/${encodeCameraId(camera.camera_id)}`;
+        link.textContent = t('map.openCamera');
+        footer.append(link);
+    }
+
     root.append(footer);
 
     return root;
