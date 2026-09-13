@@ -10,13 +10,15 @@ completed cleanly on pi5ai (kiosk user, cage, the udev rule, the policy, the
 unit -- chromium and curl were already present and correctly skipped). The
 VT takeover (`chvt 8`), the HDMI-CEC udev rule (phantom pointers gone,
 touchscreen untouched), and pi5ai's day job (Apache + the Flask OCR service,
-both unaffected) are all confirmed on hardware, not just reviewed. The one
-remaining blocker is `area.nesthus.no`'s TLS certificate, which doesn't
-cover that hostname yet (DNS itself is already live) -- once it's expanded,
-`start-kiosk.sh`'s retry loop picks it up within 5s and Chromium launches
-with no restart needed. After that, the remaining checks (touch on all six
-pages, policy blocking `127.0.0.1`/the LAN IP, cursor presence, panel
-blanking, reboot survival, NUC-restart recovery) still need running.
+both unaffected) are all confirmed on hardware, not just reviewed. The TLS
+certificate is no longer a blocker: as of 2026-09-13 its SAN list covers
+`area.nesthus.no` and `https://area.nesthus.no/healthz` answers
+`{"ok":true}`, so `start-kiosk.sh`'s retry loop has nothing left to wait
+for. What is still unverified -- and cannot be, from this checkout -- are
+the hardware checks: touch on all five pages (the cameras page is dormant,
+see `docs/ROADMAP.md`), the policy blocking `127.0.0.1`/the LAN IP, cursor
+presence, panel blanking, reboot survival and NUC-restart recovery. They
+need running on the Pi.
 
 ## What was found on the real hardware (2026-09-06)
 
@@ -77,11 +79,29 @@ Peripherals Inc / MPI7002`) but reports "DDC communication failed", and
   to load only in the kiosk context -- everything else still renders, so
   this is easy to miss without checking the policy against the actual page
   code.
+- `kamera.atlas.vegvesen.no` -- the road camera stills, hotlinked straight
+  from Statens vegvesen (`src/web/pages/map/roadCameras.ts` and
+  `cameraModal.ts`; the host is asserted server-side in
+  `src/server/roads/road-cameras.ts`, so no other host can ever be
+  substituted into an `img.src`). New in phase 12.
+- `server.arcgisonline.com` -- the satellite basemap, the third entry in
+  `src/web/pages/map/tiles.ts`, added with the basemap button (PR #47).
+- `services.swpc.noaa.gov` -- the aurora-oval image
+  (`AuroraPage.ts`, `data.oval.images.northUrl`). The OVATION _data_ behind
+  the aurora page is proxied by the BFF; this one picture is not.
 
 `src/web/index.html` self-hosts its one font (`Source Serif 4`, woff2, no
-external font CDN), so no font host needed for that. Everything else
-(AIS, ADS-B, aurora data, weather's own non-icon fields) is server-proxied
-through the BFF at `area.nesthus.no` itself.
+external font CDN), so no font host needed for that. The remaining
+_data_ (AIS, ADS-B, aurora data, road situations, weather's own non-icon
+fields) is server-proxied through the BFF at `area.nesthus.no` itself; what
+the browser fetches directly is images and tiles -- the weather icons, the
+aurora-oval picture, the road camera stills and every basemap tile.
+
+One caveat worth stating plainly: Chromium documents `URLBlocklist` and
+`URLAllowlist` as governing **navigations**, and whether they also apply to
+image subresources has not been verified on this kiosk. The list is kept
+complete regardless, so that a Chromium which does enforce it on
+subresources one day changes nothing here.
 
 ## Chromium managed-policy configuration notes
 
@@ -95,9 +115,12 @@ defines Chromium's behavior:
 - `URLAllowlist` — only allows navigation to `area.nesthus.no` (the app
   itself, served through Apache), the exact-host, HTTPS-only
   `https://.nesthus.no/vendor/laravel-yr/symbols/` path prefix (weather
-  forecast icons), `basemaps.cartocdn.com` (map tiles), and
-  `tile.openstreetmap.org` (alternate map tiles). All other URLs are blocked
-  by the `URLBlocklist: ["*"]` catchall.
+  forecast icons), `basemaps.cartocdn.com` (map tiles),
+  `tile.openstreetmap.org` (alternate map tiles),
+  `server.arcgisonline.com` (satellite map tiles),
+  `kamera.atlas.vegvesen.no` (road camera stills) and
+  `services.swpc.noaa.gov` (the aurora-oval image). All other URLs are
+  blocked by the `URLBlocklist: ["*"]` catchall.
 - `IncognitoModeAvailability: 1` — Disabled (integer enum; a string value
   would be silently ignored). `DeveloperToolsAvailability: 2` — Disabled.
   `PasswordManagerEnabled: false`, `BrowserAddPersonEnabled: false`,
