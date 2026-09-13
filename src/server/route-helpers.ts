@@ -72,8 +72,16 @@ export interface ServeCachedOptions {
  * Returning `null` means "this cannot be served" and produces a 502 --
  * used where serving the untransformed document would be wrong rather
  * than merely incomplete.
+ *
+ * `S` defaults to `T`, which is the redaction case (`/api/weather`'s
+ * Netatmo gate, `/api/aurora`'s per-position probability): same shape in,
+ * same shape out. It is a separate parameter because a route may also
+ * cache something quite different from what it serves --
+ * `/api/road-situations` caches Statens vegvesen's raw records and maps
+ * them here, so that a field derived from the clock is derived afresh on
+ * every response instead of being frozen into the cache.
  */
-export type ServeCachedTransform<T> = (value: T) => T | null | Promise<T | null>;
+export type ServeCachedTransform<T, S = T> = (value: T) => S | null | Promise<S | null>;
 
 /**
  * A window for revalidating in the background after `max-age` lapses.
@@ -140,13 +148,13 @@ function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, 
  * otherwise responds `502` with the failure logged, never forwarding a
  * malformed or missing body to the browser.
  */
-export async function serveCached<T>(
+export async function serveCached<T, S = T>(
     request: FastifyRequest,
     reply: FastifyReply,
     cache: TtlCache<T>,
     key: string,
     fetcher: () => Promise<Result<T>>,
-    options: ServeCachedOptions & { transform?: ServeCachedTransform<T> } = {},
+    options: ServeCachedOptions & { transform?: ServeCachedTransform<T, S> } = {},
 ): Promise<void> {
     try {
         const value = await cache.getOrLoad(key, async () => {
@@ -179,7 +187,7 @@ export async function serveCached<T>(
             // controlled 502 below. `ServeCachedTransform` is allowed to
             // be async, so that is a reachable shape even though today's
             // two transforms do not reject.
-            let staleServed: T | null;
+            let staleServed: S | T | null;
             try {
                 staleServed = options.transform ? await options.transform(stale.value) : stale.value;
             } catch (transformError) {

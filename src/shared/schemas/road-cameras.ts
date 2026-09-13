@@ -59,8 +59,20 @@ export const RoadCameraSiteWeatherSchema = z.object({
     airTemperature: z.number().nullable(),
     /** Road surface temperature, degrees Celsius -- the reading this display exists for in winter. */
     roadTemperature: z.number().nullable(),
-    /** Wind speed in m/s (Datex II's unit; not documented on the WFS itself). One station has been seen reporting 55, so the server treats anything above 60 as missing rather than passing on a reading it does not believe. */
+    /** Mean wind speed in m/s (Datex II's unit; not documented on the WFS itself). The server refuses anything above 60 m/s -- past every wind speed ever recorded on the Norwegian mainland -- rather than pass on a reading it does not believe. */
     windSpeed: z.number().nullable(),
+    /**
+     * Gust in m/s, and the reading the server is strictest about.
+     *
+     * The 60 m/s ceiling applies here too, but on its own it was not
+     * enough: a station was observed reporting a 54.4 m/s gust against
+     * its own 14.8 m/s mean on a calm 9 °C evening -- a gust factor of
+     * 3.7, where real weather produces 1.3-1.6. So where a mean is
+     * present to compare against, a gust far above it is treated as a
+     * sensor artifact and arrives here as null, while the mean beside it
+     * is served as measured. See `MAX_PLAUSIBLE_GUST_RATIO` in
+     * `src/server/roads/road-cameras.ts`.
+     */
     windGust: z.number().nullable(),
     /** Precipitation intensity, mm/h. */
     precipitationIntensity: z.number().nullable(),

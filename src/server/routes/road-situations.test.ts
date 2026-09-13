@@ -184,6 +184,54 @@ describe('GET /api/road-situations', () => {
         expect(output).not.toContain('68.350');
     });
 
+    it('re-reads the clock on every response, so an outage cannot keep serving an ended situation as current', async () => {
+        // The cache holds upstream's raw records, never the mapped
+        // response, because `status` is derived from the clock and
+        // `TtlCache` has no maximum stale age: an entry survives an
+        // outage of any length. Freezing `status` into it would mean
+        // serving "vegen er stengt" hours after the road reopened.
+        //
+        // Only `Date` is faked -- faking the timer queue as well would
+        // stall Fastify's own injection machinery, and the clock is the
+        // whole of what this test is about.
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            vi.setSystemTime(new Date('2026-09-13T12:00:00+02:00'));
+            const fetchMock = vi.fn().mockResolvedValue(jsonResponse(situationsFixture));
+            vi.stubGlobal('fetch', fetchMock);
+            const app = buildTestApp({ roadSituationsCacheTtlMs: 120_000 });
+
+            const first = RoadSituationsResponseSchema.parse((await app.inject({ method: 'GET', url: `/api/road-situations?${VALID_BBOX}` })).json());
+            if (!first.configured) throw new Error('expected a configured response');
+            // The accident runs until 14:00 today; the tunnel work starts
+            // on the 20th.
+            expect(first.situations.find((situation) => situation.id === 'NPRA_1009')?.status).toBe('current');
+            expect(first.situations.find((situation) => situation.id === 'NPRA_1004')?.status).toBe('planned');
+
+            // Eight days later, with the GeoServer down throughout: the
+            // only thing this route can serve is that same cached entry.
+            vi.setSystemTime(new Date('2026-09-21T12:00:00+02:00'));
+            fetchMock.mockRejectedValue(new Error('GeoServer down'));
+
+            const staleResponse = await app.inject({ method: 'GET', url: `/api/road-situations?${VALID_BBOX}` });
+            expect(staleResponse.headers['x-cache']).toBe('stale');
+            const stale = RoadSituationsResponseSchema.parse(staleResponse.json());
+            if (!stale.configured) throw new Error('expected a configured response');
+
+            // The accident ended a week ago: gone, not `current`.
+            expect(stale.situations.map((situation) => situation.id)).not.toContain('NPRA_1009');
+            // And the roadworks that had not started have started.
+            expect(stale.situations.find((situation) => situation.id === 'NPRA_1004')?.status).toBe('current');
+            // `fetchedAt` is not re-stamped: the data really is eight days
+            // old, and the client shows that as an age.
+            expect(stale.fetchedAt).toBe(first.fetchedAt);
+            // Nothing left this process for it.
+            expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('clamps an oversized bbox rather than rejecting it', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(situationsFixture)));
         const app = buildTestApp();

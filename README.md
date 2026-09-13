@@ -6,10 +6,13 @@ that cycle on their own on a wall display.
 
 The frontend is vanilla TypeScript -- no framework, its own small reactive
 primitives -- built with Vite, with Leaflet for the map. Behind it sits a
-Node/TypeScript backend-for-frontend on Fastify, which is what talks to the
-upstreams (AIS, ADS-B, weather, tide, aurora, Statens vegvesen), holds the API
-credentials, caches the responses and validates every payload with Zod
-before the browser sees it.
+Node/TypeScript backend-for-frontend on Fastify. It proxies exactly one
+**upstream** -- the `nesthus.no` Laravel API, which serves weather, tide,
+aurora and the cameras -- and calls three **providers** directly for the
+live data upstream has nothing for: BarentsWatch (AIS), an ADS-B aggregator
+(aircraft) and Statens vegvesen (road notices and road cameras). It holds
+the API credentials, caches the responses and validates every payload with
+Zod before the browser sees it.
 
 A live instance runs at [area.nesthus.no](https://area.nesthus.no/).
 

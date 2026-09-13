@@ -57,8 +57,14 @@ export type RoadSituationStatus = z.infer<typeof RoadSituationStatusSchema>;
  * Coordinates arrive simplified (Douglas-Peucker) and rounded to five
  * decimals: a single upstream feature can carry 497 points and 416 KB,
  * which is detail no 1024x600 kiosk can draw.
+ *
+ * At least two points, because one point is not a line. Simplification
+ * really can collapse a short segment onto a single rounded coordinate,
+ * and the server drops such a part rather than sending it -- this is the
+ * contract saying so, so that neither side has to defend against a
+ * polyline that would draw nothing.
  */
-export const RoadLineSchema = z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]));
+export const RoadLineSchema = z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)])).min(2);
 
 export type RoadLine = z.infer<typeof RoadLineSchema>;
 
@@ -106,8 +112,14 @@ export const RoadSituationSchema = z.object({
      * roadworks *and* upstream's geometry is a line: a wind warning on a
      * bridge carries geometry too, but its extent tells a viewer nothing
      * a pin does not, and the bytes are better spent elsewhere.
+     *
+     * Null, never `[]`. "No extent to draw" has exactly one spelling
+     * here, so a client can branch on `line === null` and be done --
+     * including when every part of a `MultiLineString` collapsed under
+     * simplification, which the server turns into null rather than an
+     * empty list.
      */
-    line: z.array(RoadLineSchema).nullable(),
+    line: z.array(RoadLineSchema).min(1).nullable(),
 });
 
 export type RoadSituation = z.infer<typeof RoadSituationSchema>;

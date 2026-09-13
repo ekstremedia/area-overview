@@ -313,6 +313,45 @@ describe('mapSituations', () => {
         ]);
     });
 
+    it('sends null, not an empty list, when every part of a line collapses', () => {
+        // Each part is a metre long, so rounding to five decimals leaves
+        // one point per part and both are dropped. The contract says "no
+        // extent" has exactly one spelling (`null`), and
+        // `RoadSituationSchema` now refuses `[]` -- so getting this wrong
+        // would silently drop the whole situation instead.
+        const records: RawFeature[] = [
+            {
+                geometry: {
+                    type: 'MultiLineString',
+                    coordinates: [
+                        [
+                            [15.400001, 68.700001],
+                            [15.400002, 68.700002],
+                        ],
+                        [
+                            [15.420001, 68.710001],
+                            [15.420002, 68.710002],
+                        ],
+                    ],
+                },
+                properties: {
+                    SITUATION_ID: 'NPRA_COLLAPSED',
+                    SITUATION_TYPE: 'MaintenanceWorks',
+                    IS_MAIN_RECORD: 1,
+                    START_TIME: '2026-09-01T07:00:00+02:00',
+                    END_TIME: null,
+                    COORDINATES_FOR_DISPLAY_LATITUDE: 68.7,
+                    COORDINATES_FOR_DISPLAY_LONGITUDE: 15.4,
+                },
+            },
+        ];
+
+        const mapped = mapSituations(records, NOW);
+
+        expect(mapped).toHaveLength(1);
+        expect(mapped[0]?.line).toBeNull();
+    });
+
     it("swaps upstream's [lng, lat] into Leaflet's [lat, lng]", () => {
         const glamvika = situationById(situations, 'NPRA_1003');
 
