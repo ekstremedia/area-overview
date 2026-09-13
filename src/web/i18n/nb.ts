@@ -53,6 +53,8 @@ export const nb = {
     'unit.seconds': 's',
     'unit.hours': 't',
     'unit.days': 'døgn',
+    /** Entall, for aldre på nøyaktig ett døgn -- norsk bøyer ikke, men engelsk gjør ("1 day" / "3 days"). */
+    'unit.day': 'døgn',
     'unit.metersPerSecond': 'm/s',
     'unit.millimetersPerHour': 'mm/t',
     'unit.millimeters': 'mm',

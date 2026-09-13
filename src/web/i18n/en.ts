@@ -43,6 +43,7 @@ export const en: Record<keyof typeof nb, string> = {
     'unit.seconds': 's',
     'unit.hours': 'h',
     'unit.days': 'days',
+    'unit.day': 'day',
     'unit.metersPerSecond': 'm/s',
     'unit.millimetersPerHour': 'mm/h',
     'unit.millimeters': 'mm',

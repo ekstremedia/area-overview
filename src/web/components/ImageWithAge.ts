@@ -21,7 +21,7 @@ export interface ImageWithAgeOptions {
     now?: Date;
 }
 
-/** "2 min" / "5 t" / "19 døgn" -- a compact age for the badge, escalating unit as the age grows. Distinct from `staleness.ts`'s `formatAge` (which never goes past minutes+seconds -- fine for a 30s-polled stale banner, too fine-grained for a camera image that can legitimately be days old). */
+/** "2 min" / "5 t" / "19 døgn" -- a compact age for the badge, escalating unit as the age grows. Distinct from `staleness.ts`'s `formatAge`, which escalates the same way but always shows two units below the top of its range ("4 min 20 s", "3 døgn 21 t"); a corner badge over a photo has room for one. */
 export function formatImageAge(ageMs: number): string {
     const minutes = Math.floor(ageMs / 60_000);
     if (minutes < 60) return formatNumber(minutes, t('unit.minutes'));
