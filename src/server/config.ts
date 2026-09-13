@@ -83,6 +83,30 @@ const ServerConfigSchema = z.object({
     adsbMinIntervalMs: z.coerce.number().int().positive().default(2000),
     adsbBurst: z.coerce.number().int().positive().default(4),
     /**
+     * `GET /api/road-situations` / `GET /api/road-cameras` cache TTLs,
+     * keyed per-bbox like the ships/aircraft ones above.
+     *
+     * They differ by a factor of 2.5 because they answer differently
+     * changing questions: a road may close at any moment, while the
+     * camera roster is 890 fixed installations that barely move. The
+     * picture itself is not cached here at all -- the browser fetches
+     * each still straight from Vegvesen.
+     */
+    roadSituationsCacheTtlMs: z.coerce.number().int().positive().default(120_000),
+    roadCamerasCacheTtlMs: z.coerce.number().int().positive().default(300_000),
+    /**
+     * The process-wide Statens vegvesen outbound budget, shared by both
+     * road routes: one request per `VEGVESEN_MIN_INTERVAL_MS` on average,
+     * with up to `VEGVESEN_BURST` banked for the flurry of `moveend`s a
+     * real pan produces. Same arrangement, and same reasoning, as the
+     * ADS-B gate above -- the OGC GeoServer is keyless, has no quota to
+     * push back with and no SLA, so the politeness has to be ours. One
+     * gate rather than two, so the two routes cannot each spend a full
+     * budget at the same moment.
+     */
+    vegvesenMinIntervalMs: z.coerce.number().int().positive().default(500),
+    vegvesenBurst: z.coerce.number().int().positive().default(6),
+    /**
      * How long a point forecast (`/api/weather?lat&lng`,
      * `/api/tide?lat&lng`) is held.
      *
@@ -162,6 +186,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         pointForecastTtlMs: env.POINT_FORECAST_TTL_MS,
         adsbMinIntervalMs: env.ADSB_MIN_INTERVAL_MS,
         adsbBurst: env.ADSB_BURST,
+        roadSituationsCacheTtlMs: env.ROAD_SITUATIONS_CACHE_TTL_MS,
+        roadCamerasCacheTtlMs: env.ROAD_CAMERAS_CACHE_TTL_MS,
+        vegvesenMinIntervalMs: env.VEGVESEN_MIN_INTERVAL_MS,
+        vegvesenBurst: env.VEGVESEN_BURST,
         cartoApiKey: env.CARTO_API_KEY,
         trailsPollSeconds: env.TRAILS_POLL_SECONDS,
         trailsAreaBbox: env.TRAILS_AREA_BBOX,

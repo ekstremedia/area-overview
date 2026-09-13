@@ -114,10 +114,19 @@ export const mount: SectionMount = (container, ctx) => {
             },
         });
 
+        // `maxAgeMinutesMin/Max` are optional on `LiveLayerSpec` now --
+        // a layer whose items are notices rather than position fixes has
+        // no fix age to filter on and sets neither (see that file's doc
+        // comment). Every layer in `LAYERS` still sets both, so these
+        // fallbacks are unreachable today; the row itself becomes
+        // conditional when such a layer joins the list.
+        const maxAgeMin = layer.maxAgeMinutesMin ?? 1;
+        const maxAgeMax = layer.maxAgeMinutesMax ?? 120;
+
         const maxAgeStepper: StepperHandle = stepper({
             value: layerSettings.maxAgeMinutes,
-            min: layer.maxAgeMinutesMin,
-            max: layer.maxAgeMinutesMax,
+            min: maxAgeMin,
+            max: maxAgeMax,
             step: 1,
             formatValue: (v) => `${String(v)} ${t('unit.minutes')}`,
             onChange: (next) => {
