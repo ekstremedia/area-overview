@@ -7,7 +7,7 @@ that cycle on their own on a wall display.
 The frontend is vanilla TypeScript -- no framework, its own small reactive
 primitives -- built with Vite, with Leaflet for the map. Behind it sits a
 Node/TypeScript backend-for-frontend on Fastify, which is what talks to the
-upstreams (AIS, ADS-B, weather, tide, aurora, cameras), holds the API
+upstreams (AIS, ADS-B, weather, tide, aurora, Statens vegvesen), holds the API
 credentials, caches the responses and validates every payload with Zod
 before the browser sees it.
 
