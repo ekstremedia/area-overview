@@ -206,16 +206,17 @@ describe('mountRoadsLayer', () => {
         mockSettings.set(SettingsSchema.parse({ roads: { enabled: false } }));
     });
 
-    it('hides scheduled and planned situations until showPlanned is on, and reports the visible count', async () => {
+    it('hides scheduled and planned situations until showPlanned is on, and counts what is in force whatever that setting says', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-13T12:00:00Z'));
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response([roadworks, planned, scheduled]))));
         const created = { markers: [] as FakeMarker[], polylines: [] as FakePolyline[] };
         const reportCount = vi.fn();
         const reportAttribution = vi.fn();
+        const reportItems = vi.fn();
 
         mockSettings.set(enabled());
-        const dispose = mountRoadsLayer(fakeLeaflet(created), fakeMap(), { reportCount, reportAttribution, reportItems: vi.fn() });
+        const dispose = mountRoadsLayer(fakeLeaflet(created), fakeMap(), { reportCount, reportAttribution, reportItems });
         await vi.advanceTimersByTimeAsync(0);
 
         // Only the one in force: the response carries all three so that a
@@ -225,10 +226,17 @@ describe('mountRoadsLayer', () => {
         expect(reportAttribution).toHaveBeenLastCalledWith('Data: Statens vegvesen');
 
         // Flipping the setting re-filters what is already on screen, with
-        // no second fetch and no wait for the 120s poll.
+        // no second fetch and no wait for the 120s poll -- three pins now.
+        //
+        // But the masthead count stays at one. It counts `current` only,
+        // always: "6 vegmeldinger" has to mean six things happening, and a
+        // number that silently starts including next month's roadworks
+        // when a filter is flipped is a number nobody can trust from
+        // across the room. The tap-through list still shows all three.
         mockSettings.set(enabled({ showPlanned: true }));
-        expect(reportCount).toHaveBeenLastCalledWith(3, 0);
         expect(created.markers.filter((marker) => !marker.removed)).toHaveLength(3);
+        expect(reportCount).toHaveBeenLastCalledWith(1, 0);
+        expect(reportItems.mock.lastCall?.[0]).toHaveLength(3);
 
         mockSettings.set(enabled({ showPlanned: false }));
         expect(reportCount).toHaveBeenLastCalledWith(1, 0);

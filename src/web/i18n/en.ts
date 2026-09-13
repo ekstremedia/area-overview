@@ -29,13 +29,13 @@ export const en: Record<keyof typeof nb, string> = {
     'masthead.dateTime': '{date} · {time}',
     'masthead.shipsUnit': 'ships',
     'masthead.aircraftUnit': 'aircraft',
+    'masthead.roadSituationsUnit': 'road notices',
+    'masthead.roadCamerasUnit': 'road cameras',
     'masthead.hiddenUnit': 'hidden',
     'masthead.livePanelEmpty': 'Nothing in sight',
     'masthead.settings': 'Settings',
     'masthead.autoCyclePause': 'Pause the slideshow',
     'masthead.autoCyclePlay': 'Resume the slideshow',
-    'masthead.layerCounts': '{ships} ships · {aircraft} aircraft',
-    'masthead.layerCountsHidden': '{ships} ships · {aircraft} aircraft · {hidden} hidden',
 
     'footer.nightScheduleActive': 'Night schedule active {from}–{to} · one tap lifts the veil for 30 s',
 
@@ -326,9 +326,12 @@ export const en: Record<keyof typeof nb, string> = {
 
     'settings.layers.ships': 'Ships · AIS',
     'settings.layers.aircraft': 'Aircraft · ADS-B',
+    'settings.layers.roads': 'Roads · Statens vegvesen',
     'settings.layers.pollSeconds': 'Poll interval',
     'settings.layers.maxAgeMinutes': 'Max age',
     'settings.layers.showOnGround': 'Show aircraft on the ground',
+    'settings.layers.showPlanned': 'Show planned roadworks',
+    'settings.layers.showCameras': 'Show road cameras',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch credentials are set on the server.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch credentials are NOT set on the server.',
 

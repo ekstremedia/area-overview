@@ -1,20 +1,27 @@
 /**
  * Layers section (artboard 07's "Lag" / "Levende lag"): generated from
  * `src/shared/layers.ts`'s `LiveLayerSpec` array -- one block per layer,
- * with zero code here that names "ships" or "aircraft" for the generic
- * bits (enabled toggle, poll-interval stepper, max-age stepper). A third
- * live layer added to that array needs no change in this file.
+ * with zero code here that names a layer for the generic bits (enabled
+ * toggle, poll-interval stepper, max-age stepper).
  *
- * Two genuinely per-layer exceptions, both documented, not hidden:
- *  - `showOnGround` only exists on aircraft's settings shape -- handled
- *    as an explicit `layer.id === 'aircraft'` special case, exactly as
- *    the phase notes call out.
+ * The per-layer exceptions are a **deliberate** `layer.id` branch each,
+ * documented rather than generalised away. A settings control is not
+ * data: "Vis planlagt vegarbeid" means something only for roads, and a
+ * scheme that rendered it from a schema would have to carry its label,
+ * its help text and its ordering somewhere anyway. The branches:
+ *  - `showOnGround` exists only on aircraft's settings shape.
+ *  - `showPlanned` and `showCameras` exist only on roads'.
  *  - Ships gets one extra read-only line stating whether the server has
  *    BarentsWatch credentials configured, derived from `GET /api/ships`'s
  *    response shape (`503 {configured:false}` vs. any `200`), fetched
  *    once on mount.
+ *
+ * The max-age stepper is the one control that is conditional on the
+ * *spec* rather than on an id: `maxAgeMinutesMin/Max` are optional on
+ * `LiveLayerSpec`, and a layer that sets neither has no fix age to
+ * filter on (roads: a notice is valid until it expires, never stale).
  */
-import { AIRCRAFT_LAYER, SHIPS_LAYER, type LiveLayerSpec } from '../../../shared/layers.js';
+import { AIRCRAFT_LAYER, ROADS_LAYER, SHIPS_LAYER, type LiveLayerId, type LiveLayerSpec } from '../../../shared/layers.js';
 import type { Settings, SettingsPatch } from '../../../shared/schemas/settings.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
@@ -23,35 +30,34 @@ import { formatNumber, t, type ParamlessKey } from '../../i18n/index.js';
 import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
-const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER];
+const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER, ROADS_LAYER];
 
-const LAYER_LABEL_KEYS: Record<string, ParamlessKey> = {
+const LAYER_LABEL_KEYS: Record<LiveLayerId, ParamlessKey> = {
     ships: 'settings.layers.ships',
     aircraft: 'settings.layers.aircraft',
+    roads: 'settings.layers.roads',
 };
 
-/** The fields every live layer's settings share -- `showOnGround` is aircraft-only, handled separately. */
-interface LiveLayerSettingsShape {
-    enabled: boolean;
-    pollSeconds: number;
-    maxAgeMinutes: number;
-    showOnGround?: boolean;
+/**
+ * One layer's settings block, as the union of the three concrete shapes
+ * -- `Settings[LiveLayerId]` read straight off `Settings`, with no cast
+ * at all. That is what `LiveLayerId` being a closed union bought: the
+ * correspondence "every layer id is also a `Settings` key" used to be a
+ * comment above a double cast, and is now something the compiler checks.
+ *
+ * Being a union means the fields that are not shared (`maxAgeMinutes`,
+ * `showOnGround`, `showPlanned`, `showCameras`) need an `in` narrowing
+ * before they can be read -- which is the honest shape of the problem,
+ * since roads genuinely has no `maxAgeMinutes`.
+ */
+type LiveLayerSettings = Settings[LiveLayerId];
+
+function getLayerSettings(settings: Settings, layerId: LiveLayerId): LiveLayerSettings {
+    return settings[layerId];
 }
 
-function getLayerSettings(settings: Settings, layerId: string): LiveLayerSettingsShape {
-    // `Settings`'s `ships`/`aircraft` keys are exactly `LiveLayerSpec.id`'s
-    // two current values -- this cast is the one place that fact is
-    // asserted rather than re-derived structurally, since `Settings` has
-    // no generic `Record<layerId, ...>` shape for TS to index into directly.
-    // The trailing non-null assertion is safe for the same reason: `layerId`
-    // always comes from `LAYERS` (`SHIPS_LAYER`/`AIRCRAFT_LAYER`), both of
-    // which name a real top-level `Settings` key.
-    const record = settings as unknown as Record<string, LiveLayerSettingsShape>;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- see comment above
-    return record[layerId]!;
-}
-
-function buildPatch(layerId: string, next: LiveLayerSettingsShape): SettingsPatch {
+/** One layer's whole settings object under its own key -- the patch shape the store expects, with no cast, now that both sides of the key are the same closed union. */
+function buildPatch(layerId: LiveLayerId, next: LiveLayerSettings): SettingsPatch {
     return { [layerId]: next };
 }
 
@@ -87,11 +93,11 @@ export const mount: SectionMount = (container, ctx) => {
 
         const heading = document.createElement('div');
         heading.className = 'settings-layer-heading';
-        heading.textContent = t(LAYER_LABEL_KEYS[layer.id] ?? 'settings.layers.ships');
+        heading.textContent = t(LAYER_LABEL_KEYS[layer.id]);
 
         const layerSettings = getLayerSettings(initial, layer.id);
 
-        function write(next: Partial<LiveLayerSettingsShape>): void {
+        function write(next: Partial<LiveLayerSettings>): void {
             const current = getLayerSettings(store.settings.get(), layer.id);
             void store.patchSettings(buildPatch(layer.id, { ...current, ...next }));
         }
@@ -114,53 +120,56 @@ export const mount: SectionMount = (container, ctx) => {
             },
         });
 
-        // `maxAgeMinutesMin/Max` are optional on `LiveLayerSpec` now --
-        // a layer whose items are notices rather than position fixes has
-        // no fix age to filter on and sets neither (see that file's doc
-        // comment). Every layer in `LAYERS` still sets both, so these
-        // fallbacks are unreachable today; the row itself becomes
-        // conditional when such a layer joins the list.
-        const maxAgeMin = layer.maxAgeMinutesMin ?? 1;
-        const maxAgeMax = layer.maxAgeMinutesMax ?? 120;
-
-        const maxAgeStepper: StepperHandle = stepper({
-            value: layerSettings.maxAgeMinutes,
-            min: maxAgeMin,
-            max: maxAgeMax,
-            step: 1,
-            formatValue: (v) => `${String(v)} ${t('unit.minutes')}`,
-            onChange: (next) => {
-                write({ maxAgeMinutes: next });
-            },
-        });
-
         const headingRow = document.createElement('div');
         headingRow.className = 'settings-layer-heading-row';
         headingRow.append(heading, enabledToggle.el);
 
-        // Every field in a block patches the one `ships`/`aircraft`
+        // Every field in a block patches the one `ships`/`aircraft`/`roads`
         // object, so the block carries a single override on its first row
         // rather than one badge per control promising a granularity the
-        // schema does not have.
-        // `LiveLayerSpec.id` is a plain `string`, but `LAYERS` is exactly
-        // the two layers whose ids are also `Settings` keys -- the same
-        // correspondence `getLayerSettings`/`buildPatch` above rely on.
-        const overrideKey = layer.id === 'aircraft' ? 'aircraft' : 'ships';
+        // schema does not have. `layer.id` is usable as the override key
+        // directly now that `LiveLayerId` is closed -- it used to be a
+        // ternary picking between the only two ids that existed.
         const pollRow = field({
             label: t('settings.layers.pollSeconds'),
             control: pollStepper.el,
-            override: overrideFor(store, overrideKey, (shared) => `${formatNumber(shared.pollSeconds)} ${t('unit.seconds')}`),
+            override: overrideFor(store, layer.id, (shared) => `${formatNumber(shared.pollSeconds)} ${t('unit.seconds')}`),
         });
-        const maxAgeRow = field({ label: t('settings.layers.maxAgeMinutes'), control: maxAgeStepper.el });
-        rows.push(pollRow, maxAgeRow);
+        rows.push(pollRow);
+        block.append(headingRow, pollRow.el);
 
-        block.append(headingRow, pollRow.el, maxAgeRow.el);
+        // The max-age row, only for a layer that declares bounds for it.
+        // `maxAgeMinutesMin/Max` and a `maxAgeMinutes` settings field
+        // travel together by construction (`shared/layers.ts` says so),
+        // and the `in` check is what tells TypeScript that -- `roads` is
+        // in the same union and genuinely has no such field.
+        const maxAgeMin = layer.maxAgeMinutesMin;
+        const maxAgeMax = layer.maxAgeMinutesMax;
+        let maxAgeStepper: StepperHandle | undefined;
+        if (maxAgeMin !== undefined && maxAgeMax !== undefined && 'maxAgeMinutes' in layerSettings) {
+            maxAgeStepper = stepper({
+                value: layerSettings.maxAgeMinutes,
+                min: maxAgeMin,
+                max: maxAgeMax,
+                step: 1,
+                formatValue: (v) => `${String(v)} ${t('unit.minutes')}`,
+                onChange: (next) => {
+                    write({ maxAgeMinutes: next });
+                },
+            });
+            const maxAgeRow = field({ label: t('settings.layers.maxAgeMinutes'), control: maxAgeStepper.el });
+            rows.push(maxAgeRow);
+            block.append(maxAgeRow.el);
+        }
 
-        // Aircraft-only field -- the one documented per-layer-id special case.
+        // Aircraft-only field -- one of the documented per-layer-id
+        // special cases. `initial.aircraft` rather than the union above:
+        // inside this branch the shape is known, so the field is typed
+        // rather than guarded.
         let showOnGroundToggle: ToggleHandle | undefined;
         if (layer.id === 'aircraft') {
             showOnGroundToggle = toggle({
-                checked: layerSettings.showOnGround ?? false,
+                checked: initial.aircraft.showOnGround,
                 onChange: (checked) => {
                     write({ showOnGround: checked });
                 },
@@ -168,6 +177,35 @@ export const mount: SectionMount = (container, ctx) => {
             const showOnGroundRow = field({ label: t('settings.layers.showOnGround'), control: showOnGroundToggle.el });
             rows.push(showOnGroundRow);
             block.append(showOnGroundRow.el);
+        }
+
+        // Roads-only fields, the same deliberate id-branch.
+        //
+        // `showPlanned` is the Veg layer's answer to the max-age stepper
+        // it does not have: a filter on the future ("is this happening
+        // now?") where the others filter on the past ("is this fix still
+        // any use?"). `showCameras` is separate from the layer's own
+        // toggle because the camera pins are numerous, and wanting the
+        // notices without them is an ordinary preference.
+        let showPlannedToggle: ToggleHandle | undefined;
+        let showCamerasToggle: ToggleHandle | undefined;
+        if (layer.id === 'roads') {
+            showPlannedToggle = toggle({
+                checked: initial.roads.showPlanned,
+                onChange: (checked) => {
+                    write({ showPlanned: checked });
+                },
+            });
+            const showPlannedRow = field({ label: t('settings.layers.showPlanned'), control: showPlannedToggle.el });
+            showCamerasToggle = toggle({
+                checked: initial.roads.showCameras,
+                onChange: (checked) => {
+                    write({ showCameras: checked });
+                },
+            });
+            const showCamerasRow = field({ label: t('settings.layers.showCameras'), control: showCamerasToggle.el });
+            rows.push(showPlannedRow, showCamerasRow);
+            block.append(showPlannedRow.el, showCamerasRow.el);
         }
 
         // Ships-only read-only credentials line.
@@ -194,8 +232,12 @@ export const mount: SectionMount = (container, ctx) => {
             const current = getLayerSettings(store.settings.get(), layer.id);
             enabledToggle.setState(current.enabled, false);
             pollStepper.setState(current.pollSeconds, false);
-            maxAgeStepper.setState(current.maxAgeMinutes, false);
-            showOnGroundToggle?.setState(current.showOnGround ?? false, false);
+            // Each control exists exactly when its field does; the `in`
+            // checks re-establish that for the compiler on the union.
+            if ('maxAgeMinutes' in current) maxAgeStepper?.setState(current.maxAgeMinutes, false);
+            if ('showOnGround' in current) showOnGroundToggle?.setState(current.showOnGround, false);
+            if ('showPlanned' in current) showPlannedToggle?.setState(current.showPlanned, false);
+            if ('showCameras' in current) showCamerasToggle?.setState(current.showCameras, false);
         });
         disposers.push(disposeEffect);
     }

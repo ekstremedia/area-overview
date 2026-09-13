@@ -12,7 +12,7 @@
  * masthead on the cameras page.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { claimPageStatus, liveLayerCounts, pageAttribution, pageFreshness } from './page-status.js';
+import { claimPageStatus, emptyLayerCounts, liveLayerCounts, pageAttribution, pageFreshness } from './page-status.js';
 
 beforeEach(() => {
     pageAttribution.set(null);
@@ -82,10 +82,10 @@ describe('claimPageStatus', () => {
         // still in the masthead on the cameras page afterwards, with no map
         // behind them and nothing left to correct the figure.
         const map = claimPageStatus();
-        map.layerCounts({ ships: 22, aircraft: 0, hiddenByAge: 0 });
+        map.layerCounts({ ...emptyLayerCounts(), ships: 22 });
 
         claimPageStatus(); // cameras is the live page now
-        map.layerCounts({ ships: 23, aircraft: 1, hiddenByAge: 0 }); // a poll that landed mid-slide
+        map.layerCounts({ ...emptyLayerCounts(), ships: 23, aircraft: 1 }); // a poll that landed mid-slide
 
         map.release();
 

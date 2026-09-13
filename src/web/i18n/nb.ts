@@ -34,17 +34,18 @@ export const nb = {
     // string cannot express. These are the units alone.
     'masthead.shipsUnit': 'skip',
     'masthead.aircraftUnit': 'fly',
+    // Vegvesen's own words. "vegmelding" is what the situations are
+    // called on vegvesen.no, and "vegkamera" likewise -- neither is
+    // inflected for count here (6 vegmeldinger / 1 vegmelding would need
+    // a plural rule for one word in the row; the plural form reads
+    // correctly at every count a masthead ever shows, including zero).
+    'masthead.roadSituationsUnit': 'vegmeldinger',
+    'masthead.roadCamerasUnit': 'vegkamera',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
     'masthead.autoCyclePause': 'Pause automatisk bla',
     'masthead.autoCyclePlay': 'Start automatisk bla',
-    'masthead.layerCounts': '{ships} skip · {aircraft} fly',
-    // Shown instead of the plain line when the age filter is holding
-    // something back, so a vessel disappearing is accounted for rather
-    // than silent. "skjult" stays uninflected across counts (1 skjult, 3
-    // skjult), unlike "gammel/gamle".
-    'masthead.layerCountsHidden': '{ships} skip · {aircraft} fly · {hidden} skjult',
 
     'footer.nightScheduleActive': 'Nattplan aktiv {from}–{to} · ett trykk løfter sløret i 30 s',
 
@@ -344,9 +345,15 @@ export const nb = {
 
     'settings.layers.ships': 'Skip · AIS',
     'settings.layers.aircraft': 'Fly · ADS-B',
+    'settings.layers.roads': 'Veg · Statens vegvesen',
     'settings.layers.pollSeconds': 'Oppdateringsintervall',
     'settings.layers.maxAgeMinutes': 'Maks alder',
     'settings.layers.showOnGround': 'Vis fly på bakken',
+    // The Veg layer's own two filters. "Planlagt vegarbeid" covers both
+    // things the layer calls not-current: work that starts later, and
+    // today's work outside its own hours.
+    'settings.layers.showPlanned': 'Vis planlagt vegarbeid',
+    'settings.layers.showCameras': 'Vis vegkamera',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

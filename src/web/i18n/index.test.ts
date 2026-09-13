@@ -38,7 +38,7 @@ describe('t', () => {
 
     it('accepts a numeric param value', () => {
         setLanguage('nb');
-        expect(t('masthead.layerCounts', { ships: 14, aircraft: 3 })).toBe('14 skip · 3 fly');
+        expect(t('masthead.stale', { duration: 42 })).toBe('Gamle data · 42');
     });
 });
 

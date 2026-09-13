@@ -80,7 +80,7 @@ export interface PageStatus {
     freshness: (value: Freshness | null) => void;
     /** The footer's credit line. Licence-required for most of this app's upstreams, so it must never name the wrong source. */
     attribution: (value: string | null) => void;
-    /** The masthead's live ship/aircraft counts (map only). */
+    /** The masthead's live counts, one per group (map only). */
     layerCounts: (value: LayerCounts | null) => void;
     /** What those counts open when tapped (map only). */
     layerListing: (value: LiveLayerListing | null) => void;
@@ -136,9 +136,28 @@ export function claimPageStatus(): PageStatus {
     };
 }
 
-export interface LayerCounts {
-    ships: number;
-    aircraft: number;
+/**
+ * The masthead's countable groups, in the order they are shown.
+ *
+ * A *group* is not a layer. The Veg layer (`shared/layers.ts`'s
+ * `ROADS_LAYER`) is one layer with one toggle, but it puts two quite
+ * different things on the map -- road notices and road cameras -- and
+ * across the room "3 vegmeldinger" and "19 vegkamera" answer different
+ * questions. So the masthead counts groups, and `shared/layers.ts`'s
+ * `LiveLayerId` and this union are deliberately not the same list.
+ *
+ * This array is the single enumeration: `LayerCounts`, the listing, and
+ * the masthead's own registry of colours and glyphs are all keyed off
+ * it, so a fifth group is an entry here plus an entry in `Masthead.ts`'s
+ * `COUNT_GROUPS` -- not another branch in a ternary. (It was a
+ * hand-written `{ships, aircraft}` pair until the fourth group arrived,
+ * which is exactly when that stopped paying for itself.)
+ */
+export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras'] as const;
+
+export type LiveLayerGroupId = (typeof LIVE_LAYER_GROUP_IDS)[number];
+
+export type LayerCounts = Record<LiveLayerGroupId, number> & {
     /**
      * How many ships/aircraft the BFF returned but the map is not drawing
      * because their last position fix is older than the layer's
@@ -151,8 +170,17 @@ export interface LayerCounts {
      * a word makes a boat someone was watching vanish for no visible
      * reason. Zooming makes it worse, since a zoom re-runs the age filter
      * and so is often the moment a just-expired vessel blinks out.
+     *
+     * Not per group: neither road group has an age filter at all (a road
+     * notice is valid until it expires, never stale), so both contribute
+     * a permanent zero.
      */
     hiddenByAge: number;
+};
+
+/** Every group at zero -- what the map page publishes before any layer has answered. */
+export function emptyLayerCounts(): LayerCounts {
+    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, hiddenByAge: 0 };
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = layerCountsSlot.signal;
@@ -171,16 +199,35 @@ export interface LiveLayerItem {
     detail: string;
     lat: number;
     lng: number;
+    /**
+     * What tapping this row should do, when panning the map to it is not
+     * the right answer. Set only by road cameras: a camera *is* a
+     * picture, so its row opens the picture, where panning to its pin
+     * would leave the visitor to find and tap the pin themselves.
+     *
+     * Carried per item rather than per group so the shell stays
+     * layer-agnostic -- it runs whatever the map page handed it and never
+     * learns that a camera modal exists.
+     */
+    activate?: () => void;
 }
 
 export interface LiveLayerListing {
-    ships: LiveLayerItem[];
-    aircraft: LiveLayerItem[];
+    /**
+     * What each group currently has on the map, keyed by group id --
+     * every group present, empty array when a layer is switched off, so
+     * the masthead can index straight in without asking whether a key
+     * exists.
+     */
+    items: Record<LiveLayerGroupId, LiveLayerItem[]>;
     /**
      * Pans and zooms the map to one item. Supplied by the map page (the
      * only thing holding a Leaflet instance) rather than reached for
      * through `activeMapInstance`, so the shell never touches Leaflet and
      * the listing is inert on any page that doesn't provide one.
+     *
+     * The default action for a row; an item carrying its own `activate`
+     * overrides it.
      */
     focus: (item: LiveLayerItem) => void;
 }

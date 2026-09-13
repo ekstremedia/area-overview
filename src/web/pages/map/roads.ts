@@ -468,10 +468,24 @@ export function mountRoadsLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks: 
                     else addEntry(situation);
                 }
 
+                // The masthead counts what is **in force now**, always --
+                // deliberately not `visible.length`. A number that silently
+                // changes meaning when "Vis planlagt vegarbeid" is switched
+                // on is a number nobody can trust from across the room:
+                // "6 vegmeldinger" has to mean six things happening, not
+                // six things of which four are next month's roadworks.
+                // The tap-through list below still shows everything the map
+                // is drawing, which is what that list is for.
+                //
+                // Counted from the response rather than from `visible` so
+                // "always" is true by construction and not by the two
+                // branches above happening to agree.
+                //
                 // No age filter on this layer -- a road notice is valid
                 // until it expires, and an expired one never leaves the BFF
                 // -- so nothing is ever hidden by age.
-                callbacks.reportCount(visible.length, 0);
+                const currentCount = state.data.situations.filter((situation) => situation.status === 'current').length;
+                callbacks.reportCount(currentCount, 0);
                 callbacks.reportItems(
                     visible.map((situation) => ({
                         id: situation.id,

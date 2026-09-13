@@ -253,6 +253,16 @@ export function mountRoadCamerasLayer(L: typeof Leaflet, map: Leaflet.Map, callb
                         detail: camera.direction ?? formatRoadNumber(camera.roadNumber) ?? t('map.roadCameraLabel'),
                         lat: camera.lat,
                         lng: camera.lng,
+                        // The one group whose masthead row does not pan the
+                        // map: a camera *is* its picture, and panning to
+                        // its pin would only ask the visitor to find and
+                        // tap the pin themselves. Closing over `camera` is
+                        // safe because this whole list is rebuilt on every
+                        // `render()` -- unlike a pin, which outlives its
+                        // poll and so reads through `pins` instead.
+                        activate: (): void => {
+                            open([camera]);
+                        },
                     })),
                 );
                 callbacks.reportAttribution(ROADS_LAYER.attribution);
