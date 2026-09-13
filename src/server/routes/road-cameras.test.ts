@@ -159,6 +159,56 @@ describe('GET /api/road-cameras', () => {
         expect(response.headers['cache-control']).toBe('public, max-age=300, stale-while-revalidate=60');
     });
 
+    it('warns when a still image is refused for its host, naming the counts and no bbox', async () => {
+        // `safeImageUrl` is a security control: the visitor's browser
+        // fetches `imageUrl` directly, so if Vegvesen ever moves its
+        // stills off `kamera.atlas.vegvesen.no` this route serves an
+        // empty viewport -- which looks precisely like a stretch of road
+        // with no cameras on it. The fixture carries one such camera, so
+        // the log line is asserted rather than assumed, and asserted to
+        // carry counts rather than the bbox that is this route's cache
+        // key.
+        vi.stubGlobal('fetch', wfsStub());
+        const written: string[] = [];
+        const app = buildTestApp({}, { logger: { level: 'warn', stream: { write: (chunk: string) => written.push(chunk) } } });
+
+        const response = await app.inject({ method: 'GET', url: `/api/road-cameras?${VALID_BBOX}` });
+        await app.close();
+
+        expect(response.statusCode).toBe(200);
+        const output = written.join('');
+        expect(output).toContain('road camera records were discarded');
+        expect(output).toContain('"imageHost":1');
+        expect(output).toContain(`"records":${String(cctvFixture.features.length)}`);
+        // The weather half mapped cleanly, and says so with a zero
+        // rather than by being absent.
+        expect(output).toContain('"weather":{"records":5,"dropped":0');
+        expect(output).not.toContain('14.5');
+        expect(output).not.toContain('68.35');
+    });
+
+    it('says nothing when both halves map cleanly', async () => {
+        // Same fixture without the foreign-host camera: an ordinary
+        // response must be silent, or the warning above means nothing.
+        const clean = { ...cctvFixture, features: cctvFixture.features.filter((feature) => feature.properties.CAMERA_ID !== '3000888_1') };
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockImplementation((url: unknown) =>
+                    Promise.resolve(jsonResponse(String(url).includes(encodeURIComponent(CCTV_TYPE_NAME)) ? clean : weatherFixture)),
+                ),
+        );
+        const written: string[] = [];
+        const app = buildTestApp({}, { logger: { level: 'warn', stream: { write: (chunk: string) => written.push(chunk) } } });
+
+        const response = await app.inject({ method: 'GET', url: `/api/road-cameras?${VALID_BBOX}` });
+        await app.close();
+
+        expect(response.statusCode).toBe(200);
+        expect(written.join('')).toBe('');
+    });
+
     it('still serves the pictures when only the weather layer fails', async () => {
         vi.stubGlobal(
             'fetch',

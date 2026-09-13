@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { RoadSituationSchema, type RoadSituation } from '../../shared/schemas/roads.js';
+import type { RoadSituation } from '../../shared/schemas/roads.js';
 import situationsFixture from './fixtures/situations-vesteralen.json' with { type: 'json' };
+import { DiscardTally } from './discards.js';
 import { classifySituation, mapSituations, type RawSituationProps } from './situations.js';
 import type { RawFeature } from './vegvesen-wfs.js';
 
@@ -400,24 +401,42 @@ describe('mapSituations', () => {
         expect(situationById(situations, 'NPRA_1002').periodic).toBe(false);
     });
 
-    it('produces situations that satisfy the shared contract', () => {
-        for (const situation of situations) {
-            expect(() => RoadSituationSchema.parse(situation)).not.toThrow();
-        }
+    it('counts nothing against a healthy collection, so a non-zero tally really does mean something is wrong', () => {
+        // Every record parses and every situation survives the shared
+        // contract -- and the two situations this mapper *does* throw
+        // away here, the expired one and the one seven weeks out, are
+        // not discards: they are the filter doing its job on every
+        // response, and counting them would make the route's warning
+        // fire constantly and so be read by nobody. See `discards.ts`.
+        const discards = new DiscardTally();
+
+        mapSituations(FEATURES, NOW, discards);
+
+        expect(discards.summary()).toEqual({ records: FEATURES.length, dropped: 0, reasons: {} });
     });
 
-    it('drops a record it cannot parse or cannot place, rather than the response', () => {
+    it('counts a record it cannot parse and a situation it cannot place, rather than dropping either in silence', () => {
+        // The failure this tally exists for: an upstream attribute
+        // rename parses as nothing, empties the layer, and leaves the
+        // masthead reading "0 vegmeldinger" -- indistinguishable from a
+        // quiet evening unless the drop is counted and logged.
         const broken: RawFeature[] = [
             { geometry: null, properties: { SITUATION_ID: 'no-start-time' } },
             { geometry: null, properties: { SITUATION_ID: 'unplaceable', START_TIME: '2026-09-01T07:00:00+02:00' } },
             ...FEATURES,
         ];
+        const discards = new DiscardTally();
 
-        expect(mapSituations(broken, NOW)).toHaveLength(9);
+        expect(mapSituations(broken, NOW, discards)).toHaveLength(9);
+
+        expect(discards.summary()).toEqual({ records: FEATURES.length + 2, dropped: 2, reasons: { attributes: 1, unplaceable: 1 } });
     });
 
-    it('rejects a situation whose coordinates are outside world bounds', () => {
+    it('rejects a situation whose coordinates are outside world bounds, and counts it against the contract', () => {
         // What a missed [lng, lat] swap looks like: a latitude of 168.
+        // The mapper's last gate refuses it -- and says so, because a
+        // whole viewport failing this way is a bug on this side of the
+        // wire, which is precisely the case nobody would otherwise see.
         const swapped: RawFeature[] = [
             {
                 geometry: null,
@@ -431,7 +450,10 @@ describe('mapSituations', () => {
                 },
             },
         ];
+        const discards = new DiscardTally();
 
-        expect(mapSituations(swapped, NOW)).toEqual([]);
+        expect(mapSituations(swapped, NOW, discards)).toEqual([]);
+
+        expect(discards.summary()).toEqual({ records: 1, dropped: 1, reasons: { contract: 1 } });
     });
 });

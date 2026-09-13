@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RoadCameraSchema, RoadCameraSiteWeatherSchema, type RoadCameraSiteWeather } from '../../shared/schemas/road-cameras.js';
+import type { RoadCameraSiteWeather } from '../../shared/schemas/road-cameras.js';
 import type { Bbox } from '../layers/bbox.js';
 import { createOutboundGate } from '../outbound-gate.js';
 import cctvFixture from './fixtures/cctv-vesteralen.json' with { type: 'json' };
 import weatherFixture from './fixtures/weather-vesteralen.json' with { type: 'json' };
+import { DiscardTally } from './discards.js';
 import { fetchRoadCameras, mapRoadCameras, mapSiteWeather, MAX_PLAUSIBLE_WIND_MPS, siteIdOf } from './road-cameras.js';
 import { CCTV_TYPE_NAME, type RawFeature } from './vegvesen-wfs.js';
 
@@ -80,14 +81,27 @@ describe('mapRoadCameras', () => {
         expect(cameras.find((camera) => camera.id === '3000957_1')).toMatchObject({ lat: 68.55712, lng: 14.98211 });
     });
 
-    it('produces cameras that satisfy the shared contract', () => {
-        expect(cameras).toHaveLength(7);
-        for (const camera of cameras) {
-            expect(() => RoadCameraSchema.parse(camera)).not.toThrow();
-        }
+    it('counts the camera it refused for its image host, and does not count the faulted one', () => {
+        // The host check is a security control, not a data quirk: the
+        // visitor's browser fetches `imageUrl` directly, so the day
+        // Vegvesen moves its stills off `kamera.atlas.vegvesen.no` this
+        // mapper deletes every camera in the country. Counted, so the
+        // route can say so (`routes/road-cameras.ts`) instead of serving
+        // an empty viewport that looks like a quiet stretch of road.
+        //
+        // The faulted camera is deliberately *not* counted: 52 of 890
+        // are faulted on an ordinary day, and a warning that fires on
+        // every response is one nobody reads.
+        const discards = new DiscardTally();
+
+        const mapped = mapRoadCameras(CCTV_FEATURES, discards);
+
+        expect(mapped).toHaveLength(7);
+        expect(mapped.map((camera) => camera.id)).not.toContain('3000888_1');
+        expect(discards.summary()).toEqual({ records: CCTV_FEATURES.length, dropped: 1, reasons: { imageHost: 1 } });
     });
 
-    it('drops a camera with no position at all', () => {
+    it('drops a camera with no position at all, and counts that too', () => {
         const noGeometry: RawFeature[] = [
             {
                 geometry: null,
@@ -99,8 +113,11 @@ describe('mapRoadCameras', () => {
                 },
             },
         ];
+        const discards = new DiscardTally();
 
-        expect(mapRoadCameras(noGeometry)).toEqual([]);
+        expect(mapRoadCameras(noGeometry, discards)).toEqual([]);
+
+        expect(discards.summary()).toEqual({ records: 1, dropped: 1, reasons: { unplaceable: 1 } });
     });
 });
 
@@ -151,10 +168,26 @@ describe('mapSiteWeather', () => {
         expect(hadselbrua?.precipitationIntensity).toBe(0);
     });
 
-    it('produces readings that satisfy the shared contract', () => {
-        for (const reading of Object.values(weatherBySite)) {
-            expect(() => RoadCameraSiteWeatherSchema.parse(reading)).not.toThrow();
-        }
+    it('counts a station record it cannot parse, and never one it simply has no camera for', () => {
+        // A healthy Vesterålen response already contains a station with
+        // no camera in the viewport (Blomjoten) and one with no
+        // measurement time (Lødingen). Both are ordinary, both are
+        // dropped, and neither is a discard -- if they were, the route
+        // would warn on every single response and the warning would mean
+        // nothing. An unparseable attribute bag is the real signal.
+        const clean = new DiscardTally();
+        mapSiteWeather(WEATHER_FEATURES, siteIds, clean);
+        expect(clean.summary()).toEqual({ records: WEATHER_FEATURES.length, dropped: 0, reasons: {} });
+
+        const renamed: RawFeature[] = [
+            { geometry: null, properties: { REFERENCE_ID: '3000957', MEASUREMENT_TIME: 'i går kveld', AIR_TEMPERATURE: 7.2 } },
+            ...WEATHER_FEATURES,
+        ];
+        const broken = new DiscardTally();
+
+        mapSiteWeather(renamed, siteIds, broken);
+
+        expect(broken.summary()).toEqual({ records: WEATHER_FEATURES.length + 1, dropped: 1, reasons: { attributes: 1 } });
     });
 });
 

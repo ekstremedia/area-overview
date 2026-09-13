@@ -61,6 +61,19 @@ export function registerRoadCamerasRoutes(app: FastifyInstance, config: ServerCo
                     onWeatherFailure: (message) => {
                         request.log.warn({ reason: message }, 'road weather unavailable; serving road cameras without readings');
                     },
+                    // The failure nobody could see from the map: the
+                    // mappers drop a record they cannot parse, and
+                    // `imageHost` in particular is a security control --
+                    // if Vegvesen ever moves its stills off
+                    // `kamera.atlas.vegvesen.no`, every camera goes and
+                    // the viewport simply looks empty. One warn per
+                    // upstream fetch, counts and reasons only, no bbox.
+                    onDiscards: (discards) => {
+                        request.log.warn(
+                            discards,
+                            'road camera records were discarded while mapping; fewer cameras or readings are served than upstream sent',
+                        );
+                    },
                 });
                 if (!result.ok) return result;
 

@@ -101,7 +101,7 @@ async function fetchRoadSituations(map: Leaflet.Map): Promise<Result<RoadSituati
  * thing a passer-by must get from the pin alone is that the road is not
  * usable.
  */
-export function signFor(situation: RoadSituation): string {
+function signFor(situation: RoadSituation): string {
     if (situation.closed) return signClosed;
     if (situation.kind === 'roadworks') return signRoadworks;
     if (situation.kind === 'ferry') return signFerry;
@@ -109,7 +109,7 @@ export function signFor(situation: RoadSituation): string {
 }
 
 /** Red shut, amber in force, grey not in force now. See `liveLayerColors.ts` for why the two axes are separate. */
-export function colorFor(situation: RoadSituation): string {
+function colorFor(situation: RoadSituation): string {
     if (situation.closed) return ROAD_CLOSED_COLOR;
     return situation.status === 'current' ? ROAD_CURRENT_COLOR : ROAD_PLANNED_COLOR;
 }
@@ -191,7 +191,7 @@ function signElement(situation: RoadSituation, className: string): HTMLElement {
     return holder;
 }
 
-export function buildRoadPopup(situation: RoadSituation, now: Date = new Date()): HTMLElement {
+function buildRoadPopup(situation: RoadSituation, now: Date = new Date()): HTMLElement {
     const root = document.createElement('div');
     root.className = 'road-popup';
 

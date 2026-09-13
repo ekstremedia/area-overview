@@ -51,6 +51,7 @@ import { TtlCache } from '../cache.js';
 import type { ServerConfig } from '../config.js';
 import type { OutboundGate } from '../outbound-gate.js';
 import { cacheSeconds, serveCached } from '../route-helpers.js';
+import { DiscardTally } from '../roads/discards.js';
 import { mapSituations } from '../roads/situations.js';
 import { fetchFeatures, SITUATION_QUERY_EXTRA, SITUATION_RECORD_LIMIT, SITUATIONS_TYPE_NAME, type RawFeature } from '../roads/vegvesen-wfs.js';
 
@@ -131,11 +132,26 @@ export function registerRoadSituationsRoutes(app: FastifyInstance, config: Serve
                 // records are hours old and upstream has been down the
                 // whole time; `fetchedAt` still reports when they were
                 // actually fetched.
-                transform: (document): RoadSituationsResponse => ({
-                    configured: true,
-                    situations: mapSituations(document.features, new Date()),
-                    fetchedAt: document.fetchedAt,
-                }),
+                transform: (document): RoadSituationsResponse => {
+                    const discards = new DiscardTally();
+                    const situations = mapSituations(document.features, new Date(), discards);
+
+                    // The other invisible failure: the mapper drops a
+                    // record whose attributes do not parse, and an
+                    // upstream rename therefore empties this layer while
+                    // the masthead reads "0 vegmeldinger" -- which is
+                    // what a quiet evening looks like too. One warn per
+                    // response, counts only, no bbox: the same rule as
+                    // the record-cap warning above.
+                    if (discards.dropped > 0) {
+                        request.log.warn(
+                            discards.summary(),
+                            'road situation records were discarded while mapping; the layer is showing less than upstream sent',
+                        );
+                    }
+
+                    return { configured: true, situations, fetchedAt: document.fetchedAt };
+                },
             },
         );
     });

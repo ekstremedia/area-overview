@@ -30,6 +30,7 @@ import { RoadCameraSchema, RoadCameraSiteWeatherSchema, type RoadCamera, type Ro
 import { ok, type Result } from '../../shared/result.js';
 import type { Bbox } from '../layers/bbox.js';
 import type { OutboundGate } from '../outbound-gate.js';
+import { DiscardTally, type DiscardSummary } from './discards.js';
 import { CCTV_TYPE_NAME, fetchFeatures, WEATHER_TYPE_NAME, type RawFeature } from './vegvesen-wfs.js';
 
 /** The only host a road camera still may be fetched from. Every probed `STILL_IMAGE_URL` was `https://kamera.atlas.vegvesen.no/api/images/<CAMERA_ID>`; anything else is not served to a browser. */
@@ -81,7 +82,7 @@ export const MAX_PLAUSIBLE_GUST_RATIO = 1.8;
  * floor, only the absolute cap applies -- and at these speeds a gust
  * that is wrong is not a gust anyone would act on anyway.
  */
-export const MIN_MEAN_FOR_GUST_RATIO_MPS = 2;
+const MIN_MEAN_FOR_GUST_RATIO_MPS = 2;
 
 const NumericSchema = z.union([z.number(), z.string()]).nullish();
 
@@ -176,21 +177,44 @@ function positionOf(feature: RawFeature): { lat: number; lng: number } | null {
     return { lat: geometry.coordinates[1], lng: geometry.coordinates[0] };
 }
 
-/** Maps the `CctvSimple_v2` features onto `RoadCamera`s, dropping faulted cameras, cameras with no position, and cameras whose image is not on Vegvesen's own host. Pure. */
-export function mapRoadCameras(features: readonly RawFeature[]): RoadCamera[] {
+/**
+ * Maps the `CctvSimple_v2` features onto `RoadCamera`s, dropping faulted
+ * cameras, cameras with no position, and cameras whose image is not on
+ * Vegvesen's own host. Pure.
+ *
+ * Everything dropped for a reason that is *not* upstream's own fault
+ * flag is counted into `discards`, which the route logs (see
+ * `discards.ts`). The host check matters most: it is a security control,
+ * so the day Vegvesen moves its stills off `kamera.atlas.vegvesen.no`
+ * this layer empties, and it must say so rather than look like a
+ * viewport with no cameras in it. A faulted camera is not counted -- 52
+ * of 890 are faulted on an ordinary day, and a warning that fires every
+ * time is a warning nobody reads.
+ */
+export function mapRoadCameras(features: readonly RawFeature[], discards: DiscardTally = new DiscardTally()): RoadCamera[] {
     const cameras: RoadCamera[] = [];
     for (const feature of features) {
+        discards.seen();
         const parsed = RawCameraPropsSchema.safeParse(feature.properties ?? {});
-        if (!parsed.success) continue;
+        if (!parsed.success) {
+            discards.discard('attributes');
+            continue;
+        }
         const props = parsed.data;
 
         if (isFaulted(props.STATUS_STILL_IMAGE_AVAILABILITY)) continue;
 
         const imageUrl = safeImageUrl(props.STILL_IMAGE_URL);
-        if (imageUrl === null) continue;
+        if (imageUrl === null) {
+            discards.discard('imageHost');
+            continue;
+        }
 
         const position = positionOf(feature);
-        if (!position) continue;
+        if (!position) {
+            discards.discard('unplaceable');
+            continue;
+        }
 
         const candidate = {
             id: props.CAMERA_ID,
@@ -204,7 +228,11 @@ export function mapRoadCameras(features: readonly RawFeature[]): RoadCamera[] {
         };
 
         const validated = RoadCameraSchema.safeParse(candidate);
-        if (validated.success) cameras.push(validated.data);
+        if (validated.success) {
+            cameras.push(validated.data);
+        } else {
+            discards.discard('contract');
+        }
     }
     return cameras;
 }
@@ -243,13 +271,28 @@ function gustReading(gust: number | null, mean: number | null): number | null {
  * camera in this viewport, is dropped: `weatherBySite` exists to
  * annotate a picture, and there is no picture to annotate. Where two
  * stations somehow claim the same site, the later measurement wins.
+ *
+ * Only the two drops that mean something went wrong are counted into
+ * `discards`: an attribute bag that does not parse, and a reading the
+ * shared schema refuses. Having no camera to hang on, and having no
+ * measurement time, are ordinary -- both happen on a healthy Vesterålen
+ * response -- and counting them would drown the signal. See
+ * `discards.ts`.
  */
-export function mapSiteWeather(features: readonly RawFeature[], siteIds: ReadonlySet<string>): Record<string, RoadCameraSiteWeather> {
+export function mapSiteWeather(
+    features: readonly RawFeature[],
+    siteIds: ReadonlySet<string>,
+    discards: DiscardTally = new DiscardTally(),
+): Record<string, RoadCameraSiteWeather> {
     const bySite: Record<string, RoadCameraSiteWeather> = {};
 
     for (const feature of features) {
+        discards.seen();
         const parsed = RawWeatherPropsSchema.safeParse(feature.properties ?? {});
-        if (!parsed.success) continue;
+        if (!parsed.success) {
+            discards.discard('attributes');
+            continue;
+        }
         const props = parsed.data;
 
         const siteId = props.REFERENCE_ID;
@@ -273,7 +316,10 @@ export function mapSiteWeather(features: readonly RawFeature[], siteIds: Readonl
         };
 
         const validated = RoadCameraSiteWeatherSchema.safeParse(candidate);
-        if (!validated.success) continue;
+        if (!validated.success) {
+            discards.discard('contract');
+            continue;
+        }
 
         const existing = bySite[siteId];
         if (existing && Date.parse(existing.measuredAt) >= Date.parse(validated.data.measuredAt)) continue;
@@ -290,6 +336,14 @@ export interface FetchRoadCamerasOptions {
     fetchImpl?: typeof fetch;
     /** Called when the weather half failed, so the route can log it without this module knowing what a logger is. */
     onWeatherFailure?: (message: string) => void;
+    /** Called once, after both halves have been mapped, when either mapper refused a record -- same arrangement as `onWeatherFailure`: this module counts, the route logs. Not called at all on a clean fetch. */
+    onDiscards?: (discards: RoadCameraDiscards) => void;
+}
+
+/** What the two mappers refused, kept apart because they count different things: `cameras` is out of the CCTV records, `weather` out of the station records. */
+export interface RoadCameraDiscards {
+    cameras: DiscardSummary;
+    weather: DiscardSummary;
 }
 
 export interface RoadCamerasPayload {
@@ -312,10 +366,18 @@ export async function fetchRoadCameras(bbox: Bbox, options: FetchRoadCamerasOpti
         ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     };
 
+    const cameraDiscards = new DiscardTally();
+    const weatherDiscards = new DiscardTally();
+    /** One report per fetch, and only when there is something to report -- the cap warning's rule in `routes/road-situations.ts`. */
+    const report = (): void => {
+        if (cameraDiscards.dropped + weatherDiscards.dropped === 0) return;
+        options.onDiscards?.({ cameras: cameraDiscards.summary(), weather: weatherDiscards.summary() });
+    };
+
     const cameraFeatures = await fetchFeatures(CCTV_TYPE_NAME, bbox, shared);
     if (!cameraFeatures.ok) return cameraFeatures;
 
-    const cameras = mapRoadCameras(cameraFeatures.value);
+    const cameras = mapRoadCameras(cameraFeatures.value, cameraDiscards);
     const siteIds = new Set(cameras.map((camera) => camera.siteId));
 
     const weatherFeatures = await fetchFeatures(WEATHER_TYPE_NAME, bbox, shared);
@@ -324,8 +386,11 @@ export async function fetchRoadCameras(bbox: Bbox, options: FetchRoadCamerasOpti
         // without a temperature under it is still the thing the visitor
         // asked for.
         options.onWeatherFailure?.(weatherFeatures.error.message);
+        report();
         return ok({ cameras, weatherBySite: {} });
     }
 
-    return ok({ cameras, weatherBySite: mapSiteWeather(weatherFeatures.value, siteIds) });
+    const weatherBySite = mapSiteWeather(weatherFeatures.value, siteIds, weatherDiscards);
+    report();
+    return ok({ cameras, weatherBySite });
 }

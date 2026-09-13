@@ -102,7 +102,19 @@ export const RoadSituationSchema = z.object({
     /** Null means open-ended ("inntil videre"), which upstream does use. `startsAt` is never null. */
     endsAt: IsoTimestampSchema.nullable(),
     updatedAt: IsoTimestampSchema,
-    /** `true` when the situation has validity periods ("08:00-21:00 weekdays"), i.e. it is not continuously in force between `startsAt` and `endsAt`. Drives both the "gyldig 08:30-21:00" popup line and the `scheduled` status. */
+    /**
+     * `true` when the situation has validity periods ("08:00-21:00
+     * weekdays"), i.e. it is not continuously in force between
+     * `startsAt` and `endsAt`. Drives the `scheduled` status, and the
+     * popup's "gjelder i perioder" note.
+     *
+     * Note what this is *not*: the hours themselves. `SituationSimple_v2`
+     * carries `NUM_PERIODS` and `ACTIVE` and no period clock times at all
+     * (checked against `DescribeFeatureType`), so a "gyldig 08:30-21:00"
+     * line cannot be built from this contract -- see `web/pages/map/
+     * roads.ts`'s `validityText`. Upstream writes the hours into
+     * `description` anyway, and that is where they are read.
+     */
     periodic: z.boolean(),
     /** Where the pin goes: upstream's own display coordinates, present on every feature including the ones whose geometry is a line. */
     point: LatLngSchema,

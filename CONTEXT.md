@@ -85,8 +85,9 @@ _Avoid_: incident, event, road message, alert
 
 **Vegvesen layer**:
 The single live layer carrying road situations and road cameras: one toggle,
-one settings block, one poll rate.
-_Avoid_: roads layer, traffic layer (nothing here counts vehicles)
+one settings block, one poll rate. Its identifier in code is `roads`
+(`LiveLayerId`, `settings.roads`, `ROADS_LAYER`, `map/roads.ts`).
+_Avoid in prose_: roads layer, traffic layer (nothing here counts vehicles)
 
 **Placement**:
 The coordinates this app stores for a camera, keyed by `camera_id`. A camera

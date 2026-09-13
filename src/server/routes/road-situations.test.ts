@@ -166,6 +166,57 @@ describe('GET /api/road-situations', () => {
         expect(output).not.toContain('68.35');
     });
 
+    it('warns when the mapper discards records, naming the counts and no bbox', async () => {
+        // The other invisible failure, and the one that has already
+        // happened once on this branch: three attribute names were wrong.
+        // A rename parses as nothing, empties the layer, and leaves the
+        // masthead reading "0 vegmeldinger" -- exactly what a quiet
+        // evening looks like. This warning is the only thing that tells
+        // the two apart, so it is asserted, and asserted to carry
+        // counts rather than coordinates.
+        const broken = {
+            type: 'FeatureCollection',
+            features: [
+                { type: 'Feature', geometry: null, properties: { SITUASJON_ID: 'renamed-away' } },
+                { type: 'Feature', geometry: null, properties: { SITUASJON_ID: 'renamed-away-too' } },
+                ...situationsFixture.features,
+            ],
+        };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(broken)));
+
+        const written: string[] = [];
+        const app = buildTestApp({}, { logger: { level: 'warn', stream: { write: (chunk: string) => written.push(chunk) } } });
+
+        const response = await app.inject({ method: 'GET', url: `/api/road-situations?${VALID_BBOX}` });
+        await app.close();
+
+        expect(response.statusCode).toBe(200);
+        const output = written.join('');
+        expect(output).toContain('road situation records were discarded');
+        expect(output).toContain('"dropped":2');
+        expect(output).toContain(`"records":${String(situationsFixture.features.length + 2)}`);
+        expect(output).toContain('"attributes":2');
+        expect(output).not.toContain('14.5');
+        expect(output).not.toContain('68.35');
+    });
+
+    it('says nothing at all when every record maps cleanly', async () => {
+        // The other half of the promise: a warning that fires on an
+        // ordinary response is one nobody reads. The fixture's expired
+        // and far-future situations are dropped by design and must not
+        // count as discards.
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(situationsFixture)));
+
+        const written: string[] = [];
+        const app = buildTestApp({}, { logger: { level: 'warn', stream: { write: (chunk: string) => written.push(chunk) } } });
+
+        const response = await app.inject({ method: 'GET', url: `/api/road-situations?${VALID_BBOX}` });
+        await app.close();
+
+        expect(response.statusCode).toBe(200);
+        expect(written.join('')).toBe('');
+    });
+
     it('keeps the bbox out of the log when the upstream fails', async () => {
         // `serveCached` logs its cache key on failure, and this route's
         // key is the rounded viewport -- so the route passes a `logKey`

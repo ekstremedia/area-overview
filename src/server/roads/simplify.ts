@@ -30,7 +30,7 @@
  * at the zoom levels this map uses, 20 m is well under a pixel, so no
  * discarded point was ever going to be visible.
  */
-export const SIMPLIFY_TOLERANCE_DEGREES = 0.0002;
+const SIMPLIFY_TOLERANCE_DEGREES = 0.0002;
 
 /**
  * Five decimals is about a metre -- an order of magnitude finer than the
@@ -39,7 +39,7 @@ export const SIMPLIFY_TOLERANCE_DEGREES = 0.0002;
  * roughly in half against the 14 digits `JSON.stringify` would otherwise
  * emit.
  */
-export const COORDINATE_DECIMALS = 5;
+const COORDINATE_DECIMALS = 5;
 
 /** One `[lat, lng]` pair, already in Leaflet's order (the swap from the WFS's `[lng, lat]` happens in `situations.ts`, before this is called). */
 export type LinePoint = [number, number];

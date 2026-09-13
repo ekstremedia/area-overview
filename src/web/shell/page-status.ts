@@ -149,9 +149,13 @@ export function claimPageStatus(): PageStatus {
  * This array is the single enumeration: `LayerCounts`, the listing, and
  * the masthead's own registry of colours and glyphs are all keyed off
  * it, so a fifth group is an entry here plus an entry in `Masthead.ts`'s
- * `COUNT_GROUPS` -- not another branch in a ternary. (It was a
- * hand-written `{ships, aircraft}` pair until the fourth group arrived,
- * which is exactly when that stopped paying for itself.)
+ * `COUNT_GROUPS` -- not another branch in a ternary. Both halves are the
+ * compiler's business, not a comment's: `LayerCounts` and the listing
+ * are `Record<LiveLayerGroupId, ...>`, and `COUNT_GROUPS` is keyed the
+ * same way, so forgetting either one fails the build rather than
+ * silently showing no count. (It was a hand-written `{ships, aircraft}`
+ * pair until the fourth group arrived, which is exactly when that
+ * stopped paying for itself.)
  */
 export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras'] as const;
 

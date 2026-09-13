@@ -114,6 +114,16 @@ describe('mountMasthead', () => {
         expect(hidden?.parentElement?.style.display).not.toBe('none');
         expect(layerCounts?.textContent).toContain('1 skjult');
 
+        // This count opens nothing, so it is a `<span>` rather than a
+        // `<button>` -- and an `aria-label` on a generic element with no
+        // role is ignored outright. `role="img"` is what makes the name
+        // reach a screen reader, which matters below 1300px where the
+        // unit word is `display: none` and "1" is all that is left.
+        const hiddenPart = hidden?.parentElement;
+        expect(hiddenPart?.tagName).toBe('SPAN');
+        expect(hiddenPart?.getAttribute('role')).toBe('img');
+        expect(hiddenPart?.getAttribute('aria-label')).toBe('1 skjult');
+
         navigate('#/weather');
         expect(layerCounts?.style.display).toBe('none');
 

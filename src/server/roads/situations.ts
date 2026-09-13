@@ -26,6 +26,7 @@
 import { z } from 'zod';
 import { IsoTimestampSchema } from '../../shared/schemas/common.js';
 import { RoadSituationSchema, type RoadSituation, type RoadSituationKind, type RoadSituationStatus } from '../../shared/schemas/roads.js';
+import { DiscardTally } from './discards.js';
 import { simplifyLine, type LinePoint } from './simplify.js';
 import type { RawFeature, RawGeometry } from './vegvesen-wfs.js';
 
@@ -298,6 +299,15 @@ function groupDescription(main: ParsedRecord, records: readonly ParsedRecord[]):
     return '';
 }
 
+/** The first line geometry anywhere in the group, for the case where the main record happens not to carry one. */
+function groupLine(records: readonly ParsedRecord[]): LinePoint[][] | null {
+    for (const record of records) {
+        const line = lineFrom(record.geometry);
+        if (line !== null) return line;
+    }
+    return null;
+}
+
 /**
  * The record that speaks for the group.
  *
@@ -312,15 +322,6 @@ function groupDescription(main: ParsedRecord, records: readonly ParsedRecord[]):
  * consequence types falls through to its first record -- which is
  * exactly the bare management measure `kind: 'management'` describes.
  */
-/** The first line geometry anywhere in the group, for the case where the main record happens not to carry one. */
-function groupLine(records: readonly ParsedRecord[]): LinePoint[][] | null {
-    for (const record of records) {
-        const line = lineFrom(record.geometry);
-        if (line !== null) return line;
-    }
-    return null;
-}
-
 function mainRecordOf(records: readonly ParsedRecord[]): ParsedRecord | undefined {
     return (
         records.find((record) => asFlag(record.props.IS_MAIN_RECORD)) ??
@@ -339,13 +340,26 @@ function mainRecordOf(records: readonly ParsedRecord[]): ParsedRecord | undefine
  * Order is upstream's own, which is `LAST_UPDATE_TIME` descending -- the
  * freshest situation first, and the one that survives if the 500-record
  * cap truncates the answer.
+ *
+ * Three of those drops are faults rather than filtering -- a record
+ * whose attributes do not parse, a situation with nowhere to be put on
+ * the map, and one the shared contract refuses -- and a layer that
+ * empties itself on an upstream rename looks exactly like a quiet
+ * evening. So they are counted into `discards`, which the route logs
+ * once per response (`routes/road-situations.ts`). Expiry and the
+ * planned horizon are *not* counted: those are this function's job, not
+ * a fault. See `discards.ts`.
  */
-export function mapSituations(features: readonly RawFeature[], now: Date): RoadSituation[] {
+export function mapSituations(features: readonly RawFeature[], now: Date, discards: DiscardTally = new DiscardTally()): RoadSituation[] {
     const groups = new Map<string, ParsedRecord[]>();
 
     for (const feature of features) {
+        discards.seen();
         const parsed = RawSituationPropsSchema.safeParse(feature.properties ?? {});
-        if (!parsed.success) continue;
+        if (!parsed.success) {
+            discards.discard('attributes');
+            continue;
+        }
         const group = groups.get(parsed.data.SITUATION_ID);
         const record: ParsedRecord = { props: parsed.data, geometry: feature.geometry ?? null };
         if (group) {
@@ -367,7 +381,10 @@ export function mapSituations(features: readonly RawFeature[], now: Date): RoadS
         if (status === 'planned' && Date.parse(main.props.START_TIME) - now.getTime() > PLANNED_HORIZON_DAYS * MS_PER_DAY) continue;
 
         const point = displayPoint(main.props, main.geometry);
-        if (!point) continue;
+        if (!point) {
+            discards.discard('unplaceable');
+            continue;
+        }
 
         const rawType = text(main.props.SITUATION_TYPE) ?? 'unknown';
         const kind = kindFor(rawType);
@@ -422,7 +439,11 @@ export function mapSituations(features: readonly RawFeature[], now: Date): RoadS
         // `situations.test.ts`'s "swaps upstream's [lng, lat] into
         // Leaflet's [lat, lng]".
         const validated = RoadSituationSchema.safeParse(candidate);
-        if (validated.success) situations.push(validated.data);
+        if (validated.success) {
+            situations.push(validated.data);
+        } else {
+            discards.discard('contract');
+        }
     }
 
     return situations;

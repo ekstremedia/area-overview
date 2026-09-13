@@ -58,8 +58,9 @@ would put a sign on the map that says something the data never said.
 
 ## What was changed from the downloaded files
 
-Byte-for-byte the path geometry is upstream's. The files were optimised for
-inline use at 32–48 px only:
+Every path is upstream's own: no point was moved, added or removed, and no shape
+was redrawn. The coordinates themselves were shortened, as the last bullet
+records. The files were optimised for inline use at 32–48 px only:
 
 - the `<?xml …?>` declaration and the SVG 1.1 DOCTYPE were dropped (an inlined
   fragment needs neither);
@@ -73,8 +74,11 @@ inline use at 32–48 px only:
   nothing references them, and four inlined copies on one page would be four
   duplicate DOM ids;
 - `opacity="1.00"` (the default) was dropped;
-- path coordinates were rounded from two decimals to one. The artboards are
-  ~1206 units wide, so one decimal is about 0.004 px of error at 48 px.
+- path coordinates were rounded from two decimals to one. The artboards are not
+  all one size — `110.svg` and `156.svg` are `0 0 905 792`, `302.svg` is
+  `0 0 1206 1206`, `775.svg` is `0 0 679 679` — so the error is worst on the
+  smallest, 775's 679 units: rounding moves a coordinate by at most 0.05 units,
+  which at 48 px is under 0.004 px. On 302's 1206-unit artboard it is half that.
 
 Rendering before and after was compared in a real browser at 120 px, 48 px, 32 px
 and 24 px, against both a dark and a light-olive background; the faces are

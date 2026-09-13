@@ -2,9 +2,11 @@
  * General section (artboard 07's "Generelt"): poll interval (a stepper,
  * matching `pollIntervalSeconds`'s 10-600s/10s-step range), language (a
  * two-tile select that -- via `t()`'s own reactivity -- re-renders the
- * whole app immediately, no reload), and the five toggleable content
- * pages (`enabledPages`). Settings itself is never a toggleable entry --
- * `PAGE_IDS` below is exactly `PageId`'s five members, not `Route['name']`.
+ * whole app immediately, no reload), and the toggleable content pages
+ * (`enabledPages`) -- every `PageId` whose page is awake, which is four
+ * of the five while `CAMERAS_DORMANT` is true, as it is today. Settings
+ * itself is never a toggleable entry -- `PAGE_IDS` below is exactly
+ * `PageId`'s five members, not `Route['name']`.
  */
 import type { PageId, Settings } from '../../../shared/schemas/settings.js';
 import { CAMERAS_DORMANT } from '../cameras/dormancy.js';

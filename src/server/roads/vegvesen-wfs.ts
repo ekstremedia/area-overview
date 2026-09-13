@@ -57,7 +57,7 @@ export const SITUATION_QUERY_EXTRA: Readonly<Record<string, string>> = Object.fr
 const USER_AGENT = 'area-overview-bff/0.1';
 
 /** Reported when the shared Vegvesen gate is shut, so a route can tell this apart from an upstream that actually failed -- and, since both road routes share one gate, so a log line says which. */
-export const GATE_CLOSED_MESSAGE = 'Vegvesen WFS request skipped: outbound rate gate is closed';
+const GATE_CLOSED_MESSAGE = 'Vegvesen WFS request skipped: outbound rate gate is closed';
 
 /** `[lng, lat]`, possibly with an elevation the WFS sometimes carries. Never reordered here -- see this file's header. */
 const PositionSchema = z.tuple([z.number(), z.number()]).rest(z.number());
