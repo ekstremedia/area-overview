@@ -549,3 +549,349 @@
     border: none;
     cursor: pointer;
 }
+
+/* — road situation pin (`roads.ts`) — an `L.divIcon`, the same "circle
+   marker" mechanism `.camera-pin` and `.ship-cluster-badge` already use:
+   the icon's own footprint is the full 44px tap minimum, and the visible
+   plate inside it is smaller and centred. The plate exists because the
+   sign faces are vendored artwork with transparent corners
+   (`signs/README.md`) -- against a satellite basemap a bare triangle or
+   disc has nothing to sit on, and the ring is also where the state
+   colour goes: red closed, amber in force, grey not in force now. That
+   colour arrives inline as `--road-situation-color` from
+   `liveLayerColors.ts`, since a Leaflet path and a canvas need the same
+   literal and no design token matches it (same split as
+   `--ship-cluster-underway-color`). */
+.road-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.road-pin-plate {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: var(--color-bg);
+    box-shadow:
+        0 0 0 2px var(--road-situation-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* 26px inside a 32px plate: the sign has to keep a little air around it,
+   or the plate's coloured ring reads as part of the sign's own border. */
+.road-pin-sign,
+.road-pin-sign svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+}
+
+/* — road situation popup — shares the dark card treatment the ship and
+   aircraft popups use, under its own wrapper class so the two can drift
+   apart without touching each other (`bindPopup`'s `className`). */
+.road-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.road-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.road-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.road-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    /* Wide enough for a Vegvesen message to break at words rather than
+       mid-name, narrow enough to leave the 1024x600 kiosk a map around
+       it. */
+    min-width: 230px;
+    max-width: 300px;
+}
+
+.road-popup-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* The same sign face as the pin, at the larger 48px size where
+   there is room: big enough here to be recognised as the sign it is
+   rather than inferred from the colour. */
+.road-popup-sign,
+.road-popup-sign svg {
+    width: 48px;
+    height: 48px;
+    display: block;
+    flex: none;
+}
+
+.road-popup-heading {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.road-popup-kind {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+    color: var(--road-situation-color);
+}
+
+.road-popup-where {
+    color: var(--color-muted);
+}
+
+/* Vegvesen's own Norwegian text, verbatim in both UI languages (NPRA's
+   terms forbid translating it). `pre-line` because upstream's `|` line
+   breaks survive the server mapper as real newlines and are part of how
+   the message reads. */
+.road-popup-description {
+    margin: 4px 0 0;
+    white-space: pre-line;
+}
+
+/* Only rendered in the English UI, where the paragraph above is the one
+   thing on screen that did not switch language. */
+.road-popup-source {
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
+.road-popup-effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.road-popup-effect {
+    padding: 2px 6px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--color-text);
+}
+
+.road-popup-validity,
+.road-popup-status,
+.road-popup-updated {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* — road-camera pins (the Veg layer's other half) — deliberately quieter
+   than the situation signs above: a closed road has to be read across the
+   room, a camera is something you go looking for. Hence `--color-muted`,
+   no state colour and no sign face. The 44px outer box is the tap target;
+   the visible plate inside it is 28px, same arrangement as `.road-pin`. */
+.road-camera-pin {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.road-camera-pin-plate {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 14px;
+    background: var(--color-bg);
+    color: var(--color-muted);
+    box-shadow:
+        0 0 0 1.5px var(--color-muted),
+        0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.road-camera-pin-glyph,
+.road-camera-pin-glyph svg {
+    width: 17px;
+    height: 17px;
+    display: block;
+}
+.road-camera-cluster-count {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+/* — the road-camera modal — a real overlay on `document.body`, not a
+   Leaflet popup: this is a 800x600 photograph on a 1024x600 screen, and a
+   popup anchored to its own pin would spend its life fighting the map
+   edges. See `cameraModal.ts`'s doc comment. */
+/* Above `.display-overlay` (shell.css, z-index 1000) deliberately: at
+   night `mode: 'off'` the veil goes fully black, and a picture somebody
+   just tapped a pin to see would be a black rectangle 30 seconds later
+   when the tap-lift expires. The idle reset closes this anyway, so it
+   cannot sit bright on the wall for long. */
+.road-camera-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.road-camera-modal-veil {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--color-overlay) 74%, transparent);
+}
+.road-camera-modal-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(94vw, 960px);
+    max-height: 94vh;
+    padding: 12px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.road-camera-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.road-camera-modal-headings {
+    flex: 1;
+    min-width: 0;
+}
+.road-camera-modal-title {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 20px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.road-camera-modal-where {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+/* Both head controls are full `--tap-min` targets: this is the one
+   overlay on the kiosk with no route behind it to navigate away from. */
+.road-camera-modal-back,
+.road-camera-modal-close {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 0 10px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+}
+.road-camera-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+.road-camera-modal-stage {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--color-overlay);
+    cursor: pointer;
+}
+.road-camera-modal-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 72vh;
+    object-fit: contain;
+    margin: 0 auto;
+}
+/* Full screen in place: the picture alone, nothing else on the glass. */
+.road-camera-modal-stage:fullscreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.road-camera-modal-stage:fullscreen .road-camera-modal-image {
+    max-height: 100%;
+    max-width: 100%;
+}
+.road-camera-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+.road-camera-thumb {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    border: 1px solid var(--color-divider);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+}
+/* A fixed box before the image arrives, so a grid of deferred loads does
+   not reflow tile by tile as each one lands. */
+.road-camera-thumb-image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--color-overlay);
+}
+.road-camera-thumb-label {
+    padding: 0 6px 6px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-muted);
+}
+.road-camera-modal-show-all {
+    min-height: var(--tap-min);
+    margin-top: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--color-divider);
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+}
+.road-camera-modal-weather {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.road-camera-modal-weather-item {
+    padding: 2px 6px;
+    border: 1px solid var(--color-divider);
+    border-radius: 2px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text);
+}

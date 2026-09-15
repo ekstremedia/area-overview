@@ -78,12 +78,17 @@ describe('SettingsPage', () => {
         const dispose = render(container);
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(container.querySelector('.settings-section-cameras')).not.toBeNull();
+        // Kart, not Kameraer: the camera placement editor is hidden while
+        // Terje's own cameras are dormant (`pages/cameras/dormancy.ts`),
+        // so `Map` is both the first sub-nav tab and the default section.
+        expect(container.querySelector('.settings-section-map')).not.toBeNull();
+        expect(container.querySelector('.settings-section-cameras')).toBeNull();
 
         const tabs = [...container.querySelectorAll<HTMLButtonElement>('.settings-subnav-tab')];
-        tabs[4]?.click(); // General
+        expect(tabs).toHaveLength(5);
+        tabs[3]?.click(); // General
         expect(container.querySelector('.settings-section-general')).not.toBeNull();
-        expect(container.querySelector('.settings-section-cameras')).toBeNull();
+        expect(container.querySelector('.settings-section-map')).toBeNull();
 
         dispose();
     });
@@ -138,7 +143,7 @@ describe('SettingsPage', () => {
         await vi.advanceTimersByTimeAsync(0);
 
         const tabs = [...container.querySelectorAll<HTMLButtonElement>('.settings-subnav-tab')];
-        tabs[1]?.click(); // Map -- a non-Cameras section that reads `store.settings` synchronously in its own `mount()`
+        tabs[0]?.click(); // Map -- a section that reads `store.settings` synchronously in its own `mount()`, and the first tab now that Kameraer is hidden
         await vi.advanceTimersByTimeAsync(0);
 
         // Cycle the login state once while Map is the active section: this is

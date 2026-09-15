@@ -177,13 +177,52 @@
 
 /* The numeral carries its layer's colour, the unit stays muted -- so the
    counts read as data at a glance without the whole line competing with
-   the active tab. */
+   the active tab. Each colour is the one that group wears on the map:
+   cyan ships, magenta aircraft, the warning yellow the road signs are
+   pinned in, and deliberately-muted road cameras (`roadCameras.ts`: "a
+   road being shut is the thing that must be read across the room; a
+   camera is something you go looking for"). */
 .masthead-count-ships {
     color: var(--color-accent);
 }
 
 .masthead-count-aircraft {
     color: var(--color-accent-2);
+}
+
+.masthead-count-road-situations {
+    color: var(--color-process-yellow);
+}
+
+.masthead-count-road-cameras {
+    color: var(--color-muted);
+}
+
+/* The numeral and its glyph sit together and share the group's colour;
+   the glyph is `currentColor` throughout, so there is no second place
+   that names these colours. */
+.masthead-count-ships,
+.masthead-count-aircraft,
+.masthead-count-road-situations,
+.masthead-count-road-cameras,
+.masthead-count-hidden {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+}
+
+/* Hidden until the row is too narrow for four unit words -- see the
+   kiosk media query below. `1.05em` keeps a 24-viewBox glyph optically
+   level with the numeral beside it. */
+.masthead-count-glyph {
+    display: none;
+    align-items: center;
+}
+
+.masthead-count-glyph svg {
+    width: 1.05em;
+    height: 1.05em;
+    display: block;
 }
 
 .masthead-datetime {
@@ -305,6 +344,30 @@
        screen at the kiosk's own 1024px. */
     .masthead-date-weekday {
         display: none;
+    }
+}
+
+/* Kiosk width. Two words fitted here; four do not -- "19 skip · 3 fly ·
+   6 vegmeldinger · 19 vegkamera" runs into the clock and pushes the
+   settings gear off the row, the same failure the weekday caused above.
+   So at 1024px the unit words drop and each count becomes its glyph and
+   its number, in its own colour. Measured in a real browser at
+   1024x600, not inferred: with the words in, the counts row alone was
+   wider than the space between the tabs and the clock.
+
+   1300px, not the kiosk's own 1024px: measured in Chrome at a range of
+   widths, the four Norwegian words ("24 skip / 3 fly / 6 vegmeldinger /
+   19 vegkamera") first fit beside the weekday-and-clock at about
+   1275px, and below that the settings gear is pushed off the row -- the
+   same failure the weekday itself caused at 1024px. So the words go
+   wherever they do not fit, not only on the kiosk. */
+@media (max-width: 1300px) {
+    .masthead-count-unit {
+        display: none;
+    }
+
+    .masthead-count-glyph {
+        display: inline-flex;
     }
 }
 

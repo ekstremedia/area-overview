@@ -6,7 +6,9 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
+const { emptyLayerCounts, liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
+type LiveLayerItem = import('./page-status.js').LiveLayerItem;
+type LiveLayerGroupId = import('./page-status.js').LiveLayerGroupId;
 const { autoCycleArmed, autoCyclePaused } = await import('./autoCycle.js');
 
 function navigate(hash: string): void {
@@ -18,15 +20,32 @@ function setSettings(patch: Partial<Settings>): void {
     mockSettings.set({ ...mockSettings.get(), ...patch });
 }
 
+/** Every group at zero but the ones this test cares about -- the masthead counts four groups now, not two. */
+function counts(partial: Partial<ReturnType<typeof emptyLayerCounts>>): ReturnType<typeof emptyLayerCounts> {
+    return { ...emptyLayerCounts(), ...partial };
+}
+
+/** The listing with only the named groups populated; the rest arrive empty, as the map page really publishes them. */
+function listing(groups: Partial<Record<LiveLayerGroupId, LiveLayerItem[]>>, focus: (item: LiveLayerItem) => void) {
+    return {
+        items: { ships: [], aircraft: [], roadSituations: [], roadCameras: [], ...groups },
+        focus,
+    };
+}
+
 describe('mountMasthead', () => {
-    it('renders five tabs and the settings gear in one row, marking the active tab', () => {
+    it('renders the nav tabs and the settings gear in one row, marking the active tab -- with no cameras tab, even when settings still list it', () => {
+        // `'cameras'` is deliberately still a legal `enabledPages` entry
+        // (an existing `data/settings.json` carries it), but the tab row
+        // is built from `NAV_PAGES`, which the dormancy flag has already
+        // filtered -- so the stale entry produces no tab.
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/weather');
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
 
         const tabs = [...container.querySelectorAll<HTMLAnchorElement>('.masthead-tab')];
-        expect(tabs.map((tab) => tab.textContent)).toEqual(['Kart', 'Vær', 'Nordlys', 'Tidevann', 'Kameraer']);
+        expect(tabs.map((tab) => tab.textContent)).toEqual(['Kart', 'Vær', 'Nordlys', 'Tidevann']);
 
         const activeTab = container.querySelector('.masthead-tab--active');
         expect(activeTab?.textContent).toBe('Vær');
@@ -69,7 +88,7 @@ describe('mountMasthead', () => {
         const layerCounts = container.querySelector<HTMLElement>('.masthead-layer-counts');
         expect(layerCounts?.style.display).toBe('none');
 
-        liveLayerCounts.set({ ships: 14, aircraft: 3, hiddenByAge: 0 });
+        liveLayerCounts.set(counts({ ships: 14, aircraft: 3 }));
         expect(layerCounts?.style.display).not.toBe('none');
         expect(layerCounts?.textContent).toContain('14 skip');
         expect(layerCounts?.textContent).toContain('3 fly');
@@ -91,9 +110,19 @@ describe('mountMasthead', () => {
 
         // With vessels held back by the age filter, the line accounts for
         // them rather than letting them vanish unexplained.
-        liveLayerCounts.set({ ships: 11, aircraft: 0, hiddenByAge: 1 });
+        liveLayerCounts.set(counts({ ships: 11, hiddenByAge: 1 }));
         expect(hidden?.parentElement?.style.display).not.toBe('none');
         expect(layerCounts?.textContent).toContain('1 skjult');
+
+        // This count opens nothing, so it is a `<span>` rather than a
+        // `<button>` -- and an `aria-label` on a generic element with no
+        // role is ignored outright. `role="img"` is what makes the name
+        // reach a screen reader, which matters below 1300px where the
+        // unit word is `display: none` and "1" is all that is left.
+        const hiddenPart = hidden?.parentElement;
+        expect(hiddenPart?.tagName).toBe('SPAN');
+        expect(hiddenPart?.getAttribute('role')).toBe('img');
+        expect(hiddenPart?.getAttribute('aria-label')).toBe('1 skjult');
 
         navigate('#/weather');
         expect(layerCounts?.style.display).toBe('none');
@@ -197,16 +226,20 @@ describe('mountMasthead', () => {
     it('opens a list of what is on the map when a count is tapped, and focuses the map on a pick', () => {
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set({ ships: 2, aircraft: 1, hiddenByAge: 0 });
+        liveLayerCounts.set(counts({ ships: 2, aircraft: 1 }));
         const focus = vi.fn();
-        liveLayerListing.set({
-            ships: [
-                { id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 },
-                { id: '259', label: 'RO MASTER', detail: '0 kn', lat: 68.6, lng: 15.5 },
-            ],
-            aircraft: [{ id: 'abc', label: 'WIF6T', detail: '9 025 fot', lat: 68.5, lng: 16.1 }],
-            focus,
-        });
+        liveLayerListing.set(
+            listing(
+                {
+                    ships: [
+                        { id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 },
+                        { id: '259', label: 'RO MASTER', detail: '0 kn', lat: 68.6, lng: 15.5 },
+                    ],
+                    aircraft: [{ id: 'abc', label: 'WIF6T', detail: '9 025 fot', lat: 68.5, lng: 16.1 }],
+                },
+                focus,
+            ),
+        );
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
@@ -242,12 +275,8 @@ describe('mountMasthead', () => {
     it('closes the list when the listing goes away, so it cannot outlive the map page', () => {
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set({ ships: 1, aircraft: 0, hiddenByAge: 0 });
-        liveLayerListing.set({
-            ships: [{ id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 }],
-            aircraft: [],
-            focus: vi.fn(),
-        });
+        liveLayerCounts.set(counts({ ships: 1 }));
+        liveLayerListing.set(listing({ ships: [{ id: '257', label: 'ARTHUR EILERTSEN', detail: '9,6 kn', lat: 68.7, lng: 15.4 }] }, vi.fn()));
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
@@ -259,6 +288,91 @@ describe('mountMasthead', () => {
         expect(container.querySelector<HTMLElement>('.masthead-live-panel')?.hidden).toBe(true);
 
         liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('renders all four keyed groups, each with its own numeral and unit word', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set(counts({ ships: 14, aircraft: 3, roadSituations: 6, roadCameras: 19 }));
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const layerCounts = container.querySelector<HTMLElement>('.masthead-layer-counts');
+        expect(layerCounts?.textContent).toContain('14 skip');
+        expect(layerCounts?.textContent).toContain('3 fly');
+        expect(layerCounts?.textContent).toContain('6 vegmeldinger');
+        expect(layerCounts?.textContent).toContain('19 vegkamera');
+
+        // Each numeral in its own colour-carrying element -- the glyph
+        // inside it is an `<svg>`, so it contributes no text.
+        expect(container.querySelector('.masthead-count-road-situations')?.textContent).toBe('6');
+        expect(container.querySelector('.masthead-count-road-cameras')?.textContent).toBe('19');
+
+        // Four interactive counts, in reading order; the hidden-by-age one
+        // is not a group and opens nothing.
+        const buttons = [...container.querySelectorAll('.masthead-count--interactive')];
+        expect(buttons).toHaveLength(4);
+        expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['14 skip', '3 fly', '6 vegmeldinger', '19 vegkamera']);
+
+        liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('carries a glyph per group, hidden by CSS until kiosk width -- so a dropped unit word leaves something to read', () => {
+        // The unit words cannot survive 1024px with four groups in the row
+        // (`shell.css`'s 1300px query -- measured: four Norwegian words
+        // first fit at about 1275px), so every count has a glyph beside
+        // its numeral, in the group's own colour via `currentColor`. jsdom
+        // applies no media query, so what is asserted here is that the
+        // glyph exists and is inside the colour-carrying element; the
+        // width behaviour itself was checked in a real browser.
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set(counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, hiddenByAge: 1 }));
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        // Four groups plus the hidden-by-age count.
+        expect(container.querySelectorAll('.masthead-count-glyph svg')).toHaveLength(5);
+        for (const className of ['ships', 'aircraft', 'road-situations', 'road-cameras']) {
+            expect(container.querySelector(`.masthead-count-${className} .masthead-count-glyph`)).not.toBeNull();
+        }
+        // And the word is in its own element, which is what the media
+        // query switches off.
+        expect(container.querySelectorAll('.masthead-count-unit')).toHaveLength(5);
+
+        liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('opens the road-camera group, and runs an item’s own action instead of panning the map', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set(counts({ roadCameras: 1 }));
+        const focus = vi.fn();
+        const activate = vi.fn();
+        liveLayerListing.set(
+            listing({ roadCameras: [{ id: '3000957_1', label: 'Hadselbrua', detail: 'Mot Stokmarknes', lat: 68.55, lng: 14.9, activate }] }, focus),
+        );
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        container.querySelector<HTMLButtonElement>('.masthead-count-road-cameras')?.closest('button')?.click();
+        expect([...container.querySelectorAll('.masthead-live-row-name')].map((el) => el.textContent)).toEqual(['Hadselbrua']);
+
+        // A camera *is* its picture: the row opens the modal rather than
+        // panning to a pin the visitor would have to find and tap.
+        container.querySelector<HTMLButtonElement>('.masthead-live-row')?.click();
+        expect(activate).toHaveBeenCalledTimes(1);
+        expect(focus).not.toHaveBeenCalled();
+        expect(container.querySelector<HTMLElement>('.masthead-live-panel')?.hidden).toBe(true);
+
+        liveLayerCounts.set(null);
+        liveLayerListing.set(null);
         dispose();
     });
 

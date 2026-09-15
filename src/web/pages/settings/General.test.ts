@@ -24,8 +24,10 @@ describe('General section', () => {
 
         expect(container.querySelector('.stepper-value')?.textContent).toBe('60 s');
         // Scoped to the page-toggle row: the section also carries the
-        // Netatmo toggle now, which is not one of the five pages.
-        expect(container.querySelectorAll('.settings-page-toggles .toggle-row')).toHaveLength(5);
+        // Netatmo toggle now, which is not one of the pages. Four rows,
+        // not five -- Terje's own cameras are dormant, so there is no
+        // "Kameraer" page left to switch on or off.
+        expect(container.querySelectorAll('.settings-page-toggles .toggle-row')).toHaveLength(4);
 
         dispose();
     });

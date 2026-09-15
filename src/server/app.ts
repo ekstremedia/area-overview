@@ -12,6 +12,8 @@ import { registerCameraRoutes } from './routes/cameras.js';
 import { registerAircraftRoutes } from './routes/aircraft.js';
 import { registerHealthzRoute } from './routes/healthz.js';
 import { registerMapConfigRoute } from './routes/map-config.js';
+import { registerRoadCamerasRoutes } from './routes/road-cameras.js';
+import { registerRoadSituationsRoutes } from './routes/road-situations.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
 import { createOutboundGate } from './outbound-gate.js';
@@ -127,6 +129,17 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     const trails = createTrailSupport(config, { shipsSnapshot, aircraftGate });
     registerShipsRoutes(app, config, { trails: trails.ships, snapshot: shipsSnapshot });
     registerAircraftRoutes(app, config, { trails: trails.aircraft, gate: aircraftGate });
+
+    // One Statens vegvesen budget for the whole process, shared by both
+    // road routes: the OGC GeoServer is keyless, has no published quota
+    // and no SLA, and sees one caller -- this app -- however many people
+    // have the map open. Two routes, one bucket, because it is the
+    // upstream that is being protected, not a route. See
+    // `outbound-gate.ts`.
+    const vegvesenGate = createOutboundGate({ minIntervalMs: config.vegvesenMinIntervalMs, burst: config.vegvesenBurst });
+    registerRoadSituationsRoutes(app, config, { gate: vegvesenGate });
+    registerRoadCamerasRoutes(app, config, { gate: vegvesenGate });
+
     registerStaticPlugin(app);
 
     // Started once the server is up (never during `buildApp`, so a test

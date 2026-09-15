@@ -8,7 +8,7 @@
  * exactly, and must be kept in sync by hand if those tokens ever change.
  *
  * The 400 step specifically (the dark-edition resolved accent, not 500,
- * the light-edition default) is the exact pair the plan names for these
+ * the light-edition default) is the exact pair chosen for these
  * glyphs; it is not conditioned on the shell's current light/dark theme
  * here (unlike `tiles.ts`'s tile choice), since a single fixed, always-
  * legible glyph colour against the map's photographic tiles is simpler
@@ -38,3 +38,40 @@ export const SHIP_GLYPH_COLOR = '#62c5ee';
 export const AIRCRAFT_GLYPH_COLOR = '#ff4d4d';
 
 export const SHIP_GLYPH_COLOR_UNDERWAY_ENGINE = '#4ade80';
+
+/**
+ * The Veg layer's three state colours (`roads.ts`): red for a road that
+ * is shut, amber for a situation in force right now, grey for one that
+ * is not (`scheduled`/`planned`, shown only when
+ * `settings.roads.showPlanned` is on).
+ *
+ * Colour carries *state* here, independently of the sign face on the pin,
+ * which carries *kind* -- 110 Vegarbeid, 302 Innkjøring forbudt, 775
+ * Bilferje, 156 Annen fare. The two axes are deliberately separate: a
+ * closed ferry link and a closed stretch of Fv. 7542 are the same red,
+ * and roadworks in force and roadworks starting on Tuesday are the same
+ * sign. Either alone is ambiguous at a glance; together they are not.
+ *
+ * Freestanding literals, for the same two reasons the glyph colours
+ * above are: a Leaflet `Path` style and a `CanvasRenderingContext2D`
+ * cannot resolve `var(--token)`, and Broadsheet's ramp (neutral/cyan/
+ * magenta) has no red, amber or neutral-grey to mirror. The amber is the
+ * one Vegvesen's own roadwork signage already trains everyone to read as
+ * "work ahead", and sits clearly apart from the aircraft red and the
+ * ships' cyan/green on the same map.
+ */
+export const ROAD_CLOSED_COLOR = '#e23c2e';
+export const ROAD_CURRENT_COLOR = '#f0a020';
+export const ROAD_PLANNED_COLOR = '#9aa4ad';
+
+/**
+ * The dark casing stroked under every road line before its coloured core
+ * (`roads.ts` draws each line twice, weight 7 then weight 4).
+ *
+ * Without it the amber core disappears into the satellite basemap's
+ * sunlit ground and the grey into the dark basemap's own roads -- the
+ * line has to survive three very different backdrops, and an outline is
+ * how every real map does that. Near-black rather than pure black, which
+ * reads as a hole on the dark basemap.
+ */
+export const ROAD_LINE_CASING_COLOR = '#16191c';

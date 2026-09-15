@@ -224,7 +224,9 @@ describe('AppShell auto-cycle swipe transition', () => {
         // The interval is measured from the navigation, so the cycle away
         // from it lands a full 30s after the tap, not before.
         vi.advanceTimersByTime(1_000 + 400 + 500);
-        expect(location.hash).toBe('#/cameras');
+        // Back to the map: `tide` is the last page in the cycle now that
+        // Terje's own cameras are dormant.
+        expect(location.hash).toBe('#/map');
 
         disposeShell();
     });
@@ -244,7 +246,7 @@ describe('AppShell auto-cycle swipe transition', () => {
 
         setLanguage('en');
         const liveTitle = root.querySelector<HTMLElement>('.page-placeholder-title');
-        expect(liveTitle?.textContent).toBe('Cameras'); // map -> weather -> aurora -> tide -> cameras, one cycle per iteration
+        expect(liveTitle?.textContent).toBe('Map'); // map -> weather -> aurora -> tide -> map, one cycle per iteration
 
         for (const title of capturedTitles) {
             expect(title.isConnected).toBe(false);

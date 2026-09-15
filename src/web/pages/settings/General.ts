@@ -2,11 +2,14 @@
  * General section (artboard 07's "Generelt"): poll interval (a stepper,
  * matching `pollIntervalSeconds`'s 10-600s/10s-step range), language (a
  * two-tile select that -- via `t()`'s own reactivity -- re-renders the
- * whole app immediately, no reload), and the five toggleable content
- * pages (`enabledPages`). Settings itself is never a toggleable entry --
- * `PAGE_IDS` below is exactly `PageId`'s five members, not `Route['name']`.
+ * whole app immediately, no reload), and the toggleable content pages
+ * (`enabledPages`) -- every `PageId` whose page is awake, which is four
+ * of the five while `CAMERAS_DORMANT` is true, as it is today. Settings
+ * itself is never a toggleable entry -- `PAGE_IDS` below is exactly
+ * `PageId`'s five members, not `Route['name']`.
  */
 import type { PageId, Settings } from '../../../shared/schemas/settings.js';
+import { CAMERAS_DORMANT } from '../cameras/dormancy.js';
 import { selectField, type SelectFieldHandle } from '../../components/SelectField.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
@@ -16,6 +19,16 @@ import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
 const PAGE_IDS: readonly PageId[] = ['map', 'weather', 'aurora', 'tide', 'cameras'];
+
+/**
+ * The subset that gets a toggle row. `PAGE_IDS` itself stays complete on
+ * purpose: it is also the canonical order `enabledPages` is written back
+ * in below, and filtering *that* would quietly strip `'cameras'` off
+ * disk the first time anyone toggled any other page -- after which
+ * flipping `CAMERAS_DORMANT` back would restore the tab's code but not
+ * the display's own setting.
+ */
+const VISIBLE_PAGE_IDS: readonly PageId[] = PAGE_IDS.filter((id) => !(CAMERAS_DORMANT && id === 'cameras'));
 
 const PAGE_NAV_KEYS: Record<PageId, 'nav.map' | 'nav.weather' | 'nav.aurora' | 'nav.tide' | 'nav.cameras'> = {
     map: 'nav.map',
@@ -69,7 +82,7 @@ export const mount: SectionMount = (container, ctx) => {
     const pageToggles = new Map<PageId, ToggleHandle>();
     const pageTogglesRow = document.createElement('div');
     pageTogglesRow.className = 'settings-page-toggles';
-    for (const pageId of PAGE_IDS) {
+    for (const pageId of VISIBLE_PAGE_IDS) {
         const handle = toggle({
             label: t(PAGE_NAV_KEYS[pageId]),
             checked: initial.enabledPages.includes(pageId),

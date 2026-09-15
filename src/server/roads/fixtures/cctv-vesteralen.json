@@ -1,0 +1,135 @@
+{
+    "type": "FeatureCollection",
+    "numberMatched": 9,
+    "numberReturned": 9,
+    "timeStamp": "2026-09-13T12:00:00.000Z",
+    "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } },
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.98211, 68.55712] },
+            "properties": {
+                "CAMERA_ID": "3000957_1",
+                "DESCRIPTION": "Hadselbrua",
+                "ORIENTATION_DESCRIPTION": "mot Stokmarknes",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000957_1",
+                "PUBLICATION_TIME": "2026-09-13T11:59:12+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.98211, 68.55712] },
+            "properties": {
+                "CAMERA_ID": "3000957_2",
+                "DESCRIPTION": "Hadselbrua",
+                "ORIENTATION_DESCRIPTION": "mot Melbu",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000957_2",
+                "PUBLICATION_TIME": "2026-09-13T11:59:14+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.98211, 68.55712] },
+            "properties": {
+                "CAMERA_ID": "3000957_3",
+                "DESCRIPTION": "Hadselbrua",
+                "ORIENTATION_DESCRIPTION": "mot nord",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000957_3",
+                "PUBLICATION_TIME": "2026-09-13T11:59:10+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.98211, 68.55712] },
+            "properties": {
+                "CAMERA_ID": "3000957_4",
+                "DESCRIPTION": "Hadselbrua",
+                "ORIENTATION_DESCRIPTION": "mot sør",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000957_4",
+                "PUBLICATION_TIME": "2026-09-13T11:59:16+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [16.10412, 68.52201] },
+            "properties": {
+                "CAMERA_ID": "3000420_1",
+                "DESCRIPTION": "Tjeldsundbrua øst",
+                "ORIENTATION_DESCRIPTION": "mot Evenskjer",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000420_1",
+                "PUBLICATION_TIME": "2026-09-13T11:58:41+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [15.41482, 68.69331] },
+            "properties": {
+                "CAMERA_ID": "3000551_1",
+                "DESCRIPTION": "Sortlandsbrua",
+                "ORIENTATION_DESCRIPTION": "mot Sortland",
+                "ROAD_NUMBER": "F82",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000551_1",
+                "PUBLICATION_TIME": "2026-09-13T11:59:02+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.99811, 68.33412] },
+            "properties": {
+                "CAMERA_ID": "3000700_1",
+                "DESCRIPTION": "Raftsundet",
+                "ORIENTATION_DESCRIPTION": "mot Svolvær",
+                "ROAD_NUMBER": "E10",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesUnavailableDueToCameraFault",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000700_1",
+                "PUBLICATION_TIME": "2026-09-13T11:12:00+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.42311, 68.87112] },
+            "properties": {
+                "CAMERA_ID": "3000888_1",
+                "DESCRIPTION": "Bø i Vesterålen",
+                "ORIENTATION_DESCRIPTION": "mot Straume",
+                "ROAD_NUMBER": "F820",
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.example.invalid/api/images/3000888_1",
+                "PUBLICATION_TIME": "2026-09-13T11:57:30+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [15.99012, 68.41022] },
+            "properties": {
+                "CAMERA_ID": "3000905_1",
+                "DESCRIPTION": "Lødingen ferjekai",
+                "ORIENTATION_DESCRIPTION": null,
+                "ROAD_NUMBER": null,
+                "STATUS_STILL_IMAGE_AVAILABILITY": "videoOrImagesAvailable",
+                "STILL_IMAGE_URL": "https://kamera.atlas.vegvesen.no/api/images/3000905_1",
+                "PUBLICATION_TIME": "2026-09-13T11:58:05+02:00",
+                "STILL_IMAGE_FORMAT": "jpeg"
+            }
+        }
+    ]
+}

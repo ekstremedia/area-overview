@@ -1,5 +1,13 @@
 {
-    "URLAllowlist": ["area.nesthus.no", "https://.nesthus.no/vendor/laravel-yr/symbols/", "basemaps.cartocdn.com", "tile.openstreetmap.org"],
+    "URLAllowlist": [
+        "area.nesthus.no",
+        "https://.nesthus.no/vendor/laravel-yr/symbols/",
+        "basemaps.cartocdn.com",
+        "tile.openstreetmap.org",
+        "server.arcgisonline.com",
+        "kamera.atlas.vegvesen.no",
+        "services.swpc.noaa.gov"
+    ],
     "URLBlocklist": ["*"],
     "IncognitoModeAvailability": 1,
     "DeveloperToolsAvailability": 2,

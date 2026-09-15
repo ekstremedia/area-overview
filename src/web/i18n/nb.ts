@@ -34,17 +34,18 @@ export const nb = {
     // string cannot express. These are the units alone.
     'masthead.shipsUnit': 'skip',
     'masthead.aircraftUnit': 'fly',
+    // Vegvesen's own words. "vegmelding" is what the situations are
+    // called on vegvesen.no, and "vegkamera" likewise -- neither is
+    // inflected for count here (6 vegmeldinger / 1 vegmelding would need
+    // a plural rule for one word in the row; the plural form reads
+    // correctly at every count a masthead ever shows, including zero).
+    'masthead.roadSituationsUnit': 'vegmeldinger',
+    'masthead.roadCamerasUnit': 'vegkamera',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
     'masthead.autoCyclePause': 'Pause automatisk bla',
     'masthead.autoCyclePlay': 'Start automatisk bla',
-    'masthead.layerCounts': '{ships} skip · {aircraft} fly',
-    // Shown instead of the plain line when the age filter is holding
-    // something back, so a vessel disappearing is accounted for rather
-    // than silent. "skjult" stays uninflected across counts (1 skjult, 3
-    // skjult), unlike "gammel/gamle".
-    'masthead.layerCountsHidden': '{ships} skip · {aircraft} fly · {hidden} skjult',
 
     'footer.nightScheduleActive': 'Nattplan aktiv {from}–{to} · ett trykk løfter sløret i 30 s',
 
@@ -52,7 +53,10 @@ export const nb = {
     'unit.seconds': 's',
     'unit.hours': 't',
     'unit.days': 'døgn',
+    /** Entall, for aldre på nøyaktig ett døgn -- norsk bøyer ikke, men engelsk gjør ("1 day" / "3 days"). */
+    'unit.day': 'døgn',
     'unit.metersPerSecond': 'm/s',
+    'unit.millimetersPerHour': 'mm/t',
     'unit.millimeters': 'mm',
     'unit.knots': 'kn',
     'unit.feet': 'ft',
@@ -135,6 +139,51 @@ export const nb = {
     'map.stopFollowingVessel': 'Slutt å følge',
     'map.followingVessel': 'Følger {name}',
     'map.stopFollowing': 'Slutt å følge',
+
+    'map.roadKind.roadworks': 'Vegarbeid',
+    'map.roadKind.obstruction': 'Hindring',
+    'map.roadKind.weather': 'Vær og føre',
+    'map.roadKind.accident': 'Ulykke',
+    'map.roadKind.ferry': 'Ferje',
+    'map.roadKind.event': 'Arrangement',
+    'map.roadKind.management': 'Trafikkregulering',
+    'map.roadKind.other': 'Vegmelding',
+
+    'map.roadEffect.roadClosed': 'Vegen er stengt',
+    'map.roadEffect.intermittentShortTermClosures': 'Korte stengninger',
+    'map.roadEffect.laneClosures': 'Felt stengt',
+    'map.roadEffect.narrowLanes': 'Smale felt',
+    'map.roadEffect.contraflow': 'Trafikk i motgående felt',
+    'map.roadEffect.temporaryTrafficLights': 'Midlertidig lysregulering',
+    'map.roadEffect.trafficBeingManuallyDirected': 'Manuell dirigering',
+
+    'map.roadValidUntil': 'til {when}',
+    'map.roadValidFrom': 'fra {when}',
+    'map.roadValidOpenEnded': 'inntil videre',
+    'map.roadPeriodic': 'gjelder i perioder',
+    'map.roadStatus.scheduled': 'Ikke aktiv nå',
+    'map.roadStatus.planned': 'Planlagt',
+    // Shown under the description in the English UI only: the message
+    // itself stays Norwegian (NPRA's terms forbid translating it), and a
+    // source line is what makes that read as a quote rather than a bug.
+    'map.roadSource': 'Statens vegvesen',
+
+    // — road cameras (the Veg layer's other half) — every reading in the
+    // weather line is omitted when upstream sent null, which is the
+    // normal case, so anything on screen here is a real measurement.
+    'map.roadCameraLabel': 'Vegkamera',
+    'map.roadCameraCluster': '{count} vegkamera',
+    'map.roadCameraBack': '← Tilbake',
+    'map.roadCameraClose': 'Lukk',
+    'map.roadCameraShowAll': 'Vis alle ({count} til)',
+    'map.roadCameraFullscreen': 'Vis bildet i fullskjerm',
+    'map.roadCameraImageAlt': 'Vegkamera {name}',
+    'map.roadCameraAir': 'Luft {value}',
+    'map.roadCameraRoad': 'Vegbane {value}',
+    'map.roadCameraWind': 'Vind {value}',
+    'map.roadCameraWindGust': 'Vind {value} (kast {gust})',
+    'map.roadCameraGust': 'Vindkast {value}',
+    'map.roadCameraPrecipitation': 'Nedbør {value}',
 
     'map.popupUpdated': 'Oppdatert {age}',
 
@@ -298,9 +347,15 @@ export const nb = {
 
     'settings.layers.ships': 'Skip · AIS',
     'settings.layers.aircraft': 'Fly · ADS-B',
+    'settings.layers.roads': 'Veg · Statens vegvesen',
     'settings.layers.pollSeconds': 'Oppdateringsintervall',
     'settings.layers.maxAgeMinutes': 'Maks alder',
     'settings.layers.showOnGround': 'Vis fly på bakken',
+    // The Veg layer's own two filters. "Planlagt vegarbeid" covers both
+    // things the layer calls not-current: work that starts later, and
+    // today's work outside its own hours.
+    'settings.layers.showPlanned': 'Vis planlagt vegarbeid',
+    'settings.layers.showCameras': 'Vis vegkamera',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

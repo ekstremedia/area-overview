@@ -60,6 +60,30 @@ const AircraftSettingsSchema = z.object({
 });
 
 /**
+ * The Veg layer: Statens vegvesen's road situations and road cameras,
+ * one block for both (`ROADS_LAYER` in `src/shared/layers.ts` explains
+ * why they share an id and a toggle).
+ *
+ * No `maxAgeMinutes`, unlike `ships`/`aircraft`: a roadworks notice is
+ * not a position fix that goes stale, it is valid until it expires.
+ * `ROADS_LAYER` sets no `maxAgeMinutes*` bounds for the same reason, and
+ * the settings page renders no stepper for it.
+ *
+ * `showPlanned` is a client-side filter, on purpose: the response always
+ * carries `scheduled` and `planned` situations alongside `current` ones,
+ * so one server cache entry serves a viewer who wants them and one who
+ * does not. `pollSeconds` mirrors `ROADS_LAYER`'s 60-600s range.
+ */
+const RoadsSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    pollSeconds: z.number().min(60).max(600).default(120),
+    /** Show situations that are not in force right now -- future roadworks, and today's work outside its own hours. Off by default: what is happening now is what a wall display is for. */
+    showPlanned: z.boolean().default(false),
+    /** Vegvesen's road cameras on the map. Separate from `enabled` because the pins are numerous and someone may want the notices without them. */
+    showCameras: z.boolean().default(true),
+});
+
+/**
  * Auto-cycle: kiosk slideshow mode -- rotates through pages on a timer
  * with a swipe transition (`web/shell/autoCycle.ts` owns the pure "what's
  * next" logic and its timer; `web/shell/AppShell.ts` owns the transition
@@ -150,6 +174,7 @@ export const patchableFieldSchemas = {
     brightness: z.number().min(20).max(100),
     ships: ShipsSettingsSchema,
     aircraft: AircraftSettingsSchema,
+    roads: RoadsSettingsSchema,
     autoCycle: AutoCycleSchema,
     disabledCameras: DisabledCamerasSchema,
     weather: WeatherSettingsSchema,
@@ -165,12 +190,19 @@ export const SettingsSchema = z.object({
     homeView: patchableFieldSchemas.homeView.default({ lat: 68.6984, lng: 15.4129, zoom: 11 }),
     placements: z.record(z.string(), PlacementSchema).default({}),
     pollIntervalSeconds: patchableFieldSchemas.pollIntervalSeconds.default(30),
-    enabledPages: patchableFieldSchemas.enabledPages.default(['map', 'weather', 'aurora', 'tide', 'cameras']),
+    // No `'cameras'`: Terje's own cameras are dormant, so a display with
+    // no settings file yet comes up without that tab (see
+    // `src/web/pages/cameras/dormancy.ts`, which is the flag that
+    // governs everything else about it). `'cameras'` deliberately stays
+    // in `PageIdSchema` above -- an existing `data/settings.json` that
+    // lists it must still parse, and does.
+    enabledPages: patchableFieldSchemas.enabledPages.default(['map', 'weather', 'aurora', 'tide']),
     idleResetSeconds: patchableFieldSchemas.idleResetSeconds.default(300),
     night: patchableFieldSchemas.night.default({ enabled: false, from: '23:00', to: '06:00', mode: 'dim' }),
     brightness: patchableFieldSchemas.brightness.default(100),
     ships: patchableFieldSchemas.ships.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
     aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
+    roads: patchableFieldSchemas.roads.default({ enabled: true, pollSeconds: 120, showPlanned: false, showCameras: true }),
     autoCycle: patchableFieldSchemas.autoCycle.default({ enabled: false, intervalSeconds: 180, pages: [] }),
     disabledCameras: patchableFieldSchemas.disabledCameras.default([]),
     weather: patchableFieldSchemas.weather.default({ useNetatmo: true }),
@@ -196,6 +228,7 @@ export const SettingsPatchSchema = z.object({
     brightness: patchableFieldSchemas.brightness.optional(),
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
+    roads: patchableFieldSchemas.roads.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
     disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
     weather: patchableFieldSchemas.weather.optional(),
@@ -240,6 +273,7 @@ export const SettingsOverrideSchema = z.object({
     brightness: patchableFieldSchemas.brightness.optional(),
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
+    roads: patchableFieldSchemas.roads.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
     disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
 });

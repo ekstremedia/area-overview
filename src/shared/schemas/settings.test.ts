@@ -10,12 +10,17 @@ describe('SettingsSchema', () => {
             homeView: { lat: 68.6984, lng: 15.4129, zoom: 11 },
             placements: {},
             pollIntervalSeconds: 30,
-            enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'],
+            // No 'cameras': Terje's own cameras are dormant, so a display
+            // with no settings file yet never shows that tab. The page id
+            // itself is still valid -- see the "existing settings.json"
+            // case below.
+            enabledPages: ['map', 'weather', 'aurora', 'tide'],
             idleResetSeconds: 300,
             night: { enabled: false, from: '23:00', to: '06:00', mode: 'dim' },
             brightness: 100,
             ships: { enabled: true, pollSeconds: 15, maxAgeMinutes: 30 },
             aircraft: { enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false },
+            roads: { enabled: true, pollSeconds: 120, showPlanned: false, showCameras: true },
         });
         expect(typeof parsed.updatedAt).toBe('string');
     });
@@ -28,6 +33,34 @@ describe('SettingsSchema', () => {
     it('accepts a settings object with an extra unknown field', () => {
         const result = SettingsSchema.safeParse({ unexpectedNewField: 'value' });
         expect(result.success).toBe(true);
+    });
+
+    /**
+     * The compatibility half of "cameras go dormant": nothing was
+     * deleted, so `data/settings.json` as it stands on the NUC today --
+     * `'cameras'` among `enabledPages`, two `placements` -- must keep
+     * parsing unchanged. Only the *default* dropped the page (see the
+     * defaults test above); `PageIdSchema` still accepts it, and the
+     * placements ride along untouched, so flipping the flag back brings
+     * the display's own settings with it.
+     */
+    it('parses an existing settings file that still enables the cameras page and carries placements', () => {
+        const existing = {
+            language: 'nb',
+            enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'],
+            placements: {
+                sigerfjordveien_01: { lat: 68.6984, lng: 15.4129 },
+                spjutvika_01: { lat: 68.72, lng: 15.35 },
+            },
+        };
+
+        const parsed = SettingsSchema.parse(existing);
+
+        expect(parsed.enabledPages).toEqual(['map', 'weather', 'aurora', 'tide', 'cameras']);
+        expect(parsed.placements).toEqual(existing.placements);
+        // And a patch of the same shape is still accepted, so a device
+        // that writes its page list back does not have it rejected.
+        expect(SettingsPatchSchema.safeParse({ enabledPages: existing.enabledPages }).success).toBe(true);
     });
 
     it('accepts a real placements record keyed by camera_id', () => {
@@ -162,5 +195,59 @@ describe('weather settings', () => {
 
         expect(Object.keys(parsed)).toEqual(['weather']);
         expect(parsed.weather).toEqual({ useNetatmo: false });
+    });
+});
+
+describe('roads settings', () => {
+    const roads = { enabled: true, pollSeconds: 120, showPlanned: false, showCameras: true };
+
+    it('parses an existing settings file that predates the field', () => {
+        // `data/settings.json` on the NUC has no `roads` key at all, so
+        // the Veg layer has to arrive switched on from defaults alone.
+        const existing = { language: 'nb', brightness: 100 };
+
+        expect(SettingsSchema.parse(existing).roads).toEqual(roads);
+    });
+
+    it('shows current road situations but not planned ones by default', () => {
+        // The two halves of the layer differ deliberately: the road
+        // cameras are on, because they are the point of pinning them,
+        // while planned roadworks are off, because a wall display is
+        // about what is happening now.
+        const parsed = SettingsSchema.parse({}).roads;
+
+        expect(parsed.showPlanned).toBe(false);
+        expect(parsed.showCameras).toBe(true);
+    });
+
+    it('is patchable on its own, without dragging in every other field', () => {
+        const parsed = SettingsPatchSchema.parse({ roads });
+
+        expect(Object.keys(parsed)).toEqual(['roads']);
+        expect(parsed.roads).toEqual(roads);
+    });
+
+    it('is overridable per device, like the other live layers', () => {
+        expect(OVERRIDABLE_FIELDS).toContain('roads');
+        expect(SettingsOverrideSchema.parse({ roads })).toEqual({ roads });
+    });
+
+    it('enforces the 60-600s poll range ROADS_LAYER advertises', () => {
+        // These bounds are duplicated on `ROADS_LAYER` so the settings
+        // page's stepper can render them; the schema is what actually
+        // refuses a value, whether it arrives from that stepper or from
+        // a hand-edited `data/settings.json`.
+        expect(SettingsSchema.safeParse({ roads: { ...roads, pollSeconds: 59 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ roads: { ...roads, pollSeconds: 601 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ roads: { ...roads, pollSeconds: 60 } }).success).toBe(true);
+        expect(SettingsSchema.safeParse({ roads: { ...roads, pollSeconds: 600 } }).success).toBe(true);
+    });
+
+    it('rejects an out-of-range poll interval in an override exactly as a PATCH would', () => {
+        expect(SettingsOverrideSchema.safeParse({ roads: { ...roads, pollSeconds: 5 } }).success).toBe(false);
+    });
+
+    it('has no maxAgeMinutes, because a road notice expires rather than going stale', () => {
+        expect(SettingsSchema.parse({}).roads).not.toHaveProperty('maxAgeMinutes');
     });
 });

@@ -25,15 +25,66 @@ afterEach(() => {
 });
 
 describe('Layers section', () => {
-    it('renders one block per layer spec (ships, aircraft), each with an enabled toggle and two steppers', () => {
+    it('renders one block per layer spec (ships, aircraft, roads), each with an enabled toggle and its own steppers', () => {
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: true });
 
         const blocks = container.querySelectorAll('.settings-layer-block');
-        expect(blocks).toHaveLength(2);
-        expect(container.querySelectorAll('.toggle-row')).toHaveLength(3); // ships enabled + aircraft enabled + aircraft showOnGround
-        expect(container.querySelectorAll('.stepper')).toHaveLength(4); // poll + max-age, x2 layers
+        expect(blocks).toHaveLength(3);
+        // ships enabled + aircraft enabled + aircraft showOnGround + roads
+        // enabled + roads showPlanned + roads showCameras.
+        expect(container.querySelectorAll('.toggle-row')).toHaveLength(6);
+        // poll + max-age for ships and aircraft; poll alone for roads.
+        expect(container.querySelectorAll('.stepper')).toHaveLength(5);
+
+        dispose();
+    });
+
+    it('renders no max-age stepper for roads: a road notice has a validity window, not a fix age', () => {
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const [shipsBlock, aircraftBlock, roadsBlock] = [...container.querySelectorAll('.settings-layer-block')];
+        expect(shipsBlock?.textContent).toContain('Maks alder');
+        expect(aircraftBlock?.textContent).toContain('Maks alder');
+        expect(roadsBlock?.textContent).not.toContain('Maks alder');
+        // The poll stepper is still there -- only the max-age row is
+        // conditional, and it is conditional on the *spec* (`ROADS_LAYER`
+        // sets neither `maxAgeMinutesMin` nor `maxAgeMinutesMax`), not on
+        // the layer's id.
+        expect(roadsBlock?.querySelectorAll('.stepper')).toHaveLength(1);
+        expect(roadsBlock?.textContent).toContain('Oppdateringsintervall');
+
+        dispose();
+    });
+
+    it('gives roads its two own filters, and no other layer them', () => {
+        const { store } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const [shipsBlock, , roadsBlock] = [...container.querySelectorAll('.settings-layer-block')];
+        expect(roadsBlock?.textContent).toContain('Vis planlagt vegarbeid');
+        expect(roadsBlock?.textContent).toContain('Vis vegkamera');
+        expect(shipsBlock?.textContent).not.toContain('Vis planlagt vegarbeid');
+        expect(roadsBlock?.textContent).not.toContain('Vis fly på bakken');
+
+        dispose();
+    });
+
+    it('toggling roads.showPlanned writes the whole roads object, like every other layer field', () => {
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const roadsBlock = [...container.querySelectorAll('.settings-layer-block')][2];
+        // [0] is the block's enabled toggle in the heading row; [1] is
+        // showPlanned, [2] showCameras.
+        [...(roadsBlock?.querySelectorAll<HTMLButtonElement>('.toggle') ?? [])][1]?.click();
+
+        expect(patchSettings).toHaveBeenCalledWith({ roads: { enabled: true, pollSeconds: 120, showPlanned: true, showCameras: true } });
 
         dispose();
     });

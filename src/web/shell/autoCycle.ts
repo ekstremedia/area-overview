@@ -21,17 +21,26 @@ import type { Route } from '../core/router.js';
 import { currentRoute } from '../core/router.js';
 import { effect, signal, type ReadonlySignal, type Signal } from '../core/signal.js';
 import { settings as sharedSettings } from '../settings-resource.js';
+import { CAMERAS_DORMANT } from '../pages/cameras/dormancy.js';
 
 /**
  * Cycling order -- `registry.ts`'s `NAV_PAGES` display order, duplicated
  * here as a plain constant rather than imported from there: this module
  * stays DOM-free and independently unit-testable (`registry.ts` pulls in
- * every page module, Leaflet included), and the two lists are the same
- * five `PageId`s by construction (`registry.test.ts`/`General.ts` are the
- * other two places this order would need to change in lockstep, same as
- * today).
+ * every page module, Leaflet included), and the two lists hold the same
+ * `PageId`s by construction -- all five while Terje's own cameras are
+ * awake, the four without `'cameras'` while `CAMERAS_DORMANT` is true,
+ * which it is today. (`registry.test.ts`/`General.ts` are the other two
+ * places this order would need to change in lockstep, same as today.)
  */
-const CYCLE_ORDER: readonly PageId[] = ['map', 'weather', 'aurora', 'tide', 'cameras'];
+const CYCLE_ORDER: readonly PageId[] = (['map', 'weather', 'aurora', 'tide', 'cameras'] as const).filter(
+    // Terje's own cameras are dormant (`pages/cameras/dormancy.ts`): the
+    // slideshow must not stop on a page that has left the navigation,
+    // even on a display whose `enabledPages` still lists it from before.
+    // Importing one `boolean` const keeps this module DOM-free, as its
+    // doc comment requires.
+    (id) => !(CAMERAS_DORMANT && id === 'cameras'),
+);
 
 /**
  * Given the currently-shown route and the live settings, returns the

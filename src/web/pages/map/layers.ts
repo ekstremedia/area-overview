@@ -13,9 +13,18 @@
 import type * as Leaflet from 'leaflet';
 import { effect } from '../../core/signal.js';
 import { t } from '../../i18n/index.js';
-import type { LayerCounts, LiveLayerItem, PageStatus } from '../../shell/page-status.js';
+import {
+    emptyLayerCounts,
+    LIVE_LAYER_GROUP_IDS,
+    type LayerCounts,
+    type LiveLayerGroupId,
+    type LiveLayerItem,
+    type PageStatus,
+} from '../../shell/page-status.js';
 import { mountAircraftLayer } from './aircraft.js';
 import { followTarget, stopFollowing } from './follow.js';
+import { mountRoadCamerasLayer } from './roadCameras.js';
+import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
 
 /** A layer's mount function: given the map, start whatever it needs and return its own disposer. */
@@ -25,8 +34,6 @@ export type MapLayerMount = (map: Leaflet.Map) => () => void;
 export function registerMapLayer(map: Leaflet.Map, mount: MapLayerMount): () => void {
     return mount(map);
 }
-
-type LayerId = keyof LayerCounts;
 
 /**
  * The chip that appears over the map while a vessel is being followed:
@@ -81,12 +88,17 @@ function mountFollowChip(L: typeof Leaflet, map: Leaflet.Map): () => void {
 
 /**
  * Mounts every live layer, combining their individually-reported counts
- * into the one `{ships, aircraft}` object the masthead reads, and their
+ * into the one group-keyed object the masthead reads, and their
  * individually-reported attribution strings into the one joined line the
  * footer reads. Clearing both again is `MapPage.ts`'s job, through its
  * `claimPageStatus()` release: the shell keeps the incoming page mounted
  * while the outgoing one is still on screen, so a slot cleared here on
  * dispose would wipe the *next* page's freshly-published line.
+ *
+ * A *group* is not a layer: the Veg layer reports as two of them
+ * (`roadSituations`, `roadCameras`), because across the room those
+ * answer different questions -- see `page-status.ts`'s
+ * `LIVE_LAYER_GROUP_IDS`.
  */
 export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: PageStatus): () => void {
     // Tearing a layer down makes it report one last time -- zero vessels,
@@ -95,12 +107,12 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
     // would blank its footer line. Nobody needs a count from a layer that
     // is going away, so teardown says nothing at all.
     let disposed = false;
-    const counts: LayerCounts = { ships: 0, aircraft: 0, hiddenByAge: 0 };
-    const attributions = new Map<LayerId, string>();
-    // Per-layer, so one layer's report never clobbers the other's share of
+    const counts: LayerCounts = emptyLayerCounts();
+    const attributions = new Map<LiveLayerGroupId, string>();
+    // Per-group, so one group's report never clobbers the other's share of
     // the single combined figure the masthead shows.
-    const hiddenByAge = new Map<LayerId, number>();
-    const items = new Map<LayerId, LiveLayerItem[]>();
+    const hiddenByAge = new Map<LiveLayerGroupId, number>();
+    const items = new Map<LiveLayerGroupId, LiveLayerItem[]>();
 
     /**
      * Zoomed in far enough that the vessel fills the view rather than
@@ -111,22 +123,25 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
 
     function publishListing(): void {
         if (disposed) return;
+        // Built by walking the registry, so every group is present (empty
+        // when its layer is off) and the masthead can index straight in.
+        const byGroup = {} as Record<LiveLayerGroupId, LiveLayerItem[]>;
+        for (const id of LIVE_LAYER_GROUP_IDS) byGroup[id] = items.get(id) ?? [];
         status.layerListing({
-            ships: items.get('ships') ?? [],
-            aircraft: items.get('aircraft') ?? [],
+            items: byGroup,
             focus: (item: LiveLayerItem) => {
                 map.setView([item.lat, item.lng], Math.max(map.getZoom(), FOCUS_ZOOM));
             },
         });
     }
 
-    function reportItems(id: LayerId, next: readonly LiveLayerItem[]): void {
+    function reportItems(id: LiveLayerGroupId, next: readonly LiveLayerItem[]): void {
         if (disposed) return;
         items.set(id, [...next]);
         publishListing();
     }
 
-    function reportCount(id: LayerId, count: number, hidden: number): void {
+    function reportCount(id: LiveLayerGroupId, count: number, hidden: number): void {
         if (disposed) return;
         counts[id] = count;
         hiddenByAge.set(id, hidden);
@@ -134,14 +149,22 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         status.layerCounts({ ...counts });
     }
 
-    function reportAttribution(id: LayerId, text: string | undefined): void {
+    /**
+     * De-duplicated **by text**, not just by layer id: the roads layer's
+     * situations and its road cameras (Phase D) are both "Data: Statens
+     * vegvesen", and a footer naming the same operator twice reads as a
+     * bug in the footer. A `Set` over the values keeps first-registered
+     * order, which is the order the layers mount in.
+     */
+    function reportAttribution(id: LiveLayerGroupId, text: string | undefined): void {
         if (disposed) return;
         if (text === undefined) {
             attributions.delete(id);
         } else {
             attributions.set(id, text);
         }
-        status.attribution(attributions.size === 0 ? null : [...attributions.values()].join(' · '));
+        const unique = [...new Set(attributions.values())];
+        status.attribution(unique.length === 0 ? null : unique.join(' · '));
     }
 
     status.layerCounts({ ...counts });
@@ -176,6 +199,34 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeRoads = registerMapLayer(map, (m) =>
+        mountRoadsLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('roadSituations', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('roadSituations', text);
+            },
+            reportItems: (next) => {
+                reportItems('roadSituations', next);
+            },
+        }),
+    );
+
+    const disposeRoadCameras = registerMapLayer(map, (m) =>
+        mountRoadCamerasLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('roadCameras', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('roadCameras', text);
+            },
+            reportItems: (next) => {
+                reportItems('roadCameras', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -186,5 +237,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeFollowChip();
         disposeShips();
         disposeAircraft();
+        disposeRoads();
+        disposeRoadCameras();
     };
 }

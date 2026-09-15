@@ -18,7 +18,7 @@ function camera(overrides: Partial<Camera> = {}): Camera {
 }
 
 describe('buildPopupContent', () => {
-    it('renders the camera name, a formatted image age, the image, location, and an open-camera link', () => {
+    it('renders the camera name, a formatted image age, the image and location -- with no open-camera link while cameras are dormant', () => {
         const now = new Date('2026-09-05T12:02:00Z'); // 2 minutes after current_image_updated_at
         const root = buildPopupContent(camera(), { onClose: vi.fn() }, now);
 
@@ -36,8 +36,11 @@ describe('buildPopupContent', () => {
 
         expect(root.querySelector('.camera-popup-location')?.textContent).toBe('Sigerfjordveien');
 
-        const link = root.querySelector<HTMLAnchorElement>('.camera-popup-link');
-        expect(link?.getAttribute('href')).toBe('#/cameras/sigerfjordveien_01');
+        // "Open camera →" is gone with the pins: the cameras page has left
+        // the navigation (`pages/cameras/dormancy.ts`), so the popup does
+        // not offer a trip to a page with no tab. The route still
+        // resolves, which `router.test.ts` covers.
+        expect(root.querySelector('.camera-popup-link')).toBeNull();
     });
 
     it('shows a "no image yet" message instead of a broken <img> when current_image_url is null', () => {

@@ -18,12 +18,12 @@
  */
 import { currentRoute } from '../core/router.js';
 import { effect, signal } from '../core/signal.js';
-import { formatDayMonth, formatTime, formatWeekdayLong, t } from '../i18n/index.js';
+import { formatDayMonth, formatTime, formatWeekdayLong, t, type ParamlessKey } from '../i18n/index.js';
 import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
 import { autoCycleArmed, autoCycleHeld, autoCyclePaused } from './autoCycle.js';
-import { liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } from './page-status.js';
+import { liveLayerCounts, liveLayerListing, LIVE_LAYER_GROUP_IDS, pageAccountStatus, pageFreshness, type LiveLayerGroupId } from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
 
@@ -80,8 +80,8 @@ function gearIcon(): SVGSVGElement {
     return svg;
 }
 
-/** One `<count> <unit>` pair, with the numeral carrying its layer's colour and the unit staying muted. */
-function countPart(className: string, onActivate?: () => void): { el: HTMLElement; set: (value: number, unit: string) => void } {
+/** One `<glyph> <count> <unit>` triple, with the glyph and numeral carrying their group's colour and the unit staying muted. Exactly one of the glyph and the unit is on screen at a time; which, is the width's business (`shell.css`). */
+function countPart(className: string, glyph: string, onActivate?: () => void): { el: HTMLElement; set: (value: number, unit: string) => void } {
     let el: HTMLElement;
     if (onActivate) {
         // A real button, not a span with a handler: the counts are a
@@ -95,19 +95,111 @@ function countPart(className: string, onActivate?: () => void): { el: HTMLElemen
     } else {
         el = document.createElement('span');
         el.className = 'masthead-count';
+        // The hidden-by-age count, which opens nothing and so is not a
+        // button. It still needs the accessible name set below to be
+        // honoured, and `aria-label` on a generic element with no role is
+        // ignored outright: a `<span>` is not in the accessibility tree
+        // as anything nameable. `role="img"` makes it a leaf node whose
+        // name is its label -- which is what this is, a glyph and a
+        // numeral standing for one sentence -- and it matters most at
+        // kiosk width, where `.masthead-count-unit` is `display: none`
+        // and the visible text really is a bare number.
+        el.setAttribute('role', 'img');
     }
+    // The glyph lives *inside* the colour-carrying span, not beside it,
+    // for two reasons: it takes the group's colour for free through
+    // `fill: currentColor`, and an `<svg>` contributes no text, so
+    // `.masthead-count-ships`'s `textContent` is still exactly the
+    // numeral.
     const value = document.createElement('span');
     value.className = className;
+    const glyphHolder = document.createElement('span');
+    glyphHolder.className = 'masthead-count-glyph';
+    // A build-time constant, never anything that came off the wire.
+    glyphHolder.innerHTML = glyph;
+    glyphHolder.setAttribute('aria-hidden', 'true');
+    const number = document.createElement('span');
+    number.className = 'masthead-count-value';
+    value.append(glyphHolder, number);
     const unit = document.createElement('span');
+    unit.className = 'masthead-count-unit';
     el.append(value, ' ', unit);
     return {
         el,
         set: (nextValue, nextUnit) => {
-            value.textContent = String(nextValue);
+            number.textContent = String(nextValue);
             unit.textContent = nextUnit;
+            // CSS drops the unit word at kiosk width (see `shell.css`),
+            // which would drop it out of the accessible name too and
+            // leave a count announced as a bare number. Saying it here
+            // keeps the name the same at every width -- and it is
+            // honoured either way, since the element is a `<button>` or,
+            // above, a `role="img"` span.
+            el.setAttribute('aria-label', `${String(nextValue)} ${nextUnit}`);
         },
     };
 }
+
+/**
+ * What each countable group is called, what colour its numeral takes,
+ * and the glyph that stands in for its unit word when the row is too
+ * narrow for four words.
+ *
+ * This *is* a group's whole implementation in the masthead -- it used to
+ * be a hand-written `ships`/`aircraft` pair threaded through a
+ * `countPart` call, an `if` in the counts effect and a ternary in
+ * `renderPanel`, which is three places to forget when a group is added.
+ * Now there is one registry, and the counts effect iterates it.
+ *
+ * Keyed by `LiveLayerGroupId` and iterated in `LIVE_LAYER_GROUP_IDS`
+ * order, both deliberately: the `Record` makes a missing entry a
+ * compile error (`page-status.ts` promises a fifth group is "an entry
+ * here plus an entry in `COUNT_GROUPS`", and that promise has to be the
+ * compiler's, not a comment's), and taking the order from the same
+ * enumeration leaves exactly one place where reading order is written
+ * down.
+ *
+ * The glyphs are inline SVG (the same choice `gearIcon` and
+ * `playPauseIcon` above make): `fill="currentColor"` puts them in their
+ * group's own colour without a second source of truth for it, and there
+ * is no icon font on a kiosk whose only other glyphs are drawn the same
+ * way. The camera matches the road-camera pin on the map deliberately
+ * (`pages/map/roadCameras.ts`'s `CAMERA_GLYPH`) -- the same thing counted
+ * and drawn should look the same -- but is copied rather than imported,
+ * because the shell must not pull a map module (and with it `resource`,
+ * the settings store and the camera modal) into its own chunk.
+ */
+interface MastheadCountGroup {
+    /** The class on the colour-carrying span; also the DOM hook the masthead's tests read the numeral through. */
+    className: string;
+    /** The unit word, shown at full width and dropped at kiosk width. */
+    unitKey: ParamlessKey;
+    glyph: string;
+}
+
+const SHIP_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M11.2 3.2h1.6v2.1h4.1v4.4h3.4l-1.5 4.4H4.8L3.3 9.7h3.4V5.3h4.5V3.2ZM8.5 7.1v2.6h7V7.1h-7ZM2.6 15.8h18.8l-2.2 3.7a2.1 2.1 0 0 1-1.8 1.1H6.6a2.1 2.1 0 0 1-1.8-1.1l-2.2-3.7Z"/></svg>`;
+
+const AIRCRAFT_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M12 2.1a1.5 1.5 0 0 1 1.5 1.5v5.1l8 4.7v2.2l-8-2.4v4.2l2.5 1.9v1.7L12 19.9l-4 1.1v-1.7l2.5-1.9v-4.2l-8 2.4v-2.2l8-4.7V3.6A1.5 1.5 0 0 1 12 2.1Z"/></svg>`;
+
+const ROAD_SITUATION_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M12 2.6 23.1 21.4H0.9L12 2.6Zm0 4.1L4.5 19.4h15L12 6.7Zm-1 3.2h2v5.4h-2v-5.4Zm0 6.7h2v2h-2v-2Z"/></svg>`;
+
+const ROAD_CAMERA_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.2 4.5h5.6l1.1 2H20a1.8 1.8 0 0 1 1.8 1.8v9.4A1.8 1.8 0 0 1 20 19.5H4A1.8 1.8 0 0 1 2.2 17.7V8.3A1.8 1.8 0 0 1 4 6.5h4.1l1.1-2Zm2.8 4.6a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8Zm0 1.9a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>`;
+
+/**
+ * The hidden-by-age count is not a group -- nothing opens when it is
+ * tapped -- but it sits in the same row and loses its word to the same
+ * media query, and a bare unexplained numeral beside four labelled ones
+ * would read as a fifth count of something. A struck-through eye says
+ * "not shown" without a word.
+ */
+const HIDDEN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" d="M12 5.2c5.1 0 9.1 4.1 10.2 6.8-.5 1.3-1.7 3-3.5 4.4l-1.4-1.4c1.3-1 2.2-2.2 2.7-3-1.2-1.9-4.4-4.8-8-4.8-.9 0-1.8.2-2.6.5L7.7 6.1c1.3-.6 2.7-.9 4.3-.9Zm0 3.3c1.9 0 3.5 1.6 3.5 3.5 0 .5-.1 1-.3 1.4l-4.6-4.6c.4-.2.9-.3 1.4-.3Z"/><path fill-rule="evenodd" d="M1.8 12c.6-1.4 1.9-3.3 3.9-4.8l1.4 1.4C5.6 9.7 4.5 11 4 12c1.2 1.9 4.4 4.8 8 4.8 1 0 2-.2 2.9-.6l1.5 1.5c-1.3.7-2.8 1.1-4.4 1.1-5.1 0-9.1-4.1-10.2-6.8Zm6.7-.5 4 4a3.5 3.5 0 0 1-4-4Z"/><path d="M4.1 3.4 20.6 19.9l-1.4 1.4L2.7 4.8l1.4-1.4Z"/></svg>`;
+
+const COUNT_GROUPS: Readonly<Record<LiveLayerGroupId, MastheadCountGroup>> = {
+    ships: { className: 'masthead-count-ships', unitKey: 'masthead.shipsUnit', glyph: SHIP_GLYPH },
+    aircraft: { className: 'masthead-count-aircraft', unitKey: 'masthead.aircraftUnit', glyph: AIRCRAFT_GLYPH },
+    roadSituations: { className: 'masthead-count-road-situations', unitKey: 'masthead.roadSituationsUnit', glyph: ROAD_SITUATION_GLYPH },
+    roadCameras: { className: 'masthead-count-road-cameras', unitKey: 'masthead.roadCamerasUnit', glyph: ROAD_CAMERA_GLYPH },
+};
 
 /**
  * The play/pause glyph, drawn rather than lettered so it reads at a
@@ -255,23 +347,28 @@ export function mountMasthead(container: HTMLElement): () => void {
     const panel = document.createElement('div');
     panel.className = 'masthead-live-panel';
     panel.hidden = true;
-    let openGroup: 'ships' | 'aircraft' | null = null;
+    let openGroup: LiveLayerGroupId | null = null;
 
-    function toggleGroup(group: 'ships' | 'aircraft'): void {
+    function toggleGroup(group: LiveLayerGroupId): void {
         openGroup = openGroup === group ? null : group;
         renderPanel();
     }
 
     const layerCounts = document.createElement('span');
     layerCounts.className = 'masthead-layer-counts';
-    const shipsCount = countPart('masthead-count-ships', () => {
-        toggleGroup('ships');
-    });
-    const aircraftCount = countPart('masthead-count-aircraft', () => {
-        toggleGroup('aircraft');
-    });
-    const hiddenCount = countPart('masthead-count-hidden');
-    layerCounts.append(shipsCount.el, aircraftCount.el, hiddenCount.el);
+    // One part per registry entry, keyed by group id -- no group is named
+    // in this file outside `COUNT_GROUPS`.
+    const countParts = new Map<LiveLayerGroupId, ReturnType<typeof countPart>>();
+    for (const id of LIVE_LAYER_GROUP_IDS) {
+        const group = COUNT_GROUPS[id];
+        const part = countPart(group.className, group.glyph, () => {
+            toggleGroup(id);
+        });
+        countParts.set(id, part);
+        layerCounts.append(part.el);
+    }
+    const hiddenCount = countPart('masthead-count-hidden', HIDDEN_GLYPH);
+    layerCounts.append(hiddenCount.el);
 
     function renderPanel(): void {
         const listing = liveLayerListing.get();
@@ -281,7 +378,7 @@ export function mountMasthead(container: HTMLElement): () => void {
             return;
         }
 
-        const entries = openGroup === 'ships' ? listing.ships : listing.aircraft;
+        const entries = listing.items[openGroup];
         panel.hidden = false;
         panel.replaceChildren();
 
@@ -305,7 +402,12 @@ export function mountMasthead(container: HTMLElement): () => void {
             detail.textContent = item.detail;
             row.append(name, detail);
             row.addEventListener('click', () => {
-                listing.focus(item);
+                // An item may carry its own action (a road camera opens
+                // its picture); panning the map to it is only the
+                // default. The shell runs whichever it was handed and
+                // knows what neither of them does.
+                if (item.activate) item.activate();
+                else listing.focus(item);
                 openGroup = null;
                 renderPanel();
             });
@@ -399,8 +501,7 @@ export function mountMasthead(container: HTMLElement): () => void {
                 return;
             }
             layerCounts.style.display = '';
-            shipsCount.set(counts.ships, t('masthead.shipsUnit'));
-            aircraftCount.set(counts.aircraft, t('masthead.aircraftUnit'));
+            for (const id of LIVE_LAYER_GROUP_IDS) countParts.get(id)?.set(counts[id], t(COUNT_GROUPS[id].unitKey));
             // Only when there is something to account for -- the ordinary
             // case must stay the plain two-number line, not one with a
             // permanent "0 hidden" on the end.

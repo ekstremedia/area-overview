@@ -8,6 +8,7 @@
 import { assertNever, currentRoute, type Route } from '../core/router.js';
 import type { ParamlessKey } from '../i18n/index.js';
 import type { PageId } from '../../shared/schemas/settings.js';
+import { CAMERAS_DORMANT } from './cameras/dormancy.js';
 import * as AuroraPage from './AuroraPage.js';
 import * as CamerasPage from './CamerasPage.js';
 import * as CameraViewerPage from './CameraViewerPage.js';
@@ -49,13 +50,23 @@ export interface TabPageEntry extends PageEntry {
     name: PageId;
 }
 
-/** The five tabs in the masthead's tab row, in display order -- Settings is a separate link, not a tab (see `SettingsPage.ts`'s doc comment). */
+/**
+ * The cameras entry, kept separate from `NAV_PAGES` below because it is
+ * two different things at once while the cameras are dormant
+ * (`cameras/dormancy.ts`): it must **not** appear as a tab, and it must
+ * still be **registered as a route**, so an old `#/cameras/<id>`
+ * bookmark on the kiosk resolves to the viewer instead of silently
+ * falling back to the map.
+ */
+const CAMERAS_PAGE: TabPageEntry = { name: 'cameras', navKey: 'nav.cameras', localityKey: 'locality.cameras', render: renderCameras };
+
+/** The masthead's tab row, in display order -- Settings is a separate link, not a tab (see `SettingsPage.ts`'s doc comment). Four entries while the cameras are dormant, five when the flag is flipped back. */
 export const NAV_PAGES: readonly TabPageEntry[] = [
     { name: 'map', navKey: 'nav.map', localityKey: 'locality.map', render: MapPage.render },
     { name: 'weather', navKey: 'nav.weather', localityKey: 'locality.weather', render: WeatherPage.render },
     { name: 'aurora', navKey: 'nav.aurora', localityKey: 'locality.aurora', render: AuroraPage.render },
     { name: 'tide', navKey: 'nav.tide', localityKey: 'locality.tide', render: TidePage.render },
-    { name: 'cameras', navKey: 'nav.cameras', localityKey: 'locality.cameras', render: renderCameras },
+    ...(CAMERAS_DORMANT ? [] : [CAMERAS_PAGE]),
 ];
 
 export const SETTINGS_PAGE: PageEntry = {
@@ -65,7 +76,10 @@ export const SETTINGS_PAGE: PageEntry = {
     render: SettingsPage.render,
 };
 
-const PAGES_BY_ROUTE_NAME: ReadonlyMap<Route['name'], PageEntry> = new Map([...NAV_PAGES, SETTINGS_PAGE].map((page) => [page.name, page]));
+/** Every route, tab or not -- `CAMERAS_PAGE` is in here unconditionally (see its doc comment), which is what keeps `#/cameras/<id>` resolving while the tab is gone. */
+const PAGES_BY_ROUTE_NAME: ReadonlyMap<Route['name'], PageEntry> = new Map(
+    [...NAV_PAGES, CAMERAS_PAGE, SETTINGS_PAGE].map((page) => [page.name, page]),
+);
 
 export function pageForRoute(route: Route): PageEntry {
     switch (route.name) {

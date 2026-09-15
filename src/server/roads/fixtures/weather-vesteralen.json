@@ -1,0 +1,94 @@
+{
+    "type": "FeatureCollection",
+    "numberMatched": 5,
+    "numberReturned": 5,
+    "timeStamp": "2026-09-13T12:00:00.000Z",
+    "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } },
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [16.10412, 68.52201] },
+            "properties": {
+                "REFERENCE_ID": "3000420",
+                "LOCATION_DESCRIPTION": "Tjeldsundbrua øst",
+                "MEASUREMENT_TIME": "2026-09-13T20:30:00+02:00",
+                "AIR_TEMPERATURE": 9.2,
+                "ROAD_SURFACE_TEMPERATURE": 7.8,
+                "WIND_SPEED": 14.8,
+                "MAXIMUM_WIND_SPEED": 54.4,
+                "WIND_DIRECTION_COMPASS": null,
+                "PRECIPITATION_INTENSITY": 0.0,
+                "PRECIPITATION_TYPE": null,
+                "DEPTH_OF_SNOW": null
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.98211, 68.55712] },
+            "properties": {
+                "REFERENCE_ID": "3000957",
+                "LOCATION_DESCRIPTION": "Hadselbrua",
+                "MEASUREMENT_TIME": "2026-09-13T11:50:00+02:00",
+                "AIR_TEMPERATURE": 7.2,
+                "ROAD_SURFACE_TEMPERATURE": 8.9,
+                "WIND_SPEED": null,
+                "MAXIMUM_WIND_SPEED": null,
+                "WIND_DIRECTION_COMPASS": null,
+                "PRECIPITATION_INTENSITY": 0,
+                "PRECIPITATION_TYPE": null,
+                "DEPTH_OF_SNOW": null
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [14.99811, 68.33412] },
+            "properties": {
+                "REFERENCE_ID": "3000700",
+                "LOCATION_DESCRIPTION": "Raftsundet",
+                "MEASUREMENT_TIME": "2026-09-13T11:40:00+02:00",
+                "AIR_TEMPERATURE": 6.8,
+                "ROAD_SURFACE_TEMPERATURE": 7.4,
+                "WIND_SPEED": 3.1,
+                "MAXIMUM_WIND_SPEED": 5.2,
+                "WIND_DIRECTION_COMPASS": null,
+                "PRECIPITATION_INTENSITY": 0.1,
+                "PRECIPITATION_TYPE": null,
+                "DEPTH_OF_SNOW": null
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [15.31122, 68.78011] },
+            "properties": {
+                "REFERENCE_ID": "3009001",
+                "LOCATION_DESCRIPTION": "Blomjoten",
+                "MEASUREMENT_TIME": "2026-09-13T11:50:00+02:00",
+                "AIR_TEMPERATURE": 2.2,
+                "ROAD_SURFACE_TEMPERATURE": 3.8,
+                "WIND_SPEED": 9.4,
+                "MAXIMUM_WIND_SPEED": 14.1,
+                "WIND_DIRECTION_COMPASS": null,
+                "PRECIPITATION_INTENSITY": 1.2,
+                "PRECIPITATION_TYPE": null,
+                "DEPTH_OF_SNOW": null
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [15.99012, 68.41022] },
+            "properties": {
+                "REFERENCE_ID": "3000905",
+                "LOCATION_DESCRIPTION": "Lødingen ferjekai",
+                "MEASUREMENT_TIME": null,
+                "AIR_TEMPERATURE": 8.1,
+                "ROAD_SURFACE_TEMPERATURE": null,
+                "WIND_SPEED": 2.2,
+                "MAXIMUM_WIND_SPEED": 3.9,
+                "WIND_DIRECTION_COMPASS": null,
+                "PRECIPITATION_INTENSITY": null,
+                "PRECIPITATION_TYPE": null,
+                "DEPTH_OF_SNOW": null
+            }
+        }
+    ]
+}

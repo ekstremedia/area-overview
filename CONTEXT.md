@@ -1,8 +1,9 @@
 # area-overview
 
 A wall-display view of Terje's surroundings in Vesterålen: a live map with
-cameras, ships and aircraft, plus weather, aurora and camera pages. It reads
-data that already exists on `nesthus.no` and adds nothing to it.
+ships, aircraft, road notices and road cameras, plus weather, aurora and tide
+pages. It reads data that already exists on `nesthus.no` and what a handful of
+public providers give away, and adds nothing to either.
 
 ## Language
 
@@ -15,7 +16,8 @@ _Avoid_: backend, the site, the API (ambiguous with this app's own API)
 
 **Provider**:
 An external live-data service the BFF calls directly because upstream has
-nothing for it: BarentsWatch (ships) and an ADS-B aggregator (aircraft).
+nothing for it: BarentsWatch (ships), an ADS-B aggregator (aircraft) and
+Statens vegvesen (road notices, road cameras).
 _Avoid_: upstream (a provider is not the upstream), source, feed
 
 **BFF**:
@@ -46,7 +48,7 @@ The tile layer under everything else, chosen by theme.
 _Avoid_: tiles, background, basemap
 
 **Live layer**:
-A set of moving markers on the map fed by a polled bbox query to the BFF,
+A set of markers on the map fed by a polled bbox query to the BFF,
 with its own settings block, attribution and on/off toggle.
 _Avoid_: overlay, feature, plugin, data layer
 
@@ -60,14 +62,38 @@ layer.
 _Avoid_: plane, flight
 
 **Camera**:
-A webcam known to upstream, identified by its stable `camera_id` slug.
-Upstream knows its name and current image but not where it is. Not a live
-layer: static markers, no bbox polling.
-_Avoid_: webcam, cam, feed
+A webcam Terje put up himself, known to upstream and identified by its stable
+`camera_id` slug. Upstream knows its name and current image but not where it
+is. **Dormant**: two exist, one is online, and they come down when he moves,
+so the app draws none of them and the cameras page is unreachable. The code,
+the route and the placements stay in place for when they go back up.
+_Avoid_: webcam, cam, feed, and never for a road camera
+
+**Road camera**:
+A Statens vegvesen webcam, arriving with its own coordinates and needing no
+placement. Part of the Vegvesen layer, and while the cameras are dormant the
+only webcam the app shows. Several orientations may share one position; they
+open together as a grid of thumbnails.
+_Avoid_: camera (that word is Terje's own), CCTV, traffic camera
+
+**Road situation**:
+One thing happening on a road — roadworks, a closure, a wind warning, a ferry
+notice. Vegvesen reports it as a main record plus consequence records sharing
+an id and a geometry; this app treats the group as one. Norwegian UI word
+"vegmelding".
+_Avoid_: incident, event, road message, alert
+
+**Vegvesen layer**:
+The single live layer carrying road situations and road cameras: one toggle,
+one settings block, one poll rate. Its identifier in code is `roads`
+(`LiveLayerId`, `settings.roads`, `ROADS_LAYER`, `map/roads.ts`).
+_Avoid in prose_: roads layer, traffic layer (nothing here counts vehicles)
 
 **Placement**:
 The coordinates this app stores for a camera, keyed by `camera_id`. A camera
-without a placement is "unplaced" and absent from the map.
+without a placement is "unplaced" and absent from the map. Dormant with
+[[Camera]]; a road camera never needs one, since Vegvesen supplies its
+position.
 _Avoid_: position, location (upstream's free-text field), coordinates
 
 **Home view**:
@@ -117,6 +143,7 @@ Never locks by itself.
 _Avoid_: unlocked, admin, authenticated session
 
 **Provider credentials**:
-Secrets the BFF uses to talk to a provider (BarentsWatch client id/secret).
-Never leave the server.
+Secrets the BFF uses to talk to a provider (BarentsWatch client id/secret;
+OpenSky client id/secret when that ADS-B provider is chosen). Never leave the
+server.
 _Avoid_: token, API key
