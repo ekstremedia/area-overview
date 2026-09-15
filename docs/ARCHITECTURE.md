@@ -381,8 +381,9 @@ where it came from and how to recapture it.
 `refetchOnMapMove` debounces it (ignoring the programmatic moves a follow
 produces) and calls the layer's `resource().refresh()`, which fetches outside
 the poll rhythm and restarts the interval. The layer reads the viewport
-through `mapToBboxQuery` and requests `GET /api/<id>?bbox=`. On the server that
-box goes through `parseBbox`, `clampBbox` and `roundBbox`, and `bboxCacheKey`
+through `mapToBboxQuery` and requests `GET /api/<id>?bbox=` -- for the roads
+layer, two requests: `GET /api/road-situations?bbox=` and
+`GET /api/road-cameras?bbox=`. On the server that box goes through `parseBbox`, `clampBbox` and `roundBbox`, and `bboxCacheKey`
 becomes the key `serveCached` reads. A fresh hit comes straight from
 `TtlCache`; a miss calls the provider -- for ships a `shipsWithin` filter over
 the shared nationwide snapshot, for aircraft and the roads a real outbound
