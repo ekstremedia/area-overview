@@ -21,7 +21,16 @@
  * `LiveLayerSpec`, and a layer that sets neither has no fix age to
  * filter on (roads: a notice is valid until it expires, never stale).
  */
-import { AIRCRAFT_LAYER, ROADS_LAYER, SHIPS_LAYER, type LiveLayerId, type LiveLayerSpec } from '../../../shared/layers.js';
+import {
+    AIRCRAFT_LAYER,
+    ROADS_LAYER,
+    SHIPS_LAYER,
+    SPECIES_LAYER,
+    TRANSIT_LAYER,
+    WARNINGS_LAYER,
+    type LiveLayerId,
+    type LiveLayerSpec,
+} from '../../../shared/layers.js';
 import type { Settings, SettingsPatch } from '../../../shared/schemas/settings.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
@@ -30,12 +39,15 @@ import { formatNumber, t, type ParamlessKey } from '../../i18n/index.js';
 import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
-const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER, ROADS_LAYER];
+const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER, ROADS_LAYER, TRANSIT_LAYER, WARNINGS_LAYER, SPECIES_LAYER];
 
 const LAYER_LABEL_KEYS: Record<LiveLayerId, ParamlessKey> = {
     ships: 'settings.layers.ships',
     aircraft: 'settings.layers.aircraft',
     roads: 'settings.layers.roads',
+    transit: 'settings.layers.transit',
+    warnings: 'settings.layers.warnings',
+    species: 'settings.layers.species',
 };
 
 /**

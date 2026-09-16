@@ -25,18 +25,21 @@ afterEach(() => {
 });
 
 describe('Layers section', () => {
-    it('renders one block per layer spec (ships, aircraft, roads), each with an enabled toggle and its own steppers', () => {
+    it('renders one block per layer spec (ships, aircraft, roads, transit, warnings, species), each with an enabled toggle and its own steppers', () => {
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: true });
 
         const blocks = container.querySelectorAll('.settings-layer-block');
-        expect(blocks).toHaveLength(3);
+        expect(blocks).toHaveLength(6);
         // ships enabled + aircraft enabled + aircraft showOnGround + roads
-        // enabled + roads showPlanned + roads showCameras.
-        expect(container.querySelectorAll('.toggle-row')).toHaveLength(6);
-        // poll + max-age for ships and aircraft; poll alone for roads.
-        expect(container.querySelectorAll('.stepper')).toHaveLength(5);
+        // enabled + roads showPlanned + roads showCameras + transit enabled +
+        // warnings enabled + species enabled -- transit/warnings/species have
+        // no per-layer-id fields rendered yet (a later phase's concern).
+        expect(container.querySelectorAll('.toggle-row')).toHaveLength(9);
+        // poll + max-age for ships, aircraft and transit; poll alone for
+        // roads, warnings and species.
+        expect(container.querySelectorAll('.stepper')).toHaveLength(9);
 
         dispose();
     });

@@ -40,6 +40,13 @@ function fakeConfig(): ServerConfig {
         // Off in tests: a background poller would make real upstream calls
         // from a suite that otherwise touches no network.
         trailsEnabled: false,
+        enturClientName: 'nesthus-area-overview-test',
+        transitCacheTtlMs: 10_000,
+        metAlertsCacheTtlMs: 300_000,
+        metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
+        avalancheCacheTtlMs: 1_800_000,
+        avalancheRegionsCacheTtlMs: 86_400_000,
+        speciesCacheTtlMs: 1_800_000,
     };
 }
 

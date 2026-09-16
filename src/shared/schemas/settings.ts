@@ -111,7 +111,7 @@ const AutoCycleSchema = z.object({
 });
 
 /**
- * The ten top-level fields a `PATCH` can touch, as *undecorated* schemas
+ * The top-level fields a `PATCH` can touch, as *undecorated* schemas
  * -- deliberately without their own `.default(...)`. `SettingsSchema`
  * below applies `.default(...)` to each of these when building the full
  * settings object (so `SettingsSchema.parse({})` is still fully
@@ -164,6 +164,60 @@ const WeatherSettingsSchema = z.object({
     useNetatmo: z.boolean().default(true),
 });
 
+/**
+ * Entur's realtime buses and ferries. `maxAgeMinutes` mirrors `TRANSIT_LAYER`'s
+ * bounds in `shared/layers.ts` -- the only one of the three newest layers
+ * whose items are position fixes.
+ */
+const TransitSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    pollSeconds: z.number().min(10).max(120).default(15),
+    maxAgeMinutes: z.number().min(1).max(60).default(10),
+    showBuses: z.boolean().default(true),
+    showFerries: z.boolean().default(true),
+});
+
+/**
+ * The Warnings layer: MET Alerts weather warnings and NVE Varsom avalanche
+ * warnings, one block for both (`WARNINGS_LAYER` in `shared/layers.ts`
+ * explains why they share an id and a toggle). No `maxAgeMinutes`, like
+ * `roads`: a warning is valid until it expires, not until it goes stale.
+ *
+ * `showAvalanche` is the analogue of roads' `showCameras` -- a way to keep
+ * the weather warnings without the avalanche danger-level pins, on by
+ * default since the merged layer's whole point is carrying both.
+ */
+const WarningsSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    pollSeconds: z.number().min(300).max(3600).default(600),
+    showAvalanche: z.boolean().default(true),
+});
+
+/**
+ * The GBIF lookback window, in days -- a closed set of four buckets
+ * rather than a free number. GBIF's occurrence search is queried fresh
+ * per window, so an unbounded `days` value would make the server-side
+ * cache key unbounded too; these four are the only values `/api/species`
+ * is ever asked for.
+ */
+export const SpeciesDaysSchema = z.literal([7, 30, 90, 365]);
+
+export type SpeciesDays = z.infer<typeof SpeciesDaysSchema>;
+
+/**
+ * GBIF species occurrence sightings. No `maxAgeMinutes`: a sighting is
+ * already weeks behind reality by the time GBIF publishes it (see
+ * `SpeciesResponseSchema`'s doc comment), so `days` is the control that
+ * matters here, not a staleness filter over the response.
+ */
+const SpeciesSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    pollSeconds: z.number().min(1800).max(21600).default(3600),
+    days: SpeciesDaysSchema.default(30),
+    /** Restrict sightings to GBIF's `Animalia` kingdom -- off by default, since plants and fungi are sightings too. */
+    animalsOnly: z.boolean().default(false),
+});
+
 export const patchableFieldSchemas = {
     language: z.enum(['nb', 'en']),
     homeView: HomeViewSchema,
@@ -175,6 +229,9 @@ export const patchableFieldSchemas = {
     ships: ShipsSettingsSchema,
     aircraft: AircraftSettingsSchema,
     roads: RoadsSettingsSchema,
+    transit: TransitSettingsSchema,
+    warnings: WarningsSettingsSchema,
+    species: SpeciesSettingsSchema,
     autoCycle: AutoCycleSchema,
     disabledCameras: DisabledCamerasSchema,
     weather: WeatherSettingsSchema,
@@ -203,6 +260,9 @@ export const SettingsSchema = z.object({
     ships: patchableFieldSchemas.ships.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 30 }),
     aircraft: patchableFieldSchemas.aircraft.default({ enabled: true, pollSeconds: 10, maxAgeMinutes: 10, showOnGround: false }),
     roads: patchableFieldSchemas.roads.default({ enabled: true, pollSeconds: 120, showPlanned: false, showCameras: true }),
+    transit: patchableFieldSchemas.transit.default({ enabled: true, pollSeconds: 15, maxAgeMinutes: 10, showBuses: true, showFerries: true }),
+    warnings: patchableFieldSchemas.warnings.default({ enabled: true, pollSeconds: 600, showAvalanche: true }),
+    species: patchableFieldSchemas.species.default({ enabled: true, pollSeconds: 3600, days: 30, animalsOnly: false }),
     autoCycle: patchableFieldSchemas.autoCycle.default({ enabled: false, intervalSeconds: 180, pages: [] }),
     disabledCameras: patchableFieldSchemas.disabledCameras.default([]),
     weather: patchableFieldSchemas.weather.default({ useNetatmo: true }),
@@ -229,6 +289,9 @@ export const SettingsPatchSchema = z.object({
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
     roads: patchableFieldSchemas.roads.optional(),
+    transit: patchableFieldSchemas.transit.optional(),
+    warnings: patchableFieldSchemas.warnings.optional(),
+    species: patchableFieldSchemas.species.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
     disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
     weather: patchableFieldSchemas.weather.optional(),
@@ -274,6 +337,9 @@ export const SettingsOverrideSchema = z.object({
     ships: patchableFieldSchemas.ships.optional(),
     aircraft: patchableFieldSchemas.aircraft.optional(),
     roads: patchableFieldSchemas.roads.optional(),
+    transit: patchableFieldSchemas.transit.optional(),
+    warnings: patchableFieldSchemas.warnings.optional(),
+    species: patchableFieldSchemas.species.optional(),
     autoCycle: patchableFieldSchemas.autoCycle.optional(),
     disabledCameras: patchableFieldSchemas.disabledCameras.optional(),
 });

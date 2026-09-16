@@ -156,6 +156,25 @@ const ServerConfigSchema = z.object({
         .enum(['true', 'false'])
         .default('true')
         .transform((value) => value === 'true'),
+    /** Identifies this app to Entur's realtime API via the `ET-Client-Name` header -- Entur's own convention in place of a credential; the feed is otherwise keyless. */
+    enturClientName: z.string().min(1).default('nesthus-area-overview'),
+    /** `GET /api/transit` cache TTL, keyed per-bbox like ships/aircraft/roads above. */
+    transitCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    /** `GET /api/warnings`'s MET Alerts half -- cache TTL, keyed per-bbox. Warnings change far slower than a position fix, hence the much longer default than the other layers. */
+    metAlertsCacheTtlMs: z.coerce.number().int().positive().default(300_000),
+    /**
+     * MET Norway's API terms of use require every caller to identify
+     * itself with a descriptive `User-Agent` including contact
+     * information -- not a secret, so it lives in `.env.example` and this
+     * default rather than a real `.env`.
+     */
+    metUserAgent: z.string().min(1).default('area-overview-bff/0.1 (+https://area.nesthus.no; terjen@gmail.com)'),
+    /** `GET /api/warnings`'s NVE Varsom avalanche half -- cache TTL for a region's danger level, which NVE itself updates at most a few times a day. */
+    avalancheCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
+    /** NVE Varsom's forecast region roster -- geometry that essentially never changes, so it is cached far longer than the danger levels themselves. */
+    avalancheRegionsCacheTtlMs: z.coerce.number().int().positive().default(86_400_000),
+    /** `GET /api/species` cache TTL, keyed per-bbox and per `settings.species.days` window. GBIF's occurrence index is itself a slow-moving snapshot, hence the long default. */
+    speciesCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -194,6 +213,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         trailsPollSeconds: env.TRAILS_POLL_SECONDS,
         trailsAreaBbox: env.TRAILS_AREA_BBOX,
         trailsEnabled: env.TRAILS_ENABLED,
+        enturClientName: env.ENTUR_CLIENT_NAME,
+        transitCacheTtlMs: env.TRANSIT_CACHE_TTL_MS,
+        metAlertsCacheTtlMs: env.MET_ALERTS_CACHE_TTL_MS,
+        metUserAgent: env.MET_USER_AGENT,
+        avalancheCacheTtlMs: env.AVALANCHE_CACHE_TTL_MS,
+        avalancheRegionsCacheTtlMs: env.AVALANCHE_REGIONS_CACHE_TTL_MS,
+        speciesCacheTtlMs: env.SPECIES_CACHE_TTL_MS,
     });
 
     if (!parsed.success) {

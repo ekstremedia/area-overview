@@ -50,6 +50,13 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         // Off in tests: a background poller would make real upstream calls
         // from a suite that otherwise touches no network.
         trailsEnabled: false,
+        enturClientName: 'nesthus-area-overview-test',
+        transitCacheTtlMs: 20,
+        metAlertsCacheTtlMs: 20,
+        metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
+        avalancheCacheTtlMs: 20,
+        avalancheRegionsCacheTtlMs: 20,
+        speciesCacheTtlMs: 20,
         ...overrides,
     };
 }
