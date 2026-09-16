@@ -1,0 +1,88 @@
+{
+    "data": {
+        "vehicles": [
+            {
+                "vehicleId": "3390101274",
+                "mode": "BUS",
+                "monitored": true,
+                "delay": 201.0,
+                "speed": null,
+                "bearing": 320.8,
+                "lastUpdated": "2026-09-15T17:23:21Z",
+                "expiration": "2026-09-15T23:23:21Z",
+                "occupancyStatus": "noData",
+                "originName": "Melbu ferjekai",
+                "destinationName": "Sortland bussterminal",
+                "location": { "latitude": 68.6926022451371, "longitude": 15.4130886308849 },
+                "line": { "lineRef": "NOR:Line:12_3754", "publicCode": "754", "lineName": "Sortland-Stm.nes-Melbu-Svolvær" },
+                "operator": { "operatorRef": "NOR:Operator:185" },
+                "codespace": { "codespaceId": "NOR" }
+            },
+            {
+                "vehicleId": "3390101999",
+                "mode": "FERRY",
+                "monitored": true,
+                "delay": -90.0,
+                "speed": null,
+                "bearing": 12.1,
+                "lastUpdated": "2026-09-15T17:24:05Z",
+                "expiration": "2026-09-16T05:24:05Z",
+                "occupancyStatus": "noData",
+                "originName": "Melbu ferjekai",
+                "destinationName": "Fiskebøl ferjekai",
+                "location": { "latitude": 68.5039, "longitude": 14.7887 },
+                "line": { "lineRef": "NOR:Line:12_3801", "publicCode": null, "lineName": null },
+                "operator": { "operatorRef": "" },
+                "codespace": { "codespaceId": "NOR" }
+            },
+            {
+                "vehicleId": "3390102500",
+                "mode": "RAIL",
+                "monitored": true,
+                "delay": 0.0,
+                "speed": null,
+                "bearing": 90.0,
+                "lastUpdated": "2026-09-15T17:24:30Z",
+                "expiration": "2026-09-15T23:24:30Z",
+                "occupancyStatus": "noData",
+                "originName": "Not a Vesterålen mode",
+                "destinationName": "Dropped by the mode filter",
+                "location": { "latitude": 68.7, "longitude": 15.42 },
+                "line": { "lineRef": "NOR:Line:99_0001", "publicCode": "R1", "lineName": "Some rail line" },
+                "operator": { "operatorRef": "NOR:Operator:1" },
+                "codespace": { "codespaceId": "NOR" }
+            },
+            {
+                "vehicleId": "3390090001",
+                "mode": "BUS",
+                "monitored": false,
+                "delay": null,
+                "speed": null,
+                "bearing": null,
+                "lastUpdated": "2026-09-15T06:00:00Z",
+                "expiration": "2026-09-15T18:00:00Z",
+                "occupancyStatus": "noData",
+                "originName": "Parked overnight",
+                "destinationName": "Still in the feed, well past its own fix",
+                "location": { "latitude": 68.65, "longitude": 15.1 },
+                "line": { "lineRef": "NOR:Line:12_1000", "publicCode": "100", "lineName": "Sortland lokalbuss" },
+                "operator": { "operatorRef": "NOR:Operator:185" },
+                "codespace": { "codespaceId": "NOR" }
+            },
+            {
+                "vehicleId": "3390103000",
+                "mode": "BUS",
+                "monitored": true,
+                "delay": 30.0,
+                "speed": null,
+                "bearing": 200.0,
+                "lastUpdated": "2026-09-15T17:24:50Z",
+                "expiration": "2026-09-15T23:24:50Z",
+                "occupancyStatus": "noData",
+                "originName": null,
+                "destinationName": null,
+                "location": { "latitude": 68.69, "longitude": 15.4 }
+            }
+        ]
+    }
+}

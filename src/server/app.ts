@@ -16,6 +16,7 @@ import { registerRoadCamerasRoutes } from './routes/road-cameras.js';
 import { registerRoadSituationsRoutes } from './routes/road-situations.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
+import { registerTransitRoutes } from './routes/transit.js';
 import { createOutboundGate } from './outbound-gate.js';
 import { createShipsSnapshot } from './ships/snapshot.js';
 import { createBarentsWatchToken } from './ships/token.js';
@@ -139,6 +140,12 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     const vegvesenGate = createOutboundGate({ minIntervalMs: config.vegvesenMinIntervalMs, burst: config.vegvesenBurst });
     registerRoadSituationsRoutes(app, config, { gate: vegvesenGate });
     registerRoadCamerasRoutes(app, config, { gate: vegvesenGate });
+
+    // The process-wide Entur outbound budget: the realtime vehicles API is
+    // keyless, has no published quota and no SLA, so the politeness has to
+    // be ours, same reasoning as the ADS-B and Vegvesen gates above.
+    const enturGate = createOutboundGate({ minIntervalMs: config.enturMinIntervalMs, burst: config.enturBurst });
+    registerTransitRoutes(app, config, { gate: enturGate });
 
     registerStaticPlugin(app);
 

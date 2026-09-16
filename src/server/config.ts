@@ -160,6 +160,16 @@ const ServerConfigSchema = z.object({
     enturClientName: z.string().min(1).default('nesthus-area-overview'),
     /** `GET /api/transit` cache TTL, keyed per-bbox like ships/aircraft/roads above. */
     transitCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    /**
+     * The process-wide Entur outbound budget: one request per
+     * `ENTUR_MIN_INTERVAL_MS` on average, with up to `ENTUR_BURST` banked
+     * for the flurry of `moveend`s a real pan produces. Same arrangement,
+     * and same reasoning, as the ADS-B and Vegvesen gates above -- the
+     * realtime vehicles API is keyless, has no published quota and no
+     * SLA, so the politeness has to be ours.
+     */
+    enturMinIntervalMs: z.coerce.number().int().positive().default(5000),
+    enturBurst: z.coerce.number().int().positive().default(3),
     /** `GET /api/warnings`'s MET Alerts half -- cache TTL, keyed per-bbox. Warnings change far slower than a position fix, hence the much longer default than the other layers. */
     metAlertsCacheTtlMs: z.coerce.number().int().positive().default(300_000),
     /**
@@ -215,6 +225,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         trailsEnabled: env.TRAILS_ENABLED,
         enturClientName: env.ENTUR_CLIENT_NAME,
         transitCacheTtlMs: env.TRANSIT_CACHE_TTL_MS,
+        enturMinIntervalMs: env.ENTUR_MIN_INTERVAL_MS,
+        enturBurst: env.ENTUR_BURST,
         metAlertsCacheTtlMs: env.MET_ALERTS_CACHE_TTL_MS,
         metUserAgent: env.MET_USER_AGENT,
         avalancheCacheTtlMs: env.AVALANCHE_CACHE_TTL_MS,

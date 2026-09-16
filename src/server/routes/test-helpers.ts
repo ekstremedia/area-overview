@@ -52,6 +52,8 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         trailsEnabled: false,
         enturClientName: 'nesthus-area-overview-test',
         transitCacheTtlMs: 20,
+        enturMinIntervalMs: 5000,
+        enturBurst: 3,
         metAlertsCacheTtlMs: 20,
         metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
         avalancheCacheTtlMs: 20,
