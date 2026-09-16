@@ -41,6 +41,7 @@ export const nb = {
     // correctly at every count a masthead ever shows, including zero).
     'masthead.roadSituationsUnit': 'vegmeldinger',
     'masthead.roadCamerasUnit': 'vegkamera',
+    'masthead.transitUnit': 'kollektiv',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
@@ -186,6 +187,17 @@ export const nb = {
     'map.roadCameraPrecipitation': 'Nedbør {value}',
 
     'map.popupUpdated': 'Oppdatert {age}',
+
+    // — Transit (Entur buses and ferries) — the punctuality phrase is the
+    // three-way word `punctualityFor` returns (`transit.ts`); "på tur" is
+    // deliberately not used for "en route" anywhere, since Entur's own
+    // vocabulary is "i rute"/"forsinket"/"før rute".
+    'map.transitOnTime': 'I rute',
+    'map.transitLate': '{minutes} min forsinket',
+    'map.transitEarly': '{minutes} min før rute',
+    'map.transitModeBus': 'Buss',
+    'map.transitModeFerry': 'Ferge',
+    'map.transitRoute': '{from} → {to}',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',
     'error.noData': 'Ingen data tilgjengelig.',
@@ -359,6 +371,10 @@ export const nb = {
     // today's work outside its own hours.
     'settings.layers.showPlanned': 'Vis planlagt vegarbeid',
     'settings.layers.showCameras': 'Vis vegkamera',
+    // Transit's own two mode filters -- the analogue of the Veg layer's
+    // `showPlanned`/`showCameras` above.
+    'settings.layers.showBuses': 'Vis busser',
+    'settings.layers.showFerries': 'Vis ferger',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

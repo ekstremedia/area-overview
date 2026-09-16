@@ -65,6 +65,28 @@ export const ROAD_CURRENT_COLOR = '#f0a020';
 export const ROAD_PLANNED_COLOR = '#9aa4ad';
 
 /**
+ * The Transit (Entur) layer's two pin colours (`transit.ts`'s `colorFor`),
+ * driven by `punctualityFor`'s three-way word: on time and running early
+ * are the same colour (neither needs attention), and only genuinely late
+ * (more than three minutes, `isLateEnoughToTint`) tints the pin.
+ *
+ * `TRANSIT_ON_TIME_COLOR` is `--color-accent-2-400` -- Broadsheet's own
+ * magenta -- resolved to a literal for the same reason every other colour
+ * in this file is: a Leaflet `Path`/`L.divIcon` style set from JS needs a
+ * literal, not `var(--token)`. It was freed up for reuse here when
+ * `AIRCRAFT_GLYPH_COLOR` moved off it (see that constant's own comment) --
+ * nothing else on the map claims it now, and reaching for a design token
+ * beats yet another freestanding hex where one is actually available.
+ *
+ * `TRANSIT_LATE_COLOR` reuses `ROAD_CURRENT_COLOR`'s exact amber on
+ * purpose: on this map amber already means "in force / needs attention
+ * right now" (a roadwork or closure), and a late bus is the same kind of
+ * fact.
+ */
+export const TRANSIT_ON_TIME_COLOR = '#ff90b1';
+export const TRANSIT_LATE_COLOR = ROAD_CURRENT_COLOR;
+
+/**
  * The dark casing stroked under every road line before its coloured core
  * (`roads.ts` draws each line twice, weight 7 then weight 4).
  *

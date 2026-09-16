@@ -895,3 +895,94 @@
     font-size: 13px;
     color: var(--color-text);
 }
+
+/* — Transit (Entur buses and ferries) pins — same 44px tap-target/32px
+   plate arrangement as `.road-pin`/`.road-pin-plate`, badge-shaped rather
+   than square (`border-radius: 999px` vs. `.road-pin-plate`'s 7px) so a
+   round pin is never mistaken for a Vegvesen sign. `--transit-vehicle-color`
+   arrives inline from `liveLayerColors.ts` via `transit.ts`, the same
+   "colour from JS, shape from CSS" split `--road-situation-color` uses. */
+.transit-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.transit-pin-plate {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow:
+        0 0 0 2px var(--transit-vehicle-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.transit-pin-glyph,
+.transit-pin-glyph svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    color: var(--transit-vehicle-color);
+}
+
+/* The bus's own line number -- the thing a person reads across a room.
+   Ferries carry no text at all (`transit.ts`'s `buildTransitPinIcon`). */
+.transit-pin-code {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+/* — transit popup — same dark-card treatment as `.road-popup-wrapper`. */
+.transit-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.transit-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.transit-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.transit-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.transit-popup-line {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+}
+
+.transit-popup-route {
+    color: var(--color-muted);
+}
+
+.transit-popup-punctuality,
+.transit-popup-mode,
+.transit-popup-operator,
+.transit-popup-updated {
+    color: var(--color-muted);
+    font-size: 13px;
+}

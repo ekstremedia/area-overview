@@ -157,7 +157,7 @@ export function claimPageStatus(): PageStatus {
  * pair until the fourth group arrived, which is exactly when that
  * stopped paying for itself.)
  */
-export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras'] as const;
+export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras', 'transit'] as const;
 
 export type LiveLayerGroupId = (typeof LIVE_LAYER_GROUP_IDS)[number];
 
@@ -177,14 +177,17 @@ export type LayerCounts = Record<LiveLayerGroupId, number> & {
      *
      * Not per group: neither road group has an age filter at all (a road
      * notice is valid until it expires, never stale), so both contribute
-     * a permanent zero.
+     * a permanent zero. `transit` contributes a permanent zero too, for a
+     * different reason -- its age filter runs server-side
+     * (`transit.ts`'s own header comment), so a fix dropped for being
+     * stale never reaches the client to be counted here at all.
      */
     hiddenByAge: number;
 };
 
 /** Every group at zero -- what the map page publishes before any layer has answered. */
 export function emptyLayerCounts(): LayerCounts {
-    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, hiddenByAge: 0 };
+    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, transit: 0, hiddenByAge: 0 };
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = layerCountsSlot.signal;

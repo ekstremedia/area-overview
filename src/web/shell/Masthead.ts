@@ -186,6 +186,17 @@ const ROAD_SITUATION_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/
 const ROAD_CAMERA_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.2 4.5h5.6l1.1 2H20a1.8 1.8 0 0 1 1.8 1.8v9.4A1.8 1.8 0 0 1 20 19.5H4A1.8 1.8 0 0 1 2.2 17.7V8.3A1.8 1.8 0 0 1 4 6.5h4.1l1.1-2Zm2.8 4.6a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8Zm0 1.9a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>`;
 
 /**
+ * The transit count's own glyph -- the same bus silhouette
+ * `pages/map/glyphs/bus.svg` draws on the map pin, copied rather than
+ * imported for the same reason `ROAD_CAMERA_GLYPH` above is: the shell
+ * must not pull a map module into its own chunk. One glyph stands for
+ * both buses and ferries here, the way one count does -- the masthead's
+ * row has no room to tell the two vehicle kinds apart, unlike the map pin
+ * itself.
+ */
+const TRANSIT_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M4 5.8A2 2 0 0 1 6 3.8h12a2 2 0 0 1 2 2v8.4a1.8 1.8 0 0 1-1.6 1.79V17a1 1 0 1 1-2 0v-1H7.6v1a1 1 0 1 1-2 0v-1.01A1.8 1.8 0 0 1 4 14.2V5.8Zm2.2.7v3.8h4.3V6.5H6.2Zm5.9 0v3.8h4.3V6.5h-4.3Zm5.9 0v2.9a.9.9 0 0 0 .5-.8V6.9a.4.4 0 0 0-.4-.4h-.1Z"/><circle cx="7.6" cy="15" r="1.3"/><circle cx="16.4" cy="15" r="1.3"/></svg>`;
+
+/**
  * The hidden-by-age count is not a group -- nothing opens when it is
  * tapped -- but it sits in the same row and loses its word to the same
  * media query, and a bare unexplained numeral beside four labelled ones
@@ -199,6 +210,7 @@ const COUNT_GROUPS: Readonly<Record<LiveLayerGroupId, MastheadCountGroup>> = {
     aircraft: { className: 'masthead-count-aircraft', unitKey: 'masthead.aircraftUnit', glyph: AIRCRAFT_GLYPH },
     roadSituations: { className: 'masthead-count-road-situations', unitKey: 'masthead.roadSituationsUnit', glyph: ROAD_SITUATION_GLYPH },
     roadCameras: { className: 'masthead-count-road-cameras', unitKey: 'masthead.roadCamerasUnit', glyph: ROAD_CAMERA_GLYPH },
+    transit: { className: 'masthead-count-transit', unitKey: 'masthead.transitUnit', glyph: TRANSIT_GLYPH },
 };
 
 /**

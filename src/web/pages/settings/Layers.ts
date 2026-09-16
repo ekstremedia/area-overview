@@ -220,6 +220,29 @@ export const mount: SectionMount = (container, ctx) => {
             block.append(showPlannedRow.el, showCamerasRow.el);
         }
 
+        // Transit-only fields, the same deliberate id-branch: which
+        // vehicle kinds to draw, once the response is already on the map.
+        let showBusesToggle: ToggleHandle | undefined;
+        let showFerriesToggle: ToggleHandle | undefined;
+        if (layer.id === 'transit') {
+            showBusesToggle = toggle({
+                checked: initial.transit.showBuses,
+                onChange: (checked) => {
+                    write({ showBuses: checked });
+                },
+            });
+            const showBusesRow = field({ label: t('settings.layers.showBuses'), control: showBusesToggle.el });
+            showFerriesToggle = toggle({
+                checked: initial.transit.showFerries,
+                onChange: (checked) => {
+                    write({ showFerries: checked });
+                },
+            });
+            const showFerriesRow = field({ label: t('settings.layers.showFerries'), control: showFerriesToggle.el });
+            rows.push(showBusesRow, showFerriesRow);
+            block.append(showBusesRow.el, showFerriesRow.el);
+        }
+
         // Ships-only read-only credentials line.
         let credentialsLine: HTMLElement | undefined;
         if (layer.id === 'ships') {
@@ -250,6 +273,8 @@ export const mount: SectionMount = (container, ctx) => {
             if ('showOnGround' in current) showOnGroundToggle?.setState(current.showOnGround, false);
             if ('showPlanned' in current) showPlannedToggle?.setState(current.showPlanned, false);
             if ('showCameras' in current) showCamerasToggle?.setState(current.showCameras, false);
+            if ('showBuses' in current) showBusesToggle?.setState(current.showBuses, false);
+            if ('showFerries' in current) showFerriesToggle?.setState(current.showFerries, false);
         });
         disposers.push(disposeEffect);
     }

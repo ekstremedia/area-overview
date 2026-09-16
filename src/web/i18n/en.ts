@@ -31,6 +31,7 @@ export const en: Record<keyof typeof nb, string> = {
     'masthead.aircraftUnit': 'aircraft',
     'masthead.roadSituationsUnit': 'road notices',
     'masthead.roadCamerasUnit': 'road cameras',
+    'masthead.transitUnit': 'transit',
     'masthead.hiddenUnit': 'hidden',
     'masthead.livePanelEmpty': 'Nothing in sight',
     'masthead.settings': 'Settings',
@@ -166,6 +167,13 @@ export const en: Record<keyof typeof nb, string> = {
     'map.roadCameraPrecipitation': 'Precipitation {value}',
 
     'map.popupUpdated': 'Updated {age}',
+
+    'map.transitOnTime': 'On time',
+    'map.transitLate': '{minutes} min late',
+    'map.transitEarly': '{minutes} min early',
+    'map.transitModeBus': 'Bus',
+    'map.transitModeFerry': 'Ferry',
+    'map.transitRoute': '{from} → {to}',
 
     'error.staleData': 'Could not refresh · showing earlier data.',
     'error.noData': 'No data available.',
@@ -336,6 +344,8 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.layers.showOnGround': 'Show aircraft on the ground',
     'settings.layers.showPlanned': 'Show planned roadworks',
     'settings.layers.showCameras': 'Show road cameras',
+    'settings.layers.showBuses': 'Show buses',
+    'settings.layers.showFerries': 'Show ferries',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch credentials are set on the server.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch credentials are NOT set on the server.',
 

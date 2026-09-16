@@ -34,9 +34,10 @@ describe('Layers section', () => {
         expect(blocks).toHaveLength(6);
         // ships enabled + aircraft enabled + aircraft showOnGround + roads
         // enabled + roads showPlanned + roads showCameras + transit enabled +
-        // warnings enabled + species enabled -- transit/warnings/species have
-        // no per-layer-id fields rendered yet (a later phase's concern).
-        expect(container.querySelectorAll('.toggle-row')).toHaveLength(9);
+        // transit showBuses + transit showFerries + warnings enabled +
+        // species enabled -- warnings/species have no per-layer-id fields
+        // rendered yet (a later phase's concern).
+        expect(container.querySelectorAll('.toggle-row')).toHaveLength(11);
         // poll + max-age for ships, aircraft and transit; poll alone for
         // roads, warnings and species.
         expect(container.querySelectorAll('.stepper')).toHaveLength(9);

@@ -26,6 +26,7 @@ import { followTarget, stopFollowing } from './follow.js';
 import { mountRoadCamerasLayer } from './roadCameras.js';
 import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
+import { mountTransitLayer } from './transit.js';
 
 /** A layer's mount function: given the map, start whatever it needs and return its own disposer. */
 export type MapLayerMount = (map: Leaflet.Map) => () => void;
@@ -227,6 +228,20 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeTransit = registerMapLayer(map, (m) =>
+        mountTransitLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('transit', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('transit', text);
+            },
+            reportItems: (next) => {
+                reportItems('transit', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -239,5 +254,6 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeAircraft();
         disposeRoads();
         disposeRoadCameras();
+        disposeTransit();
     };
 }
