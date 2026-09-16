@@ -179,10 +179,31 @@ const ServerConfigSchema = z.object({
      * default rather than a real `.env`.
      */
     metUserAgent: z.string().min(1).default('area-overview-bff/0.1 (+https://area.nesthus.no; terjen@gmail.com)'),
+    /**
+     * The process-wide MET Alerts outbound budget: one request per
+     * `MET_MIN_INTERVAL_MS` on average, with up to `MET_BURST` banked for
+     * the flurry of `moveend`s a real pan produces. Same arrangement, and
+     * same reasoning, as the ADS-B/Vegvesen/Entur gates above -- MET
+     * Alerts is keyless and free, with no quota to push back with, so
+     * raising the interval is the polite direction. Longer than those
+     * gates' intervals because one call fetches the whole of Norway
+     * rather than one viewport, so it is worth spacing out further.
+     */
+    metMinIntervalMs: z.coerce.number().int().positive().default(20_000),
+    metBurst: z.coerce.number().int().positive().default(2),
     /** `GET /api/warnings`'s NVE Varsom avalanche half -- cache TTL for a region's danger level, which NVE itself updates at most a few times a day. */
     avalancheCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
     /** NVE Varsom's forecast region roster -- geometry that essentially never changes, so it is cached far longer than the danger levels themselves. */
     avalancheRegionsCacheTtlMs: z.coerce.number().int().positive().default(86_400_000),
+    /**
+     * The process-wide NVE Varsom outbound budget, shared by the region
+     * roster fetch and every per-region warning fetch: one request per
+     * `NVE_MIN_INTERVAL_MS` on average, with up to `NVE_BURST` banked for
+     * a viewport that touches several regions at once. Same reasoning as
+     * the other keyless-upstream gates above.
+     */
+    nveMinIntervalMs: z.coerce.number().int().positive().default(60_000),
+    nveBurst: z.coerce.number().int().positive().default(2),
     /** `GET /api/species` cache TTL, keyed per-bbox and per `settings.species.days` window. GBIF's occurrence index is itself a slow-moving snapshot, hence the long default. */
     speciesCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
 });
@@ -229,8 +250,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         enturBurst: env.ENTUR_BURST,
         metAlertsCacheTtlMs: env.MET_ALERTS_CACHE_TTL_MS,
         metUserAgent: env.MET_USER_AGENT,
+        metMinIntervalMs: env.MET_MIN_INTERVAL_MS,
+        metBurst: env.MET_BURST,
         avalancheCacheTtlMs: env.AVALANCHE_CACHE_TTL_MS,
         avalancheRegionsCacheTtlMs: env.AVALANCHE_REGIONS_CACHE_TTL_MS,
+        nveMinIntervalMs: env.NVE_MIN_INTERVAL_MS,
+        nveBurst: env.NVE_BURST,
         speciesCacheTtlMs: env.SPECIES_CACHE_TTL_MS,
     });
 

@@ -56,8 +56,12 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         enturBurst: 3,
         metAlertsCacheTtlMs: 20,
         metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
+        metMinIntervalMs: 20_000,
+        metBurst: 2,
         avalancheCacheTtlMs: 20,
         avalancheRegionsCacheTtlMs: 20,
+        nveMinIntervalMs: 60_000,
+        nveBurst: 2,
         speciesCacheTtlMs: 20,
         ...overrides,
     };

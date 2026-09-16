@@ -46,8 +46,12 @@ function fakeConfig(): ServerConfig {
         enturBurst: 3,
         metAlertsCacheTtlMs: 300_000,
         metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
+        metMinIntervalMs: 20_000,
+        metBurst: 2,
         avalancheCacheTtlMs: 1_800_000,
         avalancheRegionsCacheTtlMs: 86_400_000,
+        nveMinIntervalMs: 60_000,
+        nveBurst: 2,
         speciesCacheTtlMs: 1_800_000,
     };
 }
