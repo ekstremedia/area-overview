@@ -6,7 +6,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { emptyLayerCounts, liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
+const { emptyLayerCounts, liveLayerColors, liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
 type LiveLayerItem = import('./page-status.js').LiveLayerItem;
 type LiveLayerGroupId = import('./page-status.js').LiveLayerGroupId;
 const { autoCycleArmed, autoCyclePaused } = await import('./autoCycle.js');
@@ -436,6 +436,76 @@ describe('mountMasthead', () => {
 
         autoCyclePaused.set(false);
         autoCycleArmed.set(null);
+        dispose();
+    });
+
+    it('hides each of the seven count groups from the row entirely when its own count is zero, leaving the others untouched', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const classNameOf: Record<LiveLayerGroupId, string> = {
+            ships: 'masthead-count-ships',
+            aircraft: 'masthead-count-aircraft',
+            roadSituations: 'masthead-count-road-situations',
+            roadCameras: 'masthead-count-road-cameras',
+            transit: 'masthead-count-transit',
+            warnings: 'masthead-count-warnings',
+            species: 'masthead-count-species',
+        };
+        const groupIds = Object.keys(classNameOf) as LiveLayerGroupId[];
+        const buttonFor = (id: LiveLayerGroupId) => container.querySelector(`.${classNameOf[id]}`)?.closest('button');
+
+        const allNonZero = counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, transit: 1, warnings: 1, species: 1 });
+
+        for (const zeroId of groupIds) {
+            liveLayerCounts.set({ ...allNonZero, [zeroId]: 0 });
+            expect(buttonFor(zeroId)?.style.display).toBe('none');
+            for (const otherId of groupIds) {
+                if (otherId === zeroId) continue;
+                expect(buttonFor(otherId)?.style.display).not.toBe('none');
+            }
+        }
+
+        // Back to non-zero brings the group back.
+        liveLayerCounts.set(allNonZero);
+        for (const id of groupIds) expect(buttonFor(id)?.style.display).not.toBe('none');
+
+        liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('tints the warnings chip by the worst active colour reported by the layer, and leaves it untinted when nothing is active', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set(counts({ warnings: 2 }));
+        liveLayerColors.set(null);
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const warningsEl = container.querySelector<HTMLElement>('.masthead-count-warnings');
+        // Nothing active (the slot itself is `null`, or the group's own key
+        // is `null`): the custom property is unset, so CSS falls back to
+        // the static warning yellow -- no tint of its own.
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerColors.set({ warnings: null });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerColors.set({ warnings: '#edbb00' });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('#edbb00');
+
+        liveLayerColors.set({ warnings: '#c0392b' });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('#c0392b');
+
+        // Back to nothing active clears the tint again.
+        liveLayerColors.set({ warnings: null });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerCounts.set(null);
+        liveLayerColors.set(null);
         dispose();
     });
 

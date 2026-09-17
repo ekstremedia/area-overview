@@ -23,7 +23,15 @@ import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
 import { autoCycleArmed, autoCycleHeld, autoCyclePaused } from './autoCycle.js';
-import { liveLayerCounts, liveLayerListing, LIVE_LAYER_GROUP_IDS, pageAccountStatus, pageFreshness, type LiveLayerGroupId } from './page-status.js';
+import {
+    liveLayerColors,
+    liveLayerCounts,
+    liveLayerListing,
+    LIVE_LAYER_GROUP_IDS,
+    pageAccountStatus,
+    pageFreshness,
+    type LiveLayerGroupId,
+} from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
 
@@ -81,7 +89,11 @@ function gearIcon(): SVGSVGElement {
 }
 
 /** One `<glyph> <count> <unit>` triple, with the glyph and numeral carrying their group's colour and the unit staying muted. Exactly one of the glyph and the unit is on screen at a time; which, is the width's business (`shell.css`). */
-function countPart(className: string, glyph: string, onActivate?: () => void): { el: HTMLElement; set: (value: number, unit: string) => void } {
+function countPart(
+    className: string,
+    glyph: string,
+    onActivate?: () => void,
+): { el: HTMLElement; colorEl: HTMLElement; set: (value: number, unit: string) => void } {
     let el: HTMLElement;
     if (onActivate) {
         // A real button, not a span with a handler: the counts are a
@@ -126,6 +138,7 @@ function countPart(className: string, glyph: string, onActivate?: () => void): {
     el.append(value, ' ', unit);
     return {
         el,
+        colorEl: value,
         set: (nextValue, nextUnit) => {
             number.textContent = String(nextValue);
             unit.textContent = nextUnit;
@@ -539,12 +552,45 @@ export function mountMasthead(container: HTMLElement): () => void {
                 return;
             }
             layerCounts.style.display = '';
-            for (const id of LIVE_LAYER_GROUP_IDS) countParts.get(id)?.set(counts[id], t(COUNT_GROUPS[id].unitKey));
+            for (const id of LIVE_LAYER_GROUP_IDS) {
+                const part = countParts.get(id);
+                if (!part) continue;
+                // A group at zero is dropped from the row entirely, not
+                // shown as "0" or greyed out -- seven words of "0 fly",
+                // "0 kollektiv", "0 farevarsler" on a quiet day would be
+                // seven words of nothing, and at kiosk width they are also
+                // seven glyphs' worth of space the row does not have to
+                // spare (see the 1300px query in `shell.css`).
+                part.el.style.display = counts[id] > 0 ? '' : 'none';
+                part.set(counts[id], t(COUNT_GROUPS[id].unitKey));
+            }
             // Only when there is something to account for -- the ordinary
             // case must stay the plain two-number line, not one with a
             // permanent "0 hidden" on the end.
             hiddenCount.el.style.display = counts.hiddenByAge > 0 ? '' : 'none';
             hiddenCount.set(counts.hiddenByAge, t('masthead.hiddenUnit'));
+        }),
+    );
+
+    // The warnings chip's own tint: MET/NVE severity is a colour (yellow,
+    // orange, red), not a bigger number, so "2 farevarsler" alone cannot
+    // say how bad the worst of the two is. `layers.ts`'s `reportColor`
+    // already computes the worst active colour across both halves of the
+    // merged layer (`warnings.ts`'s `worstColorOf`) and publishes it
+    // through `page-status.ts`'s `liveLayerColors` slot; this just paints
+    // it on. A CSS custom property, not a class per colour: the palette is
+    // three arbitrary literals (`liveLayerColors.ts`), not a fixed set of
+    // named states a class name could enumerate, and `shell.css`'s
+    // `.masthead-count-warnings` rule already falls back to the static
+    // warning yellow when nothing is active (the property is unset, i.e.
+    // `null`).
+    disposers.push(
+        effect(() => {
+            const warningsColor = liveLayerColors.get()?.warnings ?? null;
+            const colorEl = countParts.get('warnings')?.colorEl;
+            if (!colorEl) return;
+            if (warningsColor) colorEl.style.setProperty('--masthead-live-color', warningsColor);
+            else colorEl.style.removeProperty('--masthead-live-color');
         }),
     );
 

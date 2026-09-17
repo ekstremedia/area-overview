@@ -89,9 +89,10 @@ export interface PageStatus {
      * Each group's own "worst active colour", one per group that reports
      * one at all (map only) -- currently only `warnings`
      * (`LiveLayerCallbacks.reportColor` in `pages/map/liveLayerMount.ts`).
-     * Consumed by a future masthead chip tint (Phase H); surfaced here now
-     * so that phase needs no plumbing of its own, the same
-     * claim/release-per-slide safety every other slot on this page gets.
+     * Consumed by the warnings chip's tint in `Masthead.ts` (Phase H),
+     * which needed no plumbing of its own thanks to this slot -- it gets
+     * the same claim/release-per-slide safety every other slot on this
+     * page does.
      */
     layerColors: (value: LiveLayerColors | null) => void;
     /** The masthead's login line (settings only). */

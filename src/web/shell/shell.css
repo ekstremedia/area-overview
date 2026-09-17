@@ -198,14 +198,19 @@
     color: var(--color-muted);
 }
 
-/* Static for now, the same warning yellow the road-situations numeral
-   wears: the per-item severity (MET's three awareness tiers, NVE's five
-   danger levels) is already computed and reported per poll
-   (`LiveLayerCallbacks.reportColor`, `warnings.ts`'s `worstColorOf`) for a
-   future chip tint (Phase H) to read -- this rule is only the colour the
-   numeral wears until that phase wires it up. */
+/* The warnings chip's colour: `--masthead-live-color` is set inline by
+   `Masthead.ts` from `liveLayerColors.warnings` -- the worst of MET's three
+   awareness tiers and NVE's five danger levels currently active
+   (`LiveLayerCallbacks.reportColor`, `warnings.ts`'s `worstColorOf`), one of
+   the three literals in `pages/map/liveLayerColors.ts` (yellow, orange,
+   red). The fallback is what shows when nothing is active at all -- the
+   property is removed rather than set to some "off" value, so the chip
+   reverts to the same static warning yellow the road-situations numeral
+   wears rather than going grey, since a hidden-at-zero group (see
+   `Masthead.ts`'s counts effect) never gets the chance to show this colour
+   with nothing behind it anyway. */
 .masthead-count-warnings {
-    color: var(--color-process-yellow);
+    color: var(--masthead-live-color, var(--color-process-yellow));
 }
 
 /* The same herbal green every species pin's plate wears
