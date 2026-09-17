@@ -200,6 +200,11 @@ export const nb = {
     'map.transitModeBus': 'Buss',
     'map.transitModeFerry': 'Ferge',
     'map.transitRoute': '{from} → {to}',
+    // The two single-sided fallbacks for `map.transitRoute`, when Entur's
+    // record carries only an origin or only a destination -- see
+    // `buildTransitPopup` in `transit.ts`.
+    'map.transitRouteFrom': 'Fra {from}',
+    'map.transitRouteTo': 'Til {to}',
 
     // — Warnings (MET Alerts weather warnings + NVE Varsom avalanche
     // regions) — MET's own `title`/`description`/`consequences`/
@@ -223,6 +228,11 @@ export const nb = {
     'map.speciesDatasets': 'Datasett: {datasets}',
     'map.speciesLicense': 'Lisens: {license}',
     'map.speciesUncertainty': 'Posisjon usikker: ca. {meters}',
+    // Appended to the layer's own attribution line so the footer states
+    // its own recency window in the units it actually is one --
+    // `settings.species.days` -- rather than reading like a live feed. See
+    // `species.ts`'s `render`.
+    'map.speciesDaysWindowSuffix': 'siste {days} dager',
     // Appended to the layer's own attribution line when the server capped
     // the response -- see `species.ts`'s `render`.
     'map.speciesTruncatedSuffix': 'viser et utvalg',
@@ -410,7 +420,7 @@ export const nb = {
     // days, deliberately -- this data is never live, and the control must
     // not read as if it were (see `species.ts`'s own header comment).
     'settings.layers.animalsOnly': 'Bare dyr',
-    'settings.layers.speciesDays': 'Tidsvindu',
+    'settings.layers.speciesDays': 'Tidsvindu (dager)',
     'settings.layers.speciesDays7': 'Siste 7 dager',
     'settings.layers.speciesDays30': 'Siste 30 dager',
     'settings.layers.speciesDays90': 'Siste 90 dager',

@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Leaflet from 'leaflet';
 import { SettingsSchema, type Settings } from '../../../shared/schemas/settings.js';
 import { signal } from '../../core/signal.js';
-import { WARNING_ORANGE_COLOR, WARNING_UNKNOWN_COLOR } from './liveLayerColors.js';
+import { WARNING_ORANGE_COLOR, WARNING_RED_COLOR, WARNING_UNKNOWN_COLOR, WARNING_YELLOW_COLOR } from './liveLayerColors.js';
 
 const mockSettings = signal<Settings>(SettingsSchema.parse({ warnings: { enabled: false } }));
 vi.mock('../../settings-resource.js', () => ({ settings: mockSettings }));
@@ -114,11 +114,16 @@ function jsonResponse(body: unknown): Response {
     return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-/** A gale warning MET colours Orange, one triangular polygon ring. */
+/**
+ * A gale warning MET colours orange. Lowercase, matching
+ * `extractAwarenessLevel`'s (`met-alerts.ts`) actual wire format -- a
+ * capitalised fixture here previously hid the case mismatch this file's
+ * `colorForAwareness` had against the real server output.
+ */
 const galeWarning = {
     id: 'MET-1',
     event: 'gale',
-    awarenessLevel: 'Orange',
+    awarenessLevel: 'orange',
     title: 'Kuling',
     description: 'Kraftig kuling ventet i kastene.',
     consequences: null,
@@ -140,7 +145,7 @@ const iceWarningUnknownLevel = {
     ...galeWarning,
     id: 'MET-2',
     event: 'ice',
-    awarenessLevel: 'Purple',
+    awarenessLevel: 'purple',
     title: 'Ising',
     description: 'Fare for ising på veier og luftledninger.',
     consequences: 'Glatte veier og brudd i strømnettet er mulig.',
@@ -199,7 +204,7 @@ describe('mountWarningsLayer', () => {
 
         expect(reportCount).toHaveBeenLastCalledWith(2, 0);
         expect(reportAttribution).toHaveBeenLastCalledWith('Data: MET Norway / NVE');
-        // Orange (the gale) and orange (Lofoten's level 3) -- the worst
+        // orange (the gale) and orange (Lofoten's level 3) -- the worst
         // active colour is orange either way.
         expect(reportColor).toHaveBeenLastCalledWith(WARNING_ORANGE_COLOR);
 
@@ -248,6 +253,31 @@ describe('mountWarningsLayer', () => {
         const [polygon] = created.polygons;
         expect(polygon?.options.color).toBe(WARNING_UNKNOWN_COLOR);
         expect(polygon?.options.fillColor).toBe(WARNING_UNKNOWN_COLOR);
+
+        dispose();
+    });
+
+    it('colours a lowercase awarenessLevel correctly instead of falling back to the unknown colour (regression: server sends lowercase, the map was keyed capitalised)', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        const yellowWarning = { ...galeWarning, id: 'MET-3', awarenessLevel: 'yellow' };
+        const redWarning = { ...galeWarning, id: 'MET-4', awarenessLevel: 'red' };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response([yellowWarning, redWarning], []))));
+        const created = { markers: [] as FakeMarker[], polygons: [] as FakePolygon[] };
+
+        mockSettings.set(enabled());
+        const dispose = mountWarningsLayer(fakeLeaflet(created), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const [yellowPolygon, redPolygon] = created.polygons;
+        expect(yellowPolygon?.options.color).toBe(WARNING_YELLOW_COLOR);
+        expect(yellowPolygon?.options.color).not.toBe(WARNING_UNKNOWN_COLOR);
+        expect(redPolygon?.options.color).toBe(WARNING_RED_COLOR);
+        expect(redPolygon?.options.color).not.toBe(WARNING_UNKNOWN_COLOR);
 
         dispose();
     });

@@ -96,19 +96,23 @@ async function fetchWarnings(map: Leaflet.Map): Promise<Result<WarningsResponse>
 
 /**
  * MET's `riskMatrixColor`-derived `awarenessLevel`, in the three tiers seen
- * in practice. `WeatherWarningSchema` deliberately keeps this a passthrough
- * string rather than a closed enum precisely so a value MET adds later does
- * not fail the whole response -- this map is where the documented fallback
+ * in practice. `extractAwarenessLevel` (`met-alerts.ts`) always lower-cases
+ * this value before it reaches the wire, so this map is keyed lowercase to
+ * match the real payload shape -- looking it up case-insensitively here too
+ * is cheap insurance against a future caller that does not normalise.
+ * `WeatherWarningSchema` deliberately keeps this a passthrough string rather
+ * than a closed enum precisely so a value MET adds later does not fail the
+ * whole response -- this map is where the documented fallback
  * (`WARNING_UNKNOWN_COLOR`) for that case lives.
  */
 const MET_AWARENESS_COLORS: Readonly<Record<string, string>> = {
-    Yellow: WARNING_YELLOW_COLOR,
-    Orange: WARNING_ORANGE_COLOR,
-    Red: WARNING_RED_COLOR,
+    yellow: WARNING_YELLOW_COLOR,
+    orange: WARNING_ORANGE_COLOR,
+    red: WARNING_RED_COLOR,
 };
 
 function colorForAwareness(level: string): string {
-    return MET_AWARENESS_COLORS[level] ?? WARNING_UNKNOWN_COLOR;
+    return MET_AWARENESS_COLORS[level.toLowerCase()] ?? WARNING_UNKNOWN_COLOR;
 }
 
 /** The European avalanche danger scale, 1-5: 1 is "no tint" (neutral/grey), 2 yellow, 3 orange, 4-5 both the same red -- NVE's own scale draws no distinction the map needs a fifth colour for. */

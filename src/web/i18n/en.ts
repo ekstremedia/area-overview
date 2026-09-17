@@ -176,6 +176,11 @@ export const en: Record<keyof typeof nb, string> = {
     'map.transitModeBus': 'Bus',
     'map.transitModeFerry': 'Ferry',
     'map.transitRoute': '{from} → {to}',
+    // The two single-sided fallbacks for `map.transitRoute`, when Entur's
+    // record carries only an origin or only a destination -- see
+    // `buildTransitPopup` in `transit.ts`.
+    'map.transitRouteFrom': 'From {from}',
+    'map.transitRouteTo': 'To {to}',
 
     'map.warningEndsAt': 'until {when}',
     'map.avalancheDanger.1': 'Low',
@@ -190,6 +195,11 @@ export const en: Record<keyof typeof nb, string> = {
     'map.speciesDatasets': 'Datasets: {datasets}',
     'map.speciesLicense': 'Licence: {license}',
     'map.speciesUncertainty': 'Position uncertain: approx. {meters}',
+    // Appended to the layer's own attribution line so the footer states
+    // its own recency window in the units it actually is one --
+    // `settings.species.days` -- rather than reading like a live feed. See
+    // `species.ts`'s `render`.
+    'map.speciesDaysWindowSuffix': 'last {days} days',
     'map.speciesTruncatedSuffix': 'showing a partial set',
 
     'error.staleData': 'Could not refresh · showing earlier data.',
@@ -365,7 +375,7 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.layers.showFerries': 'Show ferries',
     'settings.layers.showAvalanche': 'Show avalanche warnings',
     'settings.layers.animalsOnly': 'Animals only',
-    'settings.layers.speciesDays': 'Time window',
+    'settings.layers.speciesDays': 'Time window (days)',
     'settings.layers.speciesDays7': 'Last 7 days',
     'settings.layers.speciesDays30': 'Last 30 days',
     'settings.layers.speciesDays90': 'Last 90 days',

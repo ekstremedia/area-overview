@@ -289,16 +289,23 @@ export function mountSpeciesLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks
                 callbacks.reportCount(visible.length, 0);
                 callbacks.reportItems(items);
 
+                // Recency-window honesty: this layer polls slowly-changing
+                // occurrence data over a `settings.species.days`-wide
+                // lookback, not a live feed, and the footer is where that
+                // is stated plainly (the plan's own "measured in days"
+                // success criterion) -- the day-window picker's own option
+                // labels already say so, but the attribution line is the
+                // one place always on screen while the layer is active.
+                //
                 // Truncation honesty: when GBIF's own count exceeded the
-                // server's cap, say so in the footer rather than silently
-                // showing part of the data (the plan's own requirement) --
-                // the simplest correct place for that caveat is the one
-                // line this layer already contributes to the shared
-                // attribution string, appended rather than surfaced through
-                // a new UI mechanism no other layer has.
-                callbacks.reportAttribution(
-                    data.truncated ? `${SPECIES_LAYER.attribution} (${t('map.speciesTruncatedSuffix')})` : SPECIES_LAYER.attribution,
-                );
+                // server's cap, say so in the footer too, rather than
+                // silently showing part of the data (the plan's own
+                // requirement) -- composed into the same parenthetical
+                // rather than a second one, since both are caveats about
+                // the same attribution line.
+                const attributionSuffixes = [t('map.speciesDaysWindowSuffix', { days: settings.get().species.days })];
+                if (data.truncated) attributionSuffixes.push(t('map.speciesTruncatedSuffix'));
+                callbacks.reportAttribution(`${SPECIES_LAYER.attribution} (${attributionSuffixes.join(', ')})`);
             }
 
             const pollSeconds = Math.max(settings.get().species.pollSeconds, SPECIES_LAYER.minPollSeconds);
@@ -318,8 +325,31 @@ export function mountSpeciesLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks
                 res.refresh();
             });
 
+            // `fetchSpecies` reads `settings.species.days` fresh at poll
+            // time (see its own comment), so a changed window otherwise
+            // sits inert until the next scheduled poll -- up to
+            // `pollSeconds` (6h at the max setting). This effect tracks
+            // `days` and refreshes immediately when it changes, the same
+            // "settings change should be felt now, not next poll" reasoning
+            // `showBuses`/`showFerries`/`showAvalanche`/`animalsOnly` get
+            // for free by being read inside `render` itself -- `days`
+            // cannot be, since it belongs to the request, not the client
+            // side filtering of an already-fetched response. `previousDays`
+            // starts `undefined` so `resource`'s own initial fetch (already
+            // using the current `days`) is not immediately duplicated by a
+            // second one on mount.
+            let previousDays: number | undefined;
+            const disposeDaysEffect = effect(() => {
+                const days = settings.get().species.days;
+                if (previousDays !== undefined && previousDays !== days) {
+                    res.refresh();
+                }
+                previousDays = days;
+            });
+
             return function dispose(): void {
                 disposeEffect();
+                disposeDaysEffect();
                 disposeMoveRefetch();
                 res.dispose();
                 layerGroup.clearLayers();

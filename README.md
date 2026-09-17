@@ -37,8 +37,10 @@ decisions.
     - MET Alerts weather warnings are keyless, but MET's terms of use
       require every caller to identify itself with a descriptive
       `MET_USER_AGENT` including contact information.
-    - NVE Varsom avalanche danger and GBIF species sightings are both
-      keyless; nothing to set.
+    - NVE Varsom avalanche danger is keyless; nothing to set. GBIF species
+      sightings are also keyless, but the server reuses the same
+      `MET_USER_AGENT` as MET Alerts above to identify this app on every
+      request -- there is no separate GBIF-specific variable.
 - `SETTINGS_PASSWORD` (at least 16 characters) is required -- the BFF
   refuses to start without it. It is the one passphrase that authorises
   edits from the settings page; reading is public.
@@ -125,7 +127,9 @@ footer carries `Data: MET Norway / NVE`.
 
 The species layer's sightings come from GBIF's keyless occurrence search,
 which republishes Norwegian citizen-science data (mostly Artsobservasjoner
-records). Licence varies per record -- `CC BY 4.0` and `CC BY-NC 4.0` have
-both been observed -- so each sighting's own licence is shown in its
-popup rather than a single blanket statement here. The map footer carries
-`Data: GBIF`.
+records). GBIF asks for no credential of its own, but the server identifies
+itself on every request with the same `MET_USER_AGENT` configured for MET
+Alerts above, rather than sending no identifying User-Agent at all. Licence
+varies per record -- `CC BY 4.0` and `CC BY-NC 4.0` have both been
+observed -- so each sighting's own licence is shown in its popup rather
+than a single blanket statement here. The map footer carries `Data: GBIF`.

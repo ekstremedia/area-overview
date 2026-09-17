@@ -180,10 +180,25 @@ function buildTransitPopup(vehicle: TransitVehicle, now: Date = new Date()): HTM
         root.append(line);
     }
 
+    // Show whichever of origin/destination Entur's record actually carries
+    // -- a vehicle with only one of the two previously showed neither, the
+    // full "X → Y" line gated on both being present at once. One-sided
+    // still tells a reader something ("from Sortland", "to Svolvær")
+    // rather than nothing at all.
     if (vehicle.origin !== null && vehicle.destination !== null) {
         const route = document.createElement('div');
         route.className = 'transit-popup-route';
         route.textContent = t('map.transitRoute', { from: vehicle.origin, to: vehicle.destination });
+        root.append(route);
+    } else if (vehicle.origin !== null) {
+        const route = document.createElement('div');
+        route.className = 'transit-popup-route';
+        route.textContent = t('map.transitRouteFrom', { from: vehicle.origin });
+        root.append(route);
+    } else if (vehicle.destination !== null) {
+        const route = document.createElement('div');
+        route.className = 'transit-popup-route';
+        route.textContent = t('map.transitRouteTo', { to: vehicle.destination });
         root.append(route);
     }
 

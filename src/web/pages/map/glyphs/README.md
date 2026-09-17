@@ -1,8 +1,12 @@
 # Live-layer glyphs
 
-`bus.svg` and `ferry.svg` are the icons the Transit (Entur) live layer draws on
-its map pins (`src/web/pages/map/transit.ts`) and on the masthead's transit
-count (`src/web/shell/Masthead.ts`).
+These files are drawn on the **map pins** of their respective live layers,
+via `?raw` imports straight into the layer module that uses them. They are
+**not** used anywhere in the masthead — see "Not used in the masthead" below
+for why that needs saying explicitly.
+
+`bus.svg` and `ferry.svg` are the icons the Transit (Entur) live layer draws
+on its map pins (`src/web/pages/map/transit.ts`).
 
 `avalanche.svg` is the icon the Warnings layer draws on its NVE Varsom
 avalanche-region pins (`src/web/pages/map/warnings.ts`), alongside the
@@ -20,6 +24,26 @@ seen). `organism.svg` is the documented fallback for exactly that case: a
 plain six-spoke asterisk around a dot, deliberately unlike any of the five
 named silhouettes, so a class this app doesn't recognise still reads as "a
 living thing", not as a mislabelled bird or fish.
+
+## Not used in the masthead
+
+The masthead's per-group count icons (`TRANSIT_GLYPH`, `WARNINGS_GLYPH`,
+`SPECIES_GLYPH` in `src/web/shell/Masthead.ts`, alongside the older
+`SHIP_GLYPH`/`AIRCRAFT_GLYPH`/etc. that predate this directory) are
+**separate, independently hand-authored inline SVG strings**, not imports of
+any file here. `TRANSIT_GLYPH` was drawn to loosely resemble `bus.svg`,
+`WARNINGS_GLYPH` to loosely resemble `avalanche.svg`, and `SPECIES_GLYPH` to
+loosely resemble `mammal.svg` — close enough that a glance reads the same
+"kind of thing" on the masthead as on the map, but they are visually
+approximate, independently maintained copies, not the same markup reused.
+`ferry.svg` in particular has **no** masthead counterpart at all: the
+transit count has one glyph for both buses and ferries combined
+(`TRANSIT_GLYPH`), the same way `bus.svg`/`ferry.svg` are two separate pin
+icons for what the masthead shows as one number.
+
+Editing a file in this directory changes only the map pins. To change a
+masthead count's icon, edit its own inline `_GLYPH` constant in
+`Masthead.ts` instead.
 
 Unlike `../signs/` (the vendored Statens vegvesen sign faces), these are
 **original artwork drawn for this project**, not traced or adapted from any

@@ -161,7 +161,7 @@ describe('mountSpeciesLayer', () => {
         const live = created.markers.filter((marker) => !marker.removed);
         expect(live).toHaveLength(2);
         expect(reportCount).toHaveBeenLastCalledWith(2, 0);
-        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF');
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF (siste 30 dager)');
 
         const fishMarker = live.find((marker) => marker.latLng && (marker.latLng as [number, number])[0] === 68.7);
         const popup = fishMarker?.popupContent?.();
@@ -259,6 +259,35 @@ describe('mountSpeciesLayer', () => {
         dispose();
     });
 
+    it('refetches immediately with the new days value when settings.species.days changes, rather than waiting for the next poll', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response([gullBird])));
+        vi.stubGlobal('fetch', fetchMock);
+        const created = { markers: [] as FakeMarker[] };
+
+        mockSettings.set(enabled({ days: 30, pollSeconds: 21600 }));
+        const dispose = mountSpeciesLayer(fakeLeaflet(created), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining('days=30'));
+        const fetchCallsAfterFirstPoll = fetchMock.mock.calls.length;
+
+        // Changing `days` must not wait out the (very long, here 6h) poll
+        // interval -- the settings page's whole point in offering this
+        // control would otherwise be silently defeated.
+        mockSettings.set(enabled({ days: 90, pollSeconds: 21600 }));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(fetchCallsAfterFirstPoll);
+        expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining('days=90'));
+
+        dispose();
+    });
+
     it('appends the truncation caveat to the reported attribution only when the server says the response was capped', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
@@ -275,12 +304,12 @@ describe('mountSpeciesLayer', () => {
         });
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF (viser et utvalg)');
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF (siste 30 dager, viser et utvalg)');
 
         dispose();
     });
 
-    it('reports the plain attribution, with no caveat, when the response was not truncated', async () => {
+    it('reports the days-window suffix, with no truncation caveat, when the response was not truncated', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response([gullBird], false))));
@@ -295,7 +324,27 @@ describe('mountSpeciesLayer', () => {
         });
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF');
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF (siste 30 dager)');
+
+        dispose();
+    });
+
+    it('reports the current days value in the attribution, updated when settings.species.days changes', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response([gullBird]))));
+        const created = { markers: [] as FakeMarker[] };
+        const reportAttribution = vi.fn();
+
+        mockSettings.set(enabled({ days: 90 }));
+        const dispose = mountSpeciesLayer(fakeLeaflet(created), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution,
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(reportAttribution).toHaveBeenLastCalledWith('Data: GBIF (siste 90 dager)');
 
         dispose();
     });

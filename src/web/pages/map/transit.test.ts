@@ -223,6 +223,38 @@ describe('mountTransitLayer', () => {
 
         dispose();
     });
+
+    it('shows the route line for both/only-origin/only-destination/neither, never dropping the one side that is present', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        const bothSides = bus754;
+        const originOnly = { ...bus754, id: 'VYG:VehicleRef:3', destination: null, point: { lat: 68.6, lng: 15.3 } };
+        const destinationOnly = { ...bus754, id: 'VYG:VehicleRef:4', origin: null, point: { lat: 68.55, lng: 15.2 } };
+        const neither = { ...bus754, id: 'VYG:VehicleRef:5', origin: null, destination: null, point: { lat: 68.45, lng: 15.1 } };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response([bothSides, originOnly, destinationOnly, neither]))));
+        const created = { markers: [] as FakeMarker[] };
+
+        mockSettings.set(enabled());
+        const dispose = mountTransitLayer(fakeLeaflet(created), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        function routeTextFor(lat: number): string | null {
+            const marker = created.markers.find((m) => (m.latLng as [number, number])[0] === lat);
+            const popup = marker?.popupContent?.();
+            return popup?.querySelector('.transit-popup-route')?.textContent ?? null;
+        }
+
+        expect(routeTextFor(68.7)).toBe('Sortland → Svolvær');
+        expect(routeTextFor(68.6)).toBe('Fra Sortland');
+        expect(routeTextFor(68.55)).toBe('Til Svolvær');
+        expect(routeTextFor(68.45)).toBeNull();
+
+        dispose();
+    });
 });
 
 describe('punctualityFor', () => {
