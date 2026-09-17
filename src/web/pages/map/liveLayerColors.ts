@@ -65,6 +65,63 @@ export const ROAD_CURRENT_COLOR = '#f0a020';
 export const ROAD_PLANNED_COLOR = '#9aa4ad';
 
 /**
+ * The Transit (Entur) layer's two pin colours (`transit.ts`'s `colorFor`),
+ * driven by `punctualityFor`'s three-way word: on time and running early
+ * are the same colour (neither needs attention), and only genuinely late
+ * (more than three minutes, `isLateEnoughToTint`) tints the pin.
+ *
+ * `TRANSIT_ON_TIME_COLOR` is `--color-accent-2-400` -- Broadsheet's own
+ * magenta -- resolved to a literal for the same reason every other colour
+ * in this file is: a Leaflet `Path`/`L.divIcon` style set from JS needs a
+ * literal, not `var(--token)`. It was freed up for reuse here when
+ * `AIRCRAFT_GLYPH_COLOR` moved off it (see that constant's own comment) --
+ * nothing else on the map claims it now, and reaching for a design token
+ * beats yet another freestanding hex where one is actually available.
+ *
+ * `TRANSIT_LATE_COLOR` reuses `ROAD_CURRENT_COLOR`'s exact amber on
+ * purpose: on this map amber already means "in force / needs attention
+ * right now" (a roadwork or closure), and a late bus is the same kind of
+ * fact.
+ */
+export const TRANSIT_ON_TIME_COLOR = '#ff90b1';
+export const TRANSIT_LATE_COLOR = ROAD_CURRENT_COLOR;
+
+/**
+ * The Warnings layer's shared colour scale (`warnings.ts`): three tiers
+ * that MET Alerts' `awarenessLevel` and NVE Varsom's `dangerLevel` are
+ * both mapped onto, so "worst active colour" (reported to the masthead for
+ * a future chip tint, Phase H) can compare the two upstreams on one scale
+ * instead of two.
+ *
+ * `WARNING_ORANGE_COLOR`/`WARNING_RED_COLOR` reuse `ROAD_CURRENT_COLOR`/
+ * `ROAD_CLOSED_COLOR` exactly, deliberately: amber already means "in force
+ * / needs attention right now" on this map and red already means "shut /
+ * danger", and a warning at that tier is the same kind of fact a roadwork
+ * or closure is. `WARNING_YELLOW_COLOR` mirrors `--color-process-yellow`
+ * (the design's own alarm-adjacent yellow, see `AIRCRAFT_GLYPH_COLOR`'s
+ * comment) resolved to a literal for the same "a Leaflet style can't
+ * resolve `var(--token)`" reason every colour in this file is.
+ *
+ * `WARNING_UNKNOWN_COLOR` is the documented fallback for a MET
+ * `awarenessLevel` this app does not recognise -- deliberately the same
+ * literal as `WARNING_ORANGE_COLOR`, not a fourth colour: an unfamiliar
+ * value is unclassified, not necessarily mild, so it takes the middle
+ * tier rather than the safest-looking yellow. `WeatherWarningSchema` keeps
+ * `awarenessLevel` a passthrough string specifically so this fallback is
+ * possible (see its own doc comment) -- MET adding a value here must not
+ * make a warning render with no colour, or fail to render at all.
+ *
+ * `AVALANCHE_NEUTRAL_COLOR` is NVE's own danger level 1 ("no tint" on the
+ * European avalanche scale) -- reuses `ROAD_PLANNED_COLOR`'s grey, which
+ * already means "present, but nothing urgent" on this map.
+ */
+export const WARNING_YELLOW_COLOR = '#edbb00';
+export const WARNING_ORANGE_COLOR = ROAD_CURRENT_COLOR;
+export const WARNING_RED_COLOR = ROAD_CLOSED_COLOR;
+export const WARNING_UNKNOWN_COLOR = WARNING_ORANGE_COLOR;
+export const AVALANCHE_NEUTRAL_COLOR = ROAD_PLANNED_COLOR;
+
+/**
  * The dark casing stroked under every road line before its coloured core
  * (`roads.ts` draws each line twice, weight 7 then weight 4).
  *
@@ -75,3 +132,18 @@ export const ROAD_PLANNED_COLOR = '#9aa4ad';
  * reads as a hole on the dark basemap.
  */
 export const ROAD_LINE_CASING_COLOR = '#16191c';
+
+/**
+ * The Species (GBIF) layer's one pin colour (`species.ts`). Unlike every
+ * other layer's colour set, this is not a severity/state scale -- a
+ * sighting has no "worse" or "better" tier -- so every pin plate takes the
+ * same colour regardless of `class`, and only the glyph inside it (see
+ * `glyphs/README.md`) says what was seen. A freestanding literal for the
+ * same reason every colour in this file is (a `L.divIcon`'s inline style
+ * can't resolve `var(--token)`, and Broadsheet's ramp has no green to
+ * mirror): a herbal green reads as "living thing" and is not already
+ * claimed for a whole layer elsewhere (`SHIP_GLYPH_COLOR_UNDERWAY_ENGINE`
+ * tags a single AIS status, not a layer, and sits far enough from this hue
+ * that the two are not mistaken for each other at a glance).
+ */
+export const SPECIES_PIN_COLOR = '#7cb85c';

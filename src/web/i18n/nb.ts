@@ -41,6 +41,9 @@ export const nb = {
     // correctly at every count a masthead ever shows, including zero).
     'masthead.roadSituationsUnit': 'vegmeldinger',
     'masthead.roadCamerasUnit': 'vegkamera',
+    'masthead.transitUnit': 'kollektiv',
+    'masthead.warningsUnit': 'farevarsler',
+    'masthead.speciesUnit': 'arter',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
@@ -186,6 +189,53 @@ export const nb = {
     'map.roadCameraPrecipitation': 'Nedbør {value}',
 
     'map.popupUpdated': 'Oppdatert {age}',
+
+    // — Transit (Entur buses and ferries) — the punctuality phrase is the
+    // three-way word `punctualityFor` returns (`transit.ts`); "på tur" is
+    // deliberately not used for "en route" anywhere, since Entur's own
+    // vocabulary is "i rute"/"forsinket"/"før rute".
+    'map.transitOnTime': 'I rute',
+    'map.transitLate': '{minutes} min forsinket',
+    'map.transitEarly': '{minutes} min før rute',
+    'map.transitModeBus': 'Buss',
+    'map.transitModeFerry': 'Ferge',
+    'map.transitRoute': '{from} → {to}',
+    // The two single-sided fallbacks for `map.transitRoute`, when Entur's
+    // record carries only an origin or only a destination -- see
+    // `buildTransitPopup` in `transit.ts`.
+    'map.transitRouteFrom': 'Fra {from}',
+    'map.transitRouteTo': 'Til {to}',
+
+    // — Warnings (MET Alerts weather warnings + NVE Varsom avalanche
+    // regions) — MET's own `title`/`description`/`consequences`/
+    // `instruction` are shown verbatim in both UI languages, the same
+    // reasoning as `map.roadSource`'s comment above; only the ending-time
+    // line and the avalanche danger words below are this app's own text.
+    'map.warningEndsAt': 'til {when}',
+    // NVE Varsom's own scale words (varsom.no), levels 1-5.
+    'map.avalancheDanger.1': 'Liten',
+    'map.avalancheDanger.2': 'Moderat',
+    'map.avalancheDanger.3': 'Betydelig',
+    'map.avalancheDanger.4': 'Stor',
+    'map.avalancheDanger.5': 'Meget stor',
+
+    // — Species (GBIF occurrence sightings) — deliberately not "live":
+    // every string here talks about a past observation, never a current
+    // position, matching the plan's "nothing in the UI calls it live".
+    'map.speciesObservedOn': 'Observert {when}',
+    'map.speciesObservationCount': '{count} observasjoner',
+    'map.speciesIndividualCount': '{count} individer',
+    'map.speciesDatasets': 'Datasett: {datasets}',
+    'map.speciesLicense': 'Lisens: {license}',
+    'map.speciesUncertainty': 'Posisjon usikker: ca. {meters}',
+    // Appended to the layer's own attribution line so the footer states
+    // its own recency window in the units it actually is one --
+    // `settings.species.days` -- rather than reading like a live feed. See
+    // `species.ts`'s `render`.
+    'map.speciesDaysWindowSuffix': 'siste {days} dager',
+    // Appended to the layer's own attribution line when the server capped
+    // the response -- see `species.ts`'s `render`.
+    'map.speciesTruncatedSuffix': 'viser et utvalg',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',
     'error.noData': 'Ingen data tilgjengelig.',
@@ -348,6 +398,9 @@ export const nb = {
     'settings.layers.ships': 'Skip · AIS',
     'settings.layers.aircraft': 'Fly · ADS-B',
     'settings.layers.roads': 'Veg · Statens vegvesen',
+    'settings.layers.transit': 'Kollektiv · Entur',
+    'settings.layers.warnings': 'Farevarsler · MET/NVE',
+    'settings.layers.species': 'Arter · GBIF',
     'settings.layers.pollSeconds': 'Oppdateringsintervall',
     'settings.layers.maxAgeMinutes': 'Maks alder',
     'settings.layers.showOnGround': 'Vis fly på bakken',
@@ -356,6 +409,22 @@ export const nb = {
     // today's work outside its own hours.
     'settings.layers.showPlanned': 'Vis planlagt vegarbeid',
     'settings.layers.showCameras': 'Vis vegkamera',
+    // Transit's own two mode filters -- the analogue of the Veg layer's
+    // `showPlanned`/`showCameras` above.
+    'settings.layers.showBuses': 'Vis busser',
+    'settings.layers.showFerries': 'Vis ferger',
+    // The Warnings layer's own filter -- the analogue of `showCameras`
+    // above: keep the weather warnings without the avalanche pins.
+    'settings.layers.showAvalanche': 'Vis snøskredvarsler',
+    // Species' own two filters. The day-window label states the window in
+    // days, deliberately -- this data is never live, and the control must
+    // not read as if it were (see `species.ts`'s own header comment).
+    'settings.layers.animalsOnly': 'Bare dyr',
+    'settings.layers.speciesDays': 'Tidsvindu (dager)',
+    'settings.layers.speciesDays7': 'Siste 7 dager',
+    'settings.layers.speciesDays30': 'Siste 30 dager',
+    'settings.layers.speciesDays90': 'Siste 90 dager',
+    'settings.layers.speciesDays365': 'Siste 365 dager',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

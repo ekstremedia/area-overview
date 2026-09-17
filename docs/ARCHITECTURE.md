@@ -1,8 +1,8 @@
 # Architecture
 
-How the pieces fit together, with all twelve roadmap phases landed.
-`docs/ROADMAP.md` has the phase plan and `docs/adr/` the reasoning behind the
-larger decisions.
+How the pieces fit together, with the roadmap's phases landed through the
+Veg, Transit, Warnings and Species layers. `docs/ROADMAP.md` has the phase
+plan and `docs/adr/` the reasoning behind the larger decisions.
 
 ## Overview
 
@@ -10,10 +10,13 @@ area-overview is a reactive vanilla-TypeScript frontend (no framework) paired
 with a small Node/TypeScript backend-for-frontend (BFF) on Fastify. The BFF
 proxies and shapes data from the one upstream -- the Laravel API at
 `nesthus.no`, which serves weather, tide, aurora and Terje's own cameras --
-and calls three providers directly for the live data upstream has nothing for:
-BarentsWatch (AIS ships), an ADS-B aggregator (aircraft) and Statens vegvesen
-(road situations and road cameras). It keeps every credential off the client,
-validates every payload with Zod, and caches what it fetches.
+and calls six providers directly for the live data upstream has nothing for:
+BarentsWatch (AIS ships), an ADS-B aggregator (aircraft), Statens vegvesen
+(road situations and road cameras), Entur (realtime buses and ferries), MET
+Norway Alerts plus NVE Varsom (weather warnings and avalanche danger, merged
+into one layer) and GBIF (species occurrence sightings). It keeps every
+credential off the client, validates every payload with Zod, and caches what
+it fetches.
 
 In production the BFF also serves the frontend: `src/server/static.ts`
 registers `@fastify/static` over `dist/web` with an SPA fallback to
@@ -81,6 +84,23 @@ Under `src/server/routes/`:
 - `road-cameras.ts` -- `GET /api/road-cameras?bbox=`, same provider on a
   longer TTL: the roster barely changes, and a camera-side outage must not
   blank the road notices.
+- `transit.ts` -- `GET /api/transit?bbox=&maxAgeMinutes=`, Entur's realtime
+  buses and ferries. The cache holds upstream's raw records; the age
+  filter and mode mapping run on every response, fresh or stale, the same
+  pattern `road-situations.ts` uses for its own clock-dependent status.
+- `warnings.ts` -- `GET /api/warnings?bbox=`, MET Alerts weather warnings
+  and NVE Varsom avalanche danger merged into one envelope. The only live
+  layer route that does not use `serveCached`: the two upstreams fail
+  independently, each behind its own cache (a fixed-key nationwide MET
+  feature list; a 24h NVE region roster plus a per-region-id warning
+  cache), and are combined into one response only at the very end via
+  `sendJson`.
+- `species.ts` -- `GET /api/species?bbox=&days=`, GBIF occurrence
+  sightings. `days` clamps to the nearest of four buckets
+  (7/30/90/365) before it reaches the cache key or the upstream query, so
+  nearby values share one cache entry. Unlike `transit.ts`, GBIF's own
+  `geometry` parameter does the bbox filtering upstream, so this route
+  caches the already-mapped response directly, like `aircraft.ts`.
 
 ### Shared plumbing
 
@@ -201,6 +221,61 @@ coordinate rounding once, on the server. `discards.ts` counts what a mapper
 refused and why, so an upstream attribute rename surfaces as a log line rather
 than a plausible-looking empty layer.
 
+`transit/` is Entur. `entur.ts` is the only place that talks to Entur's
+realtime vehicles GraphQL endpoint, injecting `fetchImpl` and a shared
+outbound gate the same way `roads/vegvesen-wfs.ts` does, and hands back raw
+records untyped. Two of its own traps: `Line`/`Operator` expose
+`lineName`/`operatorRef`, not `name` -- asking for the wrong field fails the
+whole GraphQL query (`FieldUndefined`, `data: null`, HTTP 200), so a
+top-level `errors` array is treated as a fetch failure rather than an empty
+result. `vehicles.ts` maps those raw records onto `TransitVehicle`, running
+three filters: mode (only `BUS`/`FERRY`, silently, not a discard), age
+(`lastUpdated` older than `maxAgeMinutes`, counted as `stale` -- Entur keeps
+a vehicle in the feed 6-12 hours past its last real fix) and
+attributes/contract (a malformed record, counted). `discards.ts` is the same
+tally pattern as `roads/discards.ts`.
+
+`warnings/` merges two providers behind the one Warnings layer.
+`met-alerts.ts` is the only place that talks to MET's Alerts API: it always
+fetches the whole of Norway (no working server-side viewport filter was
+found live), so `mapMetAlerts` does the spatial intersection itself against
+`geo.ts`'s ring helpers; the colour comes from `riskMatrixColor`, with
+`awareness_level`'s semicolon-joined triple as a fallback; and a start time
+is extracted from `title`'s embedded timestamp, since MET's feed carries no
+`eventStartingTime` field at all. `regions.ts` fetches NVE Varsom's ~46-region
+roster once a day (geometry that essentially never changes) into
+`createRegionsSource`'s cache, parses each region's `Polygon` (an array of
+`"lat,lng lat,lng ..."` strings, not rings of numbers), and
+`regionsIntersecting` finds which regions a bbox actually touches along with
+the centroid of each intersection -- the avalanche pin's position.
+`avalanche.ts` fetches one region's danger level per region id, cached
+separately from the roster. `geo.ts` holds the ring-clipping and
+intersection math both `met-alerts.ts` and `regions.ts` share. `stale-cache.ts`
+is `loadWithStaleFallback`, the same "serve what's cached, however stale"
+policy `serveCached` gives every other route, invoked directly here because
+`routes/warnings.ts` needs to combine two independent stale/fresh outcomes
+into one response rather than let one cache own the whole route.
+
+`species/` is GBIF. `gbif.ts` is the only place that talks to GBIF's
+occurrence search: `geometry` is a WKT `POLYGON`, longitude-first (the
+mirror of this app's own `[lat,lng]` convention) and must be explicitly
+closed; `limit` is capped at 300 server-side regardless of what is asked
+for, so `fetchGbifOccurrences` pages via `offset` up to a configured
+maximum to get a less arbitrarily-clustered sample, since GBIF's search has
+no "most recent" server-side sort. `occurrences.ts` groups raw records into
+`Sighting`s keyed by species plus position rounded to three decimals, and is
+the one place the privacy requirement lives: `RawOccurrenceSchema` is a
+closed allow-list that never names `recordedBy`, so Zod strips it even
+before any hand-written field access, and no line in the file spreads a raw
+or parsed record. It also resolves the group's licence (most-restrictive-
+wins, since real records in the same viewport were confirmed to disagree),
+sums `individualCount` across records that reported one, and carries
+forward a coordinate-uncertainty figure from an older record when the
+newest is silent on it. `dataset-titles.ts` resolves a `datasetKey` to its
+human-readable title, long-lived and process-wide since a dataset's title
+essentially never changes, unlike the per-viewport sightings cache.
+`discards.ts` is the same tally pattern as the other providers'.
+
 ### Logging
 
 `buildApp` installs its own `req` serializer, `logRequest`, in place of
@@ -239,7 +314,8 @@ alive at once.
 filtered by `settings.enabledPages`, and on the right the live-layer counts,
 the stale banner, the weekday, date and clock, and the settings gear. Counts
 are keyed by `LiveLayerGroupId` in `shell/page-status.ts` -- `ships`,
-`aircraft`, `roadSituations`, `roadCameras` -- plus a separate `hiddenByAge`
+`aircraft`, `roadSituations`, `roadCameras`, `transit`, `warnings`,
+`species` -- plus a separate `hiddenByAge`
 summed across the layers that have an age filter at all. `page-status.ts` is
 the whole page-to-chrome channel (freshness, attribution, layer counts and
 listing, the settings page's account line): a page claims those slots on mount
@@ -294,7 +370,18 @@ muted pin per road camera on its own fixed poll and opens `cameraModal.ts`, a
 full-screen overlay rather than a Leaflet popup, with a lazily-loaded grid of
 a site's other orientations. Terje's own cameras stay hand-wired outside that
 registry, in `markers.ts` (whose `computeMarkerData`/`diffMarkers` are pure
-and Leaflet-free) and `popup.ts`.
+and Leaflet-free) and `popup.ts`. `transit.ts` draws one pin per bus/ferry
+fix, diffed by id like `roads.ts` -- text pins (`L.divIcon`), not canvas
+glyphs, since a vehicle carries a `publicCode` to render and no `bearing` to
+rotate. `warnings.ts` and `species.ts` both rebuild their whole
+`L.layerGroup` from scratch on every poll instead of diffing by id -- their
+polling cadences are minutes to an hour, slow enough that the diffing
+machinery `ships.ts`/`transit.ts` earn back on a 15-120s cadence buys
+nothing here. `warnings.ts` draws MET Alerts polygons and NVE avalanche
+region outlines+pins through the map's one shared `L.Canvas`; `species.ts`
+draws one pin per grouped sighting and carries no live position semantics
+at all -- every popup shows the sighting's own `observedAt` rather than
+pretending to be a live fix.
 
 `WeatherPage.ts`, `AuroraPage.ts` and `TidePage.ts` each poll their own
 endpoint through a `resource()` created per mount and disposed on unmount --
@@ -360,14 +447,19 @@ the vendored design reference in `design/`.
 server and browser: a `LiveLayerSpec` holds the layer's `id`, its shared Zod
 response schema, its default poll cadence and that cadence's floor and
 ceiling, and its attribution. `LiveLayerId` is the closed union
-`'ships' | 'aircraft' | 'roads'`, because an id is simultaneously the
-`/api/<id>` route segment, the `settings.<id>` key and a `SettingsOverride`
-key. `maxAgeMinutesMin`/`maxAgeMinutesMax` are optional: they bound a "hide
-fixes older than this" control, which presumes a layer of position reports. A
-road situation has a validity window instead -- it is not stale at 22:00, it
-is `scheduled` -- so the Vegvesen layer sets neither and the settings page
-renders that stepper only for the layers that do. It is also why `id` is not
-one-to-one with a route: `roads` is two routes behind one toggle.
+`'ships' | 'aircraft' | 'roads' | 'transit' | 'warnings' | 'species'`,
+because an id is simultaneously the `/api/<id>` route segment, the
+`settings.<id>` key and a `SettingsOverride` key. `maxAgeMinutesMin`/
+`maxAgeMinutesMax` are optional: they bound a "hide fixes older than this"
+control, which presumes a layer of position reports. A road situation has a
+validity window instead -- it is not stale at 22:00, it is `scheduled` --
+so the Vegvesen and Warnings layers set neither and the settings page
+renders that stepper only for the layers that do (ships, aircraft and
+transit -- every layer whose items are position fixes). It is also why `id`
+is not one-to-one with a route: `roads` is two routes behind one toggle,
+and `warnings` is one route merging two upstreams (ADR 0005 on why one
+toggle rather than two layers, and why species uses GBIF and not
+Artskart).
 
 `src/shared/schemas/` holds the Zod schemas both sides import, so the browser
 parses a response against the same definition the BFF validated it with.
@@ -428,9 +520,10 @@ merged with ~570 passing unit tests. None of these were caught by that test
 suite — happy-dom doesn't do real layout, and mocked fetch/fixtures don't
 capture what a real upstream actually sends. **A periodic sweep against a
 real browser and real live data is not optional polish; it is the only thing
-that has ever caught this class of bug here.** The last three entries were
-added in phase 12 and found the same way, by probing the real service
-instead of believing its documentation.
+that has ever caught this class of bug here.** The three entries after the
+CARTO one were added in phase 12; the last three were added while building
+transit, warnings and species -- all found the same way, by probing the
+real service instead of believing its documentation.
 
 - **CSS percentage-height chains break silently under flex.** For a
   descendant's `height: 100%` to resolve, every ancestor up to `html` needs a
@@ -504,3 +597,30 @@ image/png` -- it's just watermarked "API key required" in the pixels. A
   all three. Capture fixtures from the real service, or at minimum check the
   field list against it before writing a schema; this is the same lesson as
   the nullability entry above, one step earlier.
+- **MET Alerts has no `eventStartingTime` field at all**, even though
+  `eventEndingTime` exists (confirmed against 7 live alerts, 2026-09-16). A
+  start time only ever appears embedded in `title`, a free-text summary
+  whose last two comma-separated segments are always the start and end ISO
+  timestamps -- `extractStartsAt` (`src/server/warnings/met-alerts.ts`)
+  pulls the first one out by regex rather than trusting a fixed field count
+  or splitting on `,` (an area name could itself contain one). A schema
+  written from the documented field list alone would have required a field
+  that does not exist.
+- **NVE Varsom's region `Polygon` is an array of strings, not an array of
+  rings of numbers.** Each string is space-separated `"lat,lng"` pairs --
+  latitude first, for once matching this app's own `[lat, lng]` convention,
+  but still a string every consumer would otherwise have to parse for
+  itself. `parseOutline` (`src/server/warnings/regions.ts`) does it once, in
+  the one place that talks to this endpoint.
+- **A WKT `geometry` query is longitude-first, and a real GBIF record does
+  carry a private individual's name.** GBIF's `geometry` parameter is a WKT
+  `POLYGON`, the mirror image of this app's own `[lat,lng]` convention used
+  everywhere else, and getting it backwards fails silently the same way a
+  reversed Vegvesen bbox does -- a real, differently-shaped rectangle, not
+  an error (`src/server/species/gbif.ts`). Separately, `recordedBy` was
+  confirmed live (2026-09-17) to carry a real, non-fictional name on a
+  residential-garden sighting -- not a hypothetical privacy risk, an actual
+  one, which is why `RawOccurrenceSchema` in `src/server/species/occurrences.ts`
+  is a closed allow-list rather than a passthrough. That closed record was
+  itself checked against the same live response and confirmed not to leak
+  the field anywhere in the serialised output.

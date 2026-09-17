@@ -198,6 +198,46 @@
     color: var(--color-muted);
 }
 
+/* The warnings chip's colour: `--masthead-live-color` is set inline by
+   `Masthead.ts` from `liveLayerColors.warnings` -- the worst of MET's three
+   awareness tiers and NVE's five danger levels currently active
+   (`LiveLayerCallbacks.reportColor`, `warnings.ts`'s `worstColorOf`), one of
+   the three literals in `pages/map/liveLayerColors.ts` (yellow, orange,
+   red). The fallback is what shows when nothing is active at all -- the
+   property is removed rather than set to some "off" value, so the chip
+   reverts to the same static warning yellow the road-situations numeral
+   wears rather than going grey, since a hidden-at-zero group (see
+   `Masthead.ts`'s counts effect) never gets the chance to show this colour
+   with nothing behind it anyway. */
+.masthead-count-warnings {
+    color: var(--masthead-live-color, var(--color-process-yellow));
+}
+
+/* The same herbal green every species pin's plate wears
+   (`SPECIES_PIN_COLOR` in `pages/map/liveLayerColors.ts`) -- "the same
+   thing counted and drawn should look the same", the road-camera rule's
+   own reasoning above. A freestanding literal, not a design token, for
+   the same reason `liveLayerColors.ts` carries one at all: Broadsheet's
+   ramp has no green to mirror. */
+.masthead-count-species {
+    color: #7cb85c;
+}
+
+/* The same pink every on-time transit pin's plate wears
+   (`TRANSIT_ON_TIME_COLOR` in `pages/map/liveLayerColors.ts`) -- the same
+   "the same thing counted and drawn should look the same" rule the
+   road-camera and species rules above follow. Unlike warnings, this group
+   has no dynamic per-poll severity tint (a late bus is not "worse" the way
+   a red gale warning is) -- see `TRANSIT_LATE_COLOR`'s own doc comment --
+   so a single static colour, not a `--masthead-live-color` custom
+   property, is enough here. A freestanding literal for the same reason
+   `liveLayerColors.ts` carries one at all: a Leaflet style can't resolve
+   `var(--token)`, and `TRANSIT_ON_TIME_COLOR` mirrors `--color-accent-2-400`
+   rather than deriving from it. */
+.masthead-count-transit {
+    color: #ff90b1;
+}
+
 /* The numeral and its glyph sit together and share the group's colour;
    the glyph is `currentColor` throughout, so there is no second place
    that names these colours. */
@@ -205,6 +245,9 @@
 .masthead-count-aircraft,
 .masthead-count-road-situations,
 .masthead-count-road-cameras,
+.masthead-count-warnings,
+.masthead-count-species,
+.masthead-count-transit,
 .masthead-count-hidden {
     display: inline-flex;
     align-items: center;

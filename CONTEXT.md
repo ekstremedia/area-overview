@@ -48,9 +48,11 @@ The tile layer under everything else, chosen by theme.
 _Avoid_: tiles, background, basemap
 
 **Live layer**:
-A set of markers on the map fed by a polled bbox query to the BFF,
-with its own settings block, attribution and on/off toggle.
-_Avoid_: overlay, feature, plugin, data layer
+A set of map features fed by a polled bbox query to the BFF, with its own
+settings block, attribution and on/off toggle. Features, not markers: a
+polygon layer (warnings' warning areas, avalanche regions) fits the contract
+just as well as a set of pins does.
+_Avoid_: overlay, plugin, data layer
 
 **Ship**:
 A vessel reported by AIS via BarentsWatch, identified by MMSI. One live layer.
@@ -88,6 +90,26 @@ The single live layer carrying road situations and road cameras: one toggle,
 one settings block, one poll rate. Its identifier in code is `roads`
 (`LiveLayerId`, `settings.roads`, `ROADS_LAYER`, `map/roads.ts`).
 _Avoid in prose_: roads layer, traffic layer (nothing here counts vehicles)
+
+**Transit vehicle**: A bus or ferry reported by Entur's realtime feed, identified by
+its vehicle id, carrying a line, an origin, a destination and a delay. One live layer.
+_Avoid_: bus layer, public transport, vehicle (a road situation is about vehicles too)
+
+**Weather warning**: One MET Norway alert — gale, storm surge, polar low, ice, forest
+fire — with its own polygon, awareness colour and Norwegian advice text.
+_Avoid_: alert, farevarsel in English text, notification
+
+**Avalanche warning**: Today's NVE danger level, 1 to 5, for one forecast region the map
+is looking at. Out of season there is none, not a level zero.
+_Avoid_: avalanche risk, snow warning, skredfare in English text
+
+**Warnings layer**: The single live layer carrying weather warnings and avalanche
+warnings: one toggle, one settings block, one poll rate. Identifier `warnings`.
+_Avoid_: alerts layer, hazard layer
+
+**Sighting**: One GBIF group — a species reported at a place within the chosen window,
+possibly several records folded into one pin. Weeks behind reality, and labelled so.
+_Avoid_: observation, occurrence (GBIF's word for a raw record), record
 
 **Placement**:
 The coordinates this app stores for a camera, keyed by `camera_id`. A camera

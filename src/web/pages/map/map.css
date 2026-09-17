@@ -895,3 +895,331 @@
     font-size: 13px;
     color: var(--color-text);
 }
+
+/* — Transit (Entur buses and ferries) pins — same 44px tap-target/32px
+   plate arrangement as `.road-pin`/`.road-pin-plate`, badge-shaped rather
+   than square (`border-radius: 999px` vs. `.road-pin-plate`'s 7px) so a
+   round pin is never mistaken for a Vegvesen sign. `--transit-vehicle-color`
+   arrives inline from `liveLayerColors.ts` via `transit.ts`, the same
+   "colour from JS, shape from CSS" split `--road-situation-color` uses. */
+.transit-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.transit-pin-plate {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow:
+        0 0 0 2px var(--transit-vehicle-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.transit-pin-glyph,
+.transit-pin-glyph svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    color: var(--transit-vehicle-color);
+}
+
+/* The bus's own line number -- the thing a person reads across a room.
+   Ferries carry no text at all (`transit.ts`'s `buildTransitPinIcon`). */
+.transit-pin-code {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+/* — transit popup — same dark-card treatment as `.road-popup-wrapper`. */
+.transit-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.transit-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.transit-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.transit-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.transit-popup-line {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+}
+
+.transit-popup-route {
+    color: var(--color-muted);
+}
+
+.transit-popup-punctuality,
+.transit-popup-mode,
+.transit-popup-operator,
+.transit-popup-updated {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* — Warnings (MET Alerts + NVE Varsom) — the MET Alerts polygon itself is
+   drawn by `warnings.ts` directly through Leaflet's `color`/`fillColor`
+   path options (a Leaflet `Path` can't resolve `var(--token)`, same as
+   every other path/canvas colour in this file), so there is no CSS rule
+   for the polygon's own fill/stroke here -- only the popup and the
+   avalanche pin, which are DOM. */
+.warning-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.warning-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.warning-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.warning-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 230px;
+    max-width: 300px;
+}
+
+/* MET's own `eventAwarenessName`, coloured by `--warning-awareness-color`
+   (set inline from `liveLayerColors.ts` via `warnings.ts`) -- the same
+   "colour from JS, shape from CSS" split every other pin/popup heading in
+   this file uses. */
+.warning-popup-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+    color: var(--warning-awareness-color);
+}
+
+/* MET's own Norwegian text, verbatim in both UI languages -- same
+   reasoning as `.road-popup-description`. */
+.warning-popup-description,
+.warning-popup-consequences,
+.warning-popup-instruction {
+    margin: 4px 0 0;
+    white-space: pre-line;
+}
+
+.warning-popup-ends {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* — avalanche region pins (the Warnings layer's other half) — same 44px
+   tap-target/32px badge arrangement as `.transit-pin`/`.transit-pin-plate`,
+   coloured by `--avalanche-danger-color` (`liveLayerColors.ts`'s European
+   avalanche scale colours via `warnings.ts`). Level 1 gets the same
+   neutral grey `.road-pin-plate` never needs a name for -- "no tint" is
+   the scale's own lowest tier, not an absence of colour information. */
+.avalanche-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avalanche-pin-plate {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow:
+        0 0 0 2px var(--avalanche-danger-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.avalanche-pin-glyph,
+.avalanche-pin-glyph svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    color: var(--avalanche-danger-color);
+}
+
+/* NVE's own 1-5 danger digit -- what a person reads across a room. */
+.avalanche-pin-level {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+/* — avalanche popup — same dark-card treatment as `.warning-popup-wrapper`. */
+.avalanche-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.avalanche-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.avalanche-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.avalanche-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.avalanche-popup-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+}
+
+.avalanche-popup-level {
+    color: var(--avalanche-danger-color);
+    font-weight: 700;
+}
+
+.avalanche-popup-updated {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* — Species (GBIF occurrence sightings) — same 44px tap-target/32px badge
+   arrangement as `.transit-pin`/`.avalanche-pin`, but `--species-pin-color`
+   is a single fixed value (`SPECIES_PIN_COLOR` in `liveLayerColors.ts`) set
+   the same "colour from JS, shape from CSS" way regardless: a sighting
+   carries no severity/state, only a `class`, so every plate takes the same
+   colour and only the glyph inside it (per-class, see `glyphs/README.md`)
+   varies. */
+.species-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.species-pin-plate {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow:
+        0 0 0 2px var(--species-pin-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.species-pin-glyph,
+.species-pin-glyph svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+    color: var(--species-pin-color);
+}
+
+/* — species popup — same dark-card treatment as `.avalanche-popup-wrapper`. */
+.species-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.species-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.species-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.species-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.species-popup-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+}
+
+/* The scientific-name fallback (no vernacular name from GBIF) -- the `<i>`
+   itself carries the italic, this class exists only for the popup's own
+   layout, not for its style. */
+.species-popup-scientific-name {
+    font-style: italic;
+}
+
+.species-popup-date,
+.species-popup-count,
+.species-popup-individuals,
+.species-popup-datasets,
+.species-popup-license {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* An honest caveat, not a fact stated as plainly as the others -- shown
+   only when GBIF reported an uncertainty radius at all. */
+.species-popup-uncertainty {
+    margin-top: 2px;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-style: italic;
+}

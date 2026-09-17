@@ -251,3 +251,112 @@ describe('roads settings', () => {
         expect(SettingsSchema.parse({}).roads).not.toHaveProperty('maxAgeMinutes');
     });
 });
+
+describe('transit settings', () => {
+    const transit = { enabled: true, pollSeconds: 15, maxAgeMinutes: 10, showBuses: true, showFerries: true };
+
+    it('parses an existing settings file that predates the field', () => {
+        const existing = { language: 'nb', brightness: 100 };
+
+        expect(SettingsSchema.parse(existing).transit).toEqual(transit);
+    });
+
+    it('is patchable on its own, without dragging in every other field', () => {
+        const parsed = SettingsPatchSchema.parse({ transit });
+
+        expect(Object.keys(parsed)).toEqual(['transit']);
+        expect(parsed.transit).toEqual(transit);
+    });
+
+    it('is overridable per device, like the other live layers', () => {
+        expect(OVERRIDABLE_FIELDS).toContain('transit');
+        expect(SettingsOverrideSchema.parse({ transit })).toEqual({ transit });
+    });
+
+    it('enforces the 10-120s poll range TRANSIT_LAYER advertises', () => {
+        expect(SettingsSchema.safeParse({ transit: { ...transit, pollSeconds: 9 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, pollSeconds: 121 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, pollSeconds: 10 } }).success).toBe(true);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, pollSeconds: 120 } }).success).toBe(true);
+    });
+
+    it('enforces the 1-60 minute maxAgeMinutes range TRANSIT_LAYER advertises', () => {
+        expect(SettingsSchema.safeParse({ transit: { ...transit, maxAgeMinutes: 0 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, maxAgeMinutes: 61 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, maxAgeMinutes: 1 } }).success).toBe(true);
+        expect(SettingsSchema.safeParse({ transit: { ...transit, maxAgeMinutes: 60 } }).success).toBe(true);
+    });
+});
+
+describe('warnings settings', () => {
+    const warnings = { enabled: true, pollSeconds: 600, showAvalanche: true };
+
+    it('parses an existing settings file that predates the field', () => {
+        const existing = { language: 'nb', brightness: 100 };
+
+        expect(SettingsSchema.parse(existing).warnings).toEqual(warnings);
+    });
+
+    it('is patchable on its own, without dragging in every other field', () => {
+        const parsed = SettingsPatchSchema.parse({ warnings });
+
+        expect(Object.keys(parsed)).toEqual(['warnings']);
+        expect(parsed.warnings).toEqual(warnings);
+    });
+
+    it('is overridable per device, like the other live layers', () => {
+        expect(OVERRIDABLE_FIELDS).toContain('warnings');
+        expect(SettingsOverrideSchema.parse({ warnings })).toEqual({ warnings });
+    });
+
+    it('enforces the 300-3600s poll range WARNINGS_LAYER advertises', () => {
+        expect(SettingsSchema.safeParse({ warnings: { ...warnings, pollSeconds: 299 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ warnings: { ...warnings, pollSeconds: 3601 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ warnings: { ...warnings, pollSeconds: 300 } }).success).toBe(true);
+        expect(SettingsSchema.safeParse({ warnings: { ...warnings, pollSeconds: 3600 } }).success).toBe(true);
+    });
+
+    it('has no maxAgeMinutes, because a warning expires rather than going stale', () => {
+        expect(SettingsSchema.parse({}).warnings).not.toHaveProperty('maxAgeMinutes');
+    });
+});
+
+describe('species settings', () => {
+    const species = { enabled: true, pollSeconds: 3600, days: 30 as const, animalsOnly: false };
+
+    it('parses an existing settings file that predates the field', () => {
+        const existing = { language: 'nb', brightness: 100 };
+
+        expect(SettingsSchema.parse(existing).species).toEqual(species);
+    });
+
+    it('is patchable on its own, without dragging in every other field', () => {
+        const parsed = SettingsPatchSchema.parse({ species });
+
+        expect(Object.keys(parsed)).toEqual(['species']);
+        expect(parsed.species).toEqual(species);
+    });
+
+    it('is overridable per device, like the other live layers', () => {
+        expect(OVERRIDABLE_FIELDS).toContain('species');
+        expect(SettingsOverrideSchema.parse({ species })).toEqual({ species });
+    });
+
+    it('enforces the 1800-21600s poll range SPECIES_LAYER advertises', () => {
+        expect(SettingsSchema.safeParse({ species: { ...species, pollSeconds: 1799 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ species: { ...species, pollSeconds: 21601 } }).success).toBe(false);
+        expect(SettingsSchema.safeParse({ species: { ...species, pollSeconds: 1800 } }).success).toBe(true);
+        expect(SettingsSchema.safeParse({ species: { ...species, pollSeconds: 21600 } }).success).toBe(true);
+    });
+
+    it('accepts only the four bounded day buckets, and rejects anything else', () => {
+        for (const days of [7, 30, 90, 365]) {
+            expect(SettingsSchema.safeParse({ species: { ...species, days } }).success).toBe(true);
+        }
+        expect(SettingsSchema.safeParse({ species: { ...species, days: 45 } }).success).toBe(false);
+    });
+
+    it('has no maxAgeMinutes, because a sighting is already weeks old by the time GBIF publishes it', () => {
+        expect(SettingsSchema.parse({}).species).not.toHaveProperty('maxAgeMinutes');
+    });
+});

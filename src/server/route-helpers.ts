@@ -101,7 +101,17 @@ export function cacheSeconds(ttlMs: number): number {
     return Math.max(1, Math.floor(ttlMs / 1000));
 }
 
-function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, stale: boolean, options: ServeCachedOptions = {}): void {
+/**
+ * Writes `value` as the JSON body, with the same ETag/304 and
+ * `Cache-Control`/`X-Cache` handling `serveCached` gives every
+ * single-upstream route. Exported for `routes/warnings.ts`, whose response
+ * merges two independently-cached, independently-failable upstreams
+ * (`warnings/stale-cache.ts`) rather than the one-cache-one-fetcher shape
+ * `serveCached` assumes -- so it builds its own merged value and its own
+ * combined `stale` flag, then hands both to this function for the actual
+ * HTTP response.
+ */
+export function sendJson(reply: FastifyReply, request: FastifyRequest, value: unknown, stale: boolean, options: ServeCachedOptions = {}): void {
     const body = JSON.stringify(value);
     const etag = `"${createHash('sha1').update(body).digest('hex')}"`;
 

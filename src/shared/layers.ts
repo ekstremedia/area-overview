@@ -39,6 +39,9 @@ import type { ZodType } from 'zod';
 import { AircraftResponseSchema, type AircraftResponse } from './schemas/aircraft.js';
 import { RoadSituationsResponseSchema, type RoadSituationsResponse } from './schemas/roads.js';
 import { ShipsResponseSchema, type ShipsResponse } from './schemas/ships.js';
+import { SpeciesResponseSchema, type SpeciesResponse } from './schemas/species.js';
+import { TransitResponseSchema, type TransitResponse } from './schemas/transit.js';
+import { WarningsResponseSchema, type WarningsResponse } from './schemas/warnings.js';
 
 /**
  * Every live layer's id. Closed, and deliberately so: an id is
@@ -46,7 +49,7 @@ import { ShipsResponseSchema, type ShipsResponse } from './schemas/ships.js';
  * and the `SettingsOverride` key, so the three cannot drift apart
  * without this union rejecting the change.
  */
-export type LiveLayerId = 'ships' | 'aircraft' | 'roads';
+export type LiveLayerId = 'ships' | 'aircraft' | 'roads' | 'transit' | 'warnings' | 'species';
 
 export interface LiveLayerSpec<T> {
     /** The `settings.<id>` key, and the `/api/<id>` route path segment for the layers whose data is one route. Roads is two routes (`/api/road-situations`, `/api/road-cameras`) behind this one id and one toggle. */
@@ -132,4 +135,53 @@ export const ROADS_LAYER: LiveLayerSpec<RoadSituationsResponse> = {
     minPollSeconds: 60,
     maxPollSeconds: 600,
     attribution: 'Data: Statens vegvesen',
+};
+
+/**
+ * Entur's realtime buses and ferries -- the only one of the three newest
+ * layers whose items are position fixes, so it is the only one of the
+ * three that sets `maxAgeMinutes*`: a vehicle's last reported position
+ * genuinely goes stale, the same way a ship's or an aircraft's does.
+ */
+export const TRANSIT_LAYER: LiveLayerSpec<TransitResponse> = {
+    id: 'transit',
+    schema: TransitResponseSchema,
+    defaultPollSeconds: 15,
+    minPollSeconds: 10,
+    maxPollSeconds: 120,
+    maxAgeMinutesMin: 1,
+    maxAgeMinutesMax: 60,
+    attribution: 'Data: Entur',
+};
+
+/**
+ * The Warnings layer: MET Alerts weather warnings and NVE Varsom
+ * avalanche warnings, merged behind one toggle and one poll rate (see
+ * `WarningsResponseSchema`'s doc comment on why one envelope carries
+ * both). No `maxAgeMinutes*`, like roads: a warning is in force until it
+ * expires, it does not go stale the way a position fix does.
+ */
+export const WARNINGS_LAYER: LiveLayerSpec<WarningsResponse> = {
+    id: 'warnings',
+    schema: WarningsResponseSchema,
+    defaultPollSeconds: 600,
+    minPollSeconds: 300,
+    maxPollSeconds: 3600,
+    attribution: 'Data: MET Norway / NVE',
+};
+
+/**
+ * GBIF species occurrence sightings. No `maxAgeMinutes*`: a sighting is
+ * already weeks behind reality by the time GBIF publishes it, so "hide
+ * fixes older than N minutes" has no meaning here -- `settings.species.days`
+ * is the analogous control, and it bounds the upstream query window, not a
+ * staleness filter over the response.
+ */
+export const SPECIES_LAYER: LiveLayerSpec<SpeciesResponse> = {
+    id: 'species',
+    schema: SpeciesResponseSchema,
+    defaultPollSeconds: 3600,
+    minPollSeconds: 1800,
+    maxPollSeconds: 21600,
+    attribution: 'Data: GBIF',
 };

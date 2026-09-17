@@ -156,6 +156,75 @@ const ServerConfigSchema = z.object({
         .enum(['true', 'false'])
         .default('true')
         .transform((value) => value === 'true'),
+    /** Identifies this app to Entur's realtime API via the `ET-Client-Name` header -- Entur's own convention in place of a credential; the feed is otherwise keyless. */
+    enturClientName: z.string().min(1).default('nesthus-area-overview'),
+    /** `GET /api/transit` cache TTL, keyed per-bbox like ships/aircraft/roads above. */
+    transitCacheTtlMs: z.coerce.number().int().positive().default(10_000),
+    /**
+     * The process-wide Entur outbound budget: one request per
+     * `ENTUR_MIN_INTERVAL_MS` on average, with up to `ENTUR_BURST` banked
+     * for the flurry of `moveend`s a real pan produces. Same arrangement,
+     * and same reasoning, as the ADS-B and Vegvesen gates above -- the
+     * realtime vehicles API is keyless, has no published quota and no
+     * SLA, so the politeness has to be ours.
+     */
+    enturMinIntervalMs: z.coerce.number().int().positive().default(5000),
+    enturBurst: z.coerce.number().int().positive().default(3),
+    /** `GET /api/warnings`'s MET Alerts half -- cache TTL, keyed per-bbox. Warnings change far slower than a position fix, hence the much longer default than the other layers. */
+    metAlertsCacheTtlMs: z.coerce.number().int().positive().default(300_000),
+    /**
+     * MET Norway's API terms of use require every caller to identify
+     * itself with a descriptive `User-Agent` including contact
+     * information -- not a secret, so it lives in `.env.example` and this
+     * default rather than a real `.env`.
+     */
+    metUserAgent: z.string().min(1).default('area-overview-bff/0.1 (+https://area.nesthus.no; terjen@gmail.com)'),
+    /**
+     * The process-wide MET Alerts outbound budget: one request per
+     * `MET_MIN_INTERVAL_MS` on average, with up to `MET_BURST` banked for
+     * the flurry of `moveend`s a real pan produces. Same arrangement, and
+     * same reasoning, as the ADS-B/Vegvesen/Entur gates above -- MET
+     * Alerts is keyless and free, with no quota to push back with, so
+     * raising the interval is the polite direction. Longer than those
+     * gates' intervals because one call fetches the whole of Norway
+     * rather than one viewport, so it is worth spacing out further.
+     */
+    metMinIntervalMs: z.coerce.number().int().positive().default(20_000),
+    metBurst: z.coerce.number().int().positive().default(2),
+    /** `GET /api/warnings`'s NVE Varsom avalanche half -- cache TTL for a region's danger level, which NVE itself updates at most a few times a day. */
+    avalancheCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
+    /** NVE Varsom's forecast region roster -- geometry that essentially never changes, so it is cached far longer than the danger levels themselves. */
+    avalancheRegionsCacheTtlMs: z.coerce.number().int().positive().default(86_400_000),
+    /**
+     * The process-wide NVE Varsom outbound budget, shared by the region
+     * roster fetch and every per-region warning fetch: one request per
+     * `NVE_MIN_INTERVAL_MS` on average, with up to `NVE_BURST` banked for
+     * a viewport that touches several regions at once. Same reasoning as
+     * the other keyless-upstream gates above.
+     *
+     * `nveBurst`'s default covers "roster fetch + ~4 regions + 1 margin"
+     * in a single cold request: probing found a 2-degree viewport meets
+     * at most ~4 NVE forecast regions, and every one of those region
+     * fetches shares this same gate with the roster fetch that always
+     * precedes them. A burst too small for that starves a legitimate
+     * multi-region viewport, silently refusing the tail regions in the
+     * same request tick (see `routes/warnings.ts`'s own doc comment on
+     * this gate, next to the region-fetch loop).
+     */
+    nveMinIntervalMs: z.coerce.number().int().positive().default(60_000),
+    nveBurst: z.coerce.number().int().positive().default(6),
+    /** `GET /api/species` cache TTL, keyed per-bbox and per `settings.species.days` window. GBIF's occurrence index is itself a slow-moving snapshot, hence the long default. */
+    speciesCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
+    /**
+     * The process-wide GBIF outbound budget: one request per
+     * `GBIF_MIN_INTERVAL_MS` on average, with up to `GBIF_BURST` banked
+     * for the flurry of `moveend`s a real pan produces. Same arrangement,
+     * and same reasoning, as the ADS-B/Vegvesen/Entur/MET/NVE gates above
+     * -- GBIF's occurrence search is keyless and free, with no quota to
+     * push back with, so raising the interval is the polite direction.
+     */
+    gbifMinIntervalMs: z.coerce.number().int().positive().default(10_000),
+    gbifBurst: z.coerce.number().int().positive().default(2),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -194,6 +263,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         trailsPollSeconds: env.TRAILS_POLL_SECONDS,
         trailsAreaBbox: env.TRAILS_AREA_BBOX,
         trailsEnabled: env.TRAILS_ENABLED,
+        enturClientName: env.ENTUR_CLIENT_NAME,
+        transitCacheTtlMs: env.TRANSIT_CACHE_TTL_MS,
+        enturMinIntervalMs: env.ENTUR_MIN_INTERVAL_MS,
+        enturBurst: env.ENTUR_BURST,
+        metAlertsCacheTtlMs: env.MET_ALERTS_CACHE_TTL_MS,
+        metUserAgent: env.MET_USER_AGENT,
+        metMinIntervalMs: env.MET_MIN_INTERVAL_MS,
+        metBurst: env.MET_BURST,
+        avalancheCacheTtlMs: env.AVALANCHE_CACHE_TTL_MS,
+        avalancheRegionsCacheTtlMs: env.AVALANCHE_REGIONS_CACHE_TTL_MS,
+        nveMinIntervalMs: env.NVE_MIN_INTERVAL_MS,
+        nveBurst: env.NVE_BURST,
+        speciesCacheTtlMs: env.SPECIES_CACHE_TTL_MS,
+        gbifMinIntervalMs: env.GBIF_MIN_INTERVAL_MS,
+        gbifBurst: env.GBIF_BURST,
     });
 
     if (!parsed.success) {

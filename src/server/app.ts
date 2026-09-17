@@ -16,6 +16,9 @@ import { registerRoadCamerasRoutes } from './routes/road-cameras.js';
 import { registerRoadSituationsRoutes } from './routes/road-situations.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
+import { registerSpeciesRoutes } from './routes/species.js';
+import { registerTransitRoutes } from './routes/transit.js';
+import { registerWarningsRoutes } from './routes/warnings.js';
 import { createOutboundGate } from './outbound-gate.js';
 import { createShipsSnapshot } from './ships/snapshot.js';
 import { createBarentsWatchToken } from './ships/token.js';
@@ -139,6 +142,30 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     const vegvesenGate = createOutboundGate({ minIntervalMs: config.vegvesenMinIntervalMs, burst: config.vegvesenBurst });
     registerRoadSituationsRoutes(app, config, { gate: vegvesenGate });
     registerRoadCamerasRoutes(app, config, { gate: vegvesenGate });
+
+    // The process-wide Entur outbound budget: the realtime vehicles API is
+    // keyless, has no published quota and no SLA, so the politeness has to
+    // be ours, same reasoning as the ADS-B and Vegvesen gates above.
+    const enturGate = createOutboundGate({ minIntervalMs: config.enturMinIntervalMs, burst: config.enturBurst });
+    registerTransitRoutes(app, config, { gate: enturGate });
+
+    // Two separate gates, one per upstream, sharing nothing: MET Alerts and
+    // NVE Varsom are two different services with two different fair-use
+    // rhythms (one nationwide fetch versus one fetch per intersecting
+    // region), and the whole point of the warnings route is that neither
+    // upstream's trouble affects the other -- a shared gate would undo
+    // that at the outbound-budget level even though the route itself keeps
+    // them independent. See `outbound-gate.ts`.
+    const metGate = createOutboundGate({ minIntervalMs: config.metMinIntervalMs, burst: config.metBurst });
+    const nveGate = createOutboundGate({ minIntervalMs: config.nveMinIntervalMs, burst: config.nveBurst });
+    registerWarningsRoutes(app, config, { metGate, nveGate });
+
+    // The process-wide GBIF outbound budget: the occurrence search API is
+    // keyless, has no published quota and no SLA, so the politeness has
+    // to be ours, same reasoning as the other keyless-upstream gates
+    // above.
+    const gbifGate = createOutboundGate({ minIntervalMs: config.gbifMinIntervalMs, burst: config.gbifBurst });
+    registerSpeciesRoutes(app, config, { gate: gbifGate });
 
     registerStaticPlugin(app);
 

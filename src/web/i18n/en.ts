@@ -31,6 +31,9 @@ export const en: Record<keyof typeof nb, string> = {
     'masthead.aircraftUnit': 'aircraft',
     'masthead.roadSituationsUnit': 'road notices',
     'masthead.roadCamerasUnit': 'road cameras',
+    'masthead.transitUnit': 'transit',
+    'masthead.warningsUnit': 'warnings',
+    'masthead.speciesUnit': 'species',
     'masthead.hiddenUnit': 'hidden',
     'masthead.livePanelEmpty': 'Nothing in sight',
     'masthead.settings': 'Settings',
@@ -166,6 +169,38 @@ export const en: Record<keyof typeof nb, string> = {
     'map.roadCameraPrecipitation': 'Precipitation {value}',
 
     'map.popupUpdated': 'Updated {age}',
+
+    'map.transitOnTime': 'On time',
+    'map.transitLate': '{minutes} min late',
+    'map.transitEarly': '{minutes} min early',
+    'map.transitModeBus': 'Bus',
+    'map.transitModeFerry': 'Ferry',
+    'map.transitRoute': '{from} → {to}',
+    // The two single-sided fallbacks for `map.transitRoute`, when Entur's
+    // record carries only an origin or only a destination -- see
+    // `buildTransitPopup` in `transit.ts`.
+    'map.transitRouteFrom': 'From {from}',
+    'map.transitRouteTo': 'To {to}',
+
+    'map.warningEndsAt': 'until {when}',
+    'map.avalancheDanger.1': 'Low',
+    'map.avalancheDanger.2': 'Moderate',
+    'map.avalancheDanger.3': 'Considerable',
+    'map.avalancheDanger.4': 'High',
+    'map.avalancheDanger.5': 'Very high',
+
+    'map.speciesObservedOn': 'Observed {when}',
+    'map.speciesObservationCount': '{count} observations',
+    'map.speciesIndividualCount': '{count} individuals',
+    'map.speciesDatasets': 'Datasets: {datasets}',
+    'map.speciesLicense': 'Licence: {license}',
+    'map.speciesUncertainty': 'Position uncertain: approx. {meters}',
+    // Appended to the layer's own attribution line so the footer states
+    // its own recency window in the units it actually is one --
+    // `settings.species.days` -- rather than reading like a live feed. See
+    // `species.ts`'s `render`.
+    'map.speciesDaysWindowSuffix': 'last {days} days',
+    'map.speciesTruncatedSuffix': 'showing a partial set',
 
     'error.staleData': 'Could not refresh · showing earlier data.',
     'error.noData': 'No data available.',
@@ -328,11 +363,23 @@ export const en: Record<keyof typeof nb, string> = {
     'settings.layers.ships': 'Ships · AIS',
     'settings.layers.aircraft': 'Aircraft · ADS-B',
     'settings.layers.roads': 'Roads · Statens vegvesen',
+    'settings.layers.transit': 'Transit · Entur',
+    'settings.layers.warnings': 'Warnings · MET/NVE',
+    'settings.layers.species': 'Species · GBIF',
     'settings.layers.pollSeconds': 'Poll interval',
     'settings.layers.maxAgeMinutes': 'Max age',
     'settings.layers.showOnGround': 'Show aircraft on the ground',
     'settings.layers.showPlanned': 'Show planned roadworks',
     'settings.layers.showCameras': 'Show road cameras',
+    'settings.layers.showBuses': 'Show buses',
+    'settings.layers.showFerries': 'Show ferries',
+    'settings.layers.showAvalanche': 'Show avalanche warnings',
+    'settings.layers.animalsOnly': 'Animals only',
+    'settings.layers.speciesDays': 'Time window (days)',
+    'settings.layers.speciesDays7': 'Last 7 days',
+    'settings.layers.speciesDays30': 'Last 30 days',
+    'settings.layers.speciesDays90': 'Last 90 days',
+    'settings.layers.speciesDays365': 'Last 365 days',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch credentials are set on the server.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch credentials are NOT set on the server.',
 

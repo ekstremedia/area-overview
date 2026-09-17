@@ -23,7 +23,15 @@ import { settings } from '../settings-resource.js';
 import { NAV_PAGES, SETTINGS_PAGE } from '../pages/registry.js';
 import { formatAge, isStale } from './staleness.js';
 import { autoCycleArmed, autoCycleHeld, autoCyclePaused } from './autoCycle.js';
-import { liveLayerCounts, liveLayerListing, LIVE_LAYER_GROUP_IDS, pageAccountStatus, pageFreshness, type LiveLayerGroupId } from './page-status.js';
+import {
+    liveLayerColors,
+    liveLayerCounts,
+    liveLayerListing,
+    LIVE_LAYER_GROUP_IDS,
+    pageAccountStatus,
+    pageFreshness,
+    type LiveLayerGroupId,
+} from './page-status.js';
 
 const CLOCK_TICK_MS = 60_000;
 
@@ -81,7 +89,11 @@ function gearIcon(): SVGSVGElement {
 }
 
 /** One `<glyph> <count> <unit>` triple, with the glyph and numeral carrying their group's colour and the unit staying muted. Exactly one of the glyph and the unit is on screen at a time; which, is the width's business (`shell.css`). */
-function countPart(className: string, glyph: string, onActivate?: () => void): { el: HTMLElement; set: (value: number, unit: string) => void } {
+function countPart(
+    className: string,
+    glyph: string,
+    onActivate?: () => void,
+): { el: HTMLElement; colorEl: HTMLElement; set: (value: number, unit: string) => void } {
     let el: HTMLElement;
     if (onActivate) {
         // A real button, not a span with a handler: the counts are a
@@ -126,6 +138,7 @@ function countPart(className: string, glyph: string, onActivate?: () => void): {
     el.append(value, ' ', unit);
     return {
         el,
+        colorEl: value,
         set: (nextValue, nextUnit) => {
             number.textContent = String(nextValue);
             unit.textContent = nextUnit;
@@ -186,6 +199,41 @@ const ROAD_SITUATION_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/
 const ROAD_CAMERA_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.2 4.5h5.6l1.1 2H20a1.8 1.8 0 0 1 1.8 1.8v9.4A1.8 1.8 0 0 1 20 19.5H4A1.8 1.8 0 0 1 2.2 17.7V8.3A1.8 1.8 0 0 1 4 6.5h4.1l1.1-2Zm2.8 4.6a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8Zm0 1.9a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>`;
 
 /**
+ * The transit count's own glyph -- the same bus silhouette
+ * `pages/map/glyphs/bus.svg` draws on the map pin, copied rather than
+ * imported for the same reason `ROAD_CAMERA_GLYPH` above is: the shell
+ * must not pull a map module into its own chunk. One glyph stands for
+ * both buses and ferries here, the way one count does -- the masthead's
+ * row has no room to tell the two vehicle kinds apart, unlike the map pin
+ * itself.
+ */
+const TRANSIT_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M4 5.8A2 2 0 0 1 6 3.8h12a2 2 0 0 1 2 2v8.4a1.8 1.8 0 0 1-1.6 1.79V17a1 1 0 1 1-2 0v-1H7.6v1a1 1 0 1 1-2 0v-1.01A1.8 1.8 0 0 1 4 14.2V5.8Zm2.2.7v3.8h4.3V6.5H6.2Zm5.9 0v3.8h4.3V6.5h-4.3Zm5.9 0v2.9a.9.9 0 0 0 .5-.8V6.9a.4.4 0 0 0-.4-.4h-.1Z"/><circle cx="7.6" cy="15" r="1.3"/><circle cx="16.4" cy="15" r="1.3"/></svg>`;
+
+/**
+ * The Warnings count's own glyph -- the same two-peak mountain silhouette
+ * `pages/map/glyphs/avalanche.svg` draws on the avalanche pin, copied
+ * rather than imported for the same reason `ROAD_CAMERA_GLYPH` and
+ * `TRANSIT_GLYPH` above are. It stands for both halves of the merged
+ * layer (MET Alerts and NVE Varsom), the way `TRANSIT_GLYPH` stands for
+ * both buses and ferries -- the masthead's row has no room for a second
+ * glyph.
+ */
+const WARNINGS_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M8.6 5.4a1 1 0 0 1 1.7 0l3 5-1.7 2.9-1-1.7-5.2 8.9H1.2L8.6 5.4Zm6.3 3.2a1 1 0 0 1 1.7 0l6.2 10.9a1 1 0 0 1-.9 1.5H9.3a1 1 0 0 1-.9-1.5l1.9-3.3 1 1.7 1-1.7-1.9-3.3 3.5-5.3Z"/></svg>`;
+
+/**
+ * The Species count's own glyph -- a paw print, the same shape
+ * `pages/map/glyphs/mammal.svg` draws on a mammal sighting's own pin,
+ * copied rather than imported for the same reason `ROAD_CAMERA_GLYPH`,
+ * `TRANSIT_GLYPH` and `WARNINGS_GLYPH` above are. It stands for every
+ * `class` the layer can draw (bird, mammal, fish, insect, plant, ...) the
+ * same way `TRANSIT_GLYPH` stands for both buses and ferries -- the
+ * masthead's row has room for one glyph per group, not one per taxonomic
+ * class, and a paw reads as "wildlife" at a glance faster than any of the
+ * other five candidates would.
+ */
+const SPECIES_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><ellipse cx="12" cy="15.6" rx="5.4" ry="4.3"/><circle cx="5.2" cy="9.6" r="2.1"/><circle cx="9.6" cy="5.5" r="2.1"/><circle cx="14.4" cy="5.5" r="2.1"/><circle cx="18.8" cy="9.6" r="2.1"/></svg>`;
+
+/**
  * The hidden-by-age count is not a group -- nothing opens when it is
  * tapped -- but it sits in the same row and loses its word to the same
  * media query, and a bare unexplained numeral beside four labelled ones
@@ -199,6 +247,9 @@ const COUNT_GROUPS: Readonly<Record<LiveLayerGroupId, MastheadCountGroup>> = {
     aircraft: { className: 'masthead-count-aircraft', unitKey: 'masthead.aircraftUnit', glyph: AIRCRAFT_GLYPH },
     roadSituations: { className: 'masthead-count-road-situations', unitKey: 'masthead.roadSituationsUnit', glyph: ROAD_SITUATION_GLYPH },
     roadCameras: { className: 'masthead-count-road-cameras', unitKey: 'masthead.roadCamerasUnit', glyph: ROAD_CAMERA_GLYPH },
+    transit: { className: 'masthead-count-transit', unitKey: 'masthead.transitUnit', glyph: TRANSIT_GLYPH },
+    warnings: { className: 'masthead-count-warnings', unitKey: 'masthead.warningsUnit', glyph: WARNINGS_GLYPH },
+    species: { className: 'masthead-count-species', unitKey: 'masthead.speciesUnit', glyph: SPECIES_GLYPH },
 };
 
 /**
@@ -501,12 +552,45 @@ export function mountMasthead(container: HTMLElement): () => void {
                 return;
             }
             layerCounts.style.display = '';
-            for (const id of LIVE_LAYER_GROUP_IDS) countParts.get(id)?.set(counts[id], t(COUNT_GROUPS[id].unitKey));
+            for (const id of LIVE_LAYER_GROUP_IDS) {
+                const part = countParts.get(id);
+                if (!part) continue;
+                // A group at zero is dropped from the row entirely, not
+                // shown as "0" or greyed out -- seven words of "0 fly",
+                // "0 kollektiv", "0 farevarsler" on a quiet day would be
+                // seven words of nothing, and at kiosk width they are also
+                // seven glyphs' worth of space the row does not have to
+                // spare (see the 1300px query in `shell.css`).
+                part.el.style.display = counts[id] > 0 ? '' : 'none';
+                part.set(counts[id], t(COUNT_GROUPS[id].unitKey));
+            }
             // Only when there is something to account for -- the ordinary
             // case must stay the plain two-number line, not one with a
             // permanent "0 hidden" on the end.
             hiddenCount.el.style.display = counts.hiddenByAge > 0 ? '' : 'none';
             hiddenCount.set(counts.hiddenByAge, t('masthead.hiddenUnit'));
+        }),
+    );
+
+    // The warnings chip's own tint: MET/NVE severity is a colour (yellow,
+    // orange, red), not a bigger number, so "2 farevarsler" alone cannot
+    // say how bad the worst of the two is. `layers.ts`'s `reportColor`
+    // already computes the worst active colour across both halves of the
+    // merged layer (`warnings.ts`'s `worstColorOf`) and publishes it
+    // through `page-status.ts`'s `liveLayerColors` slot; this just paints
+    // it on. A CSS custom property, not a class per colour: the palette is
+    // three arbitrary literals (`liveLayerColors.ts`), not a fixed set of
+    // named states a class name could enumerate, and `shell.css`'s
+    // `.masthead-count-warnings` rule already falls back to the static
+    // warning yellow when nothing is active (the property is unset, i.e.
+    // `null`).
+    disposers.push(
+        effect(() => {
+            const warningsColor = liveLayerColors.get()?.warnings ?? null;
+            const colorEl = countParts.get('warnings')?.colorEl;
+            if (!colorEl) return;
+            if (warningsColor) colorEl.style.setProperty('--masthead-live-color', warningsColor);
+            else colorEl.style.removeProperty('--masthead-live-color');
         }),
     );
 

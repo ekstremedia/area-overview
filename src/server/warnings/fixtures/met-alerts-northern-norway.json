@@ -1,0 +1,155 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [14.8, 68.5],
+                        [15.2, 68.5],
+                        [15.2, 68.7],
+                        [14.8, 68.7],
+                        [14.8, 68.5]
+                    ]
+                ]
+            },
+            "properties": {
+                "id": "2.49.0.1.578.0.1",
+                "event": "gale",
+                "riskMatrixColor": "Yellow",
+                "awareness_level": "2; yellow; Moderate",
+                "awareness_type": "1; Wind",
+                "eventAwarenessName": "Kuling",
+                "title": "Kuling, gult nivå, Vesterålen og Ofoten, 2026-09-16T06:00:00+00:00, 2026-09-17T06:00:00+00:00",
+                "description": "Sterk liten kuling, kuling i kastene.",
+                "consequences": "Vanskelige forhold på sjøen.",
+                "instruction": "Unngå unødvendige båtturer.",
+                "area": "Vesterålen og Ofoten",
+                "county": [],
+                "eventEndingTime": "2026-09-17T06:00:00+00:00"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [15.6, 68.6],
+                        [15.9, 68.6],
+                        [15.9, 68.8],
+                        [15.6, 68.8],
+                        [15.6, 68.6]
+                    ]
+                ]
+            },
+            "properties": {
+                "id": "2.49.0.1.578.0.2",
+                "event": "snow",
+                "riskMatrixColor": "Orange",
+                "awareness_level": "3; orange; Severe",
+                "awareness_type": "7; Snow/Ice",
+                "eventAwarenessName": "Kraftig snøfall",
+                "title": "Kraftig snøfall, oransje nivå, Vesterålen, 2026-09-16T12:00:00+00:00, 2026-09-17T12:00:00+00:00",
+                "description": "Kraftig snøfall ventes, opp mot 30 cm i løpet av 24 timer.",
+                "consequences": null,
+                "instruction": "Sett av ekstra tid til reise.",
+                "area": null,
+                "county": [],
+                "eventEndingTime": "2026-09-17T12:00:00+00:00"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [14.6, 68.9],
+                        [14.9, 68.9],
+                        [14.9, 69.0],
+                        [14.6, 69.0],
+                        [14.6, 68.9]
+                    ]
+                ]
+            },
+            "properties": {
+                "id": "2.49.0.1.578.0.3",
+                "event": "ice",
+                "riskMatrixColor": "Red",
+                "awareness_level": "4; red; Extreme",
+                "awareness_type": "7; Snow/Ice",
+                "eventAwarenessName": "Ekstremt glatt føre",
+                "title": "Ekstremt glatt føre, rødt nivå, Vesterålen, 2026-09-16T00:00:00+00:00",
+                "description": "Underkjølt regn gir svært glatt føre.",
+                "consequences": "Stor fare for trafikkulykker og fallulykker.",
+                "instruction": "Unngå unødvendige bilturer, bruk brodder til fots.",
+                "area": "Vesterålen",
+                "county": [],
+                "eventEndingTime": null
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [10.5, 59.8],
+                        [10.9, 59.8],
+                        [10.9, 60.0],
+                        [10.5, 60.0],
+                        [10.5, 59.8]
+                    ]
+                ]
+            },
+            "properties": {
+                "id": "2.49.0.1.578.0.4",
+                "event": "stormSurge",
+                "riskMatrixColor": "Yellow",
+                "awareness_level": "2; yellow; Moderate",
+                "awareness_type": "5; Coastal Event",
+                "eventAwarenessName": "Større vannstand",
+                "title": "Større vannstand, gult nivå, Oslofjorden, 2026-09-16T06:00:00+00:00, 2026-09-17T06:00:00+00:00",
+                "description": "Større vannstand langs Oslofjorden.",
+                "consequences": null,
+                "instruction": null,
+                "area": "Oslofjorden",
+                "county": [],
+                "eventEndingTime": "2026-09-17T06:00:00+00:00"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [15.0, 68.4],
+                        [15.3, 68.4],
+                        [15.3, 68.5],
+                        [15.0, 68.5],
+                        [15.0, 68.4]
+                    ]
+                ]
+            },
+            "properties": {
+                "id": "2.49.0.1.578.0.5",
+                "event": "wind",
+                "riskMatrixColor": null,
+                "awareness_level": "2; yellow; Moderate",
+                "awareness_type": "1; Wind",
+                "eventAwarenessName": "Liten kuling",
+                "title": "Liten kuling, gult nivå, Vesterålen, 2026-09-16T06:00:00+00:00, 2026-09-17T06:00:00+00:00",
+                "description": "Liten kuling, opp mot frisøk liten kuling.",
+                "consequences": null,
+                "instruction": null,
+                "area": null,
+                "county": [],
+                "eventEndingTime": "2026-09-17T06:00:00+00:00"
+            }
+        }
+    ]
+}

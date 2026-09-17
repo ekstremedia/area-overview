@@ -21,8 +21,18 @@
  * `LiveLayerSpec`, and a layer that sets neither has no fix age to
  * filter on (roads: a notice is valid until it expires, never stale).
  */
-import { AIRCRAFT_LAYER, ROADS_LAYER, SHIPS_LAYER, type LiveLayerId, type LiveLayerSpec } from '../../../shared/layers.js';
-import type { Settings, SettingsPatch } from '../../../shared/schemas/settings.js';
+import {
+    AIRCRAFT_LAYER,
+    ROADS_LAYER,
+    SHIPS_LAYER,
+    SPECIES_LAYER,
+    TRANSIT_LAYER,
+    WARNINGS_LAYER,
+    type LiveLayerId,
+    type LiveLayerSpec,
+} from '../../../shared/layers.js';
+import type { Settings, SettingsPatch, SpeciesDays } from '../../../shared/schemas/settings.js';
+import { selectField, type SelectFieldHandle, type SelectFieldOption } from '../../components/SelectField.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
 import { effect } from '../../core/signal.js';
@@ -30,12 +40,15 @@ import { formatNumber, t, type ParamlessKey } from '../../i18n/index.js';
 import { field, overrideFor, type FieldHandle } from './field.js';
 import type { SectionMount } from './sectionContext.js';
 
-const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER, ROADS_LAYER];
+const LAYERS: readonly LiveLayerSpec<unknown>[] = [SHIPS_LAYER, AIRCRAFT_LAYER, ROADS_LAYER, TRANSIT_LAYER, WARNINGS_LAYER, SPECIES_LAYER];
 
 const LAYER_LABEL_KEYS: Record<LiveLayerId, ParamlessKey> = {
     ships: 'settings.layers.ships',
     aircraft: 'settings.layers.aircraft',
     roads: 'settings.layers.roads',
+    transit: 'settings.layers.transit',
+    warnings: 'settings.layers.warnings',
+    species: 'settings.layers.species',
 };
 
 /**
@@ -208,6 +221,89 @@ export const mount: SectionMount = (container, ctx) => {
             block.append(showPlannedRow.el, showCamerasRow.el);
         }
 
+        // Transit-only fields, the same deliberate id-branch: which
+        // vehicle kinds to draw, once the response is already on the map.
+        let showBusesToggle: ToggleHandle | undefined;
+        let showFerriesToggle: ToggleHandle | undefined;
+        if (layer.id === 'transit') {
+            showBusesToggle = toggle({
+                checked: initial.transit.showBuses,
+                onChange: (checked) => {
+                    write({ showBuses: checked });
+                },
+            });
+            const showBusesRow = field({ label: t('settings.layers.showBuses'), control: showBusesToggle.el });
+            showFerriesToggle = toggle({
+                checked: initial.transit.showFerries,
+                onChange: (checked) => {
+                    write({ showFerries: checked });
+                },
+            });
+            const showFerriesRow = field({ label: t('settings.layers.showFerries'), control: showFerriesToggle.el });
+            rows.push(showBusesRow, showFerriesRow);
+            block.append(showBusesRow.el, showFerriesRow.el);
+        }
+
+        // Warnings-only field, the same deliberate id-branch: whether NVE's
+        // avalanche outlines+pins draw alongside MET's weather polygons,
+        // the analogue of `roads`' `showCameras` -- a way to keep half the
+        // merged layer without the other.
+        let showAvalancheToggle: ToggleHandle | undefined;
+        if (layer.id === 'warnings') {
+            showAvalancheToggle = toggle({
+                checked: initial.warnings.showAvalanche,
+                onChange: (checked) => {
+                    write({ showAvalanche: checked });
+                },
+            });
+            const showAvalancheRow = field({ label: t('settings.layers.showAvalanche'), control: showAvalancheToggle.el });
+            rows.push(showAvalancheRow);
+            block.append(showAvalancheRow.el);
+        }
+
+        // Species-only fields, the same deliberate id-branch: a
+        // client-side kingdom filter, and the GBIF lookback window.
+        //
+        // The window is a `selectField` (segmented tiles), not a stepper:
+        // a stepper implies a continuous range with a meaningful step
+        // between values, and `settings.species.days` is a closed set of
+        // four buckets the server caches its GBIF query by
+        // (`SpeciesDaysSchema`). Every label states the window in days,
+        // deliberately -- this data is never live, and the control must
+        // not read as if it were (`species.ts`'s own header comment).
+        // `selectField` is generic over `string`, so the four numbers are
+        // carried in their own string form and parsed back to
+        // `SpeciesDays` on write.
+        let animalsOnlyToggle: ToggleHandle | undefined;
+        let daysSelect: SelectFieldHandle<`${SpeciesDays}`> | undefined;
+        if (layer.id === 'species') {
+            animalsOnlyToggle = toggle({
+                checked: initial.species.animalsOnly,
+                onChange: (checked) => {
+                    write({ animalsOnly: checked });
+                },
+            });
+            const animalsOnlyRow = field({ label: t('settings.layers.animalsOnly'), control: animalsOnlyToggle.el });
+
+            const daysOptions: SelectFieldOption<`${SpeciesDays}`>[] = [
+                { value: '7', label: t('settings.layers.speciesDays7') },
+                { value: '30', label: t('settings.layers.speciesDays30') },
+                { value: '90', label: t('settings.layers.speciesDays90') },
+                { value: '365', label: t('settings.layers.speciesDays365') },
+            ];
+            daysSelect = selectField({
+                value: String(initial.species.days) as `${SpeciesDays}`,
+                options: daysOptions,
+                onChange: (next) => {
+                    write({ days: Number(next) as SpeciesDays });
+                },
+            });
+            const daysRow = field({ label: t('settings.layers.speciesDays'), control: daysSelect.el });
+
+            rows.push(animalsOnlyRow, daysRow);
+            block.append(animalsOnlyRow.el, daysRow.el);
+        }
+
         // Ships-only read-only credentials line.
         let credentialsLine: HTMLElement | undefined;
         if (layer.id === 'ships') {
@@ -238,6 +334,11 @@ export const mount: SectionMount = (container, ctx) => {
             if ('showOnGround' in current) showOnGroundToggle?.setState(current.showOnGround, false);
             if ('showPlanned' in current) showPlannedToggle?.setState(current.showPlanned, false);
             if ('showCameras' in current) showCamerasToggle?.setState(current.showCameras, false);
+            if ('showBuses' in current) showBusesToggle?.setState(current.showBuses, false);
+            if ('showFerries' in current) showFerriesToggle?.setState(current.showFerries, false);
+            if ('showAvalanche' in current) showAvalancheToggle?.setState(current.showAvalanche, false);
+            if ('animalsOnly' in current) animalsOnlyToggle?.setState(current.animalsOnly, false);
+            if ('days' in current) daysSelect?.setState(String(current.days) as `${SpeciesDays}`, false);
         });
         disposers.push(disposeEffect);
     }

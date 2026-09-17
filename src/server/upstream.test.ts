@@ -33,6 +33,21 @@ const config: ServerConfig = {
     // Off in tests: a background poller would make real upstream calls
     // from a suite that otherwise touches no network.
     trailsEnabled: false,
+    enturClientName: 'nesthus-area-overview-test',
+    transitCacheTtlMs: 10_000,
+    enturMinIntervalMs: 5000,
+    enturBurst: 3,
+    metAlertsCacheTtlMs: 300_000,
+    metUserAgent: 'area-overview-bff-test/0.1 (+https://area.nesthus.no; terjen@gmail.com)',
+    metMinIntervalMs: 20_000,
+    metBurst: 2,
+    avalancheCacheTtlMs: 1_800_000,
+    avalancheRegionsCacheTtlMs: 86_400_000,
+    nveMinIntervalMs: 60_000,
+    nveBurst: 2,
+    speciesCacheTtlMs: 1_800_000,
+    gbifMinIntervalMs: 10_000,
+    gbifBurst: 2,
 };
 
 const TestSchema = z.object({ value: z.number() });

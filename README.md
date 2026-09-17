@@ -30,6 +30,17 @@ decisions.
       the default `adsblol` needs no credentials.
     - `CARTO_API_KEY` -- unwatermarked dark basemap tiles.
     - Statens vegvesen's road data is keyless; nothing to set.
+    - Entur's realtime buses and ferries are keyless, but `ENTUR_CLIENT_NAME`
+      identifies this app to the API via the `ET-Client-Name` header, in
+      place of a credential -- set to something descriptive of the
+      deployment, not left blank.
+    - MET Alerts weather warnings are keyless, but MET's terms of use
+      require every caller to identify itself with a descriptive
+      `MET_USER_AGENT` including contact information.
+    - NVE Varsom avalanche danger is keyless; nothing to set. GBIF species
+      sightings are also keyless, but the server reuses the same
+      `MET_USER_AGENT` as MET Alerts above to identify this app on every
+      request -- there is no separate GBIF-specific variable.
 - `SETTINGS_PASSWORD` (at least 16 characters) is required -- the BFF
   refuses to start without it. It is the one passphrase that authorises
   edits from the settings page; reading is public.
@@ -100,3 +111,25 @@ The sign faces are vendored in `src/web/pages/map/signs/`; that
 directory's `README.md` records where they came from, what was changed
 and why they are only ever drawn small. The map footer carries the short
 form, `Data: Statens vegvesen`.
+
+The transit layer's buses and ferries come from Entur's realtime API,
+keyless but requiring every caller to identify itself (the
+`ET-Client-Name` header, set from `ENTUR_CLIENT_NAME`). Licensed under
+NLOD, the same licence as Statens vegvesen's data above. The map footer
+carries `Data: Entur`.
+
+The warnings layer merges MET Norway's Alerts (weather warnings: gale,
+storm surge, polar low, ice, forest fire) and NVE Varsom's avalanche
+danger forecasts, both keyless. MET's terms of use require a descriptive
+`User-Agent` with contact information (`MET_USER_AGENT`). MET Norway's
+data is licensed under NLOD and NVE Varsom's under CC BY 4.0. The map
+footer carries `Data: MET Norway / NVE`.
+
+The species layer's sightings come from GBIF's keyless occurrence search,
+which republishes Norwegian citizen-science data (mostly Artsobservasjoner
+records). GBIF asks for no credential of its own, but the server identifies
+itself on every request with the same `MET_USER_AGENT` configured for MET
+Alerts above, rather than sending no identifying User-Agent at all. Licence
+varies per record -- `CC BY 4.0` and `CC BY-NC 4.0` have both been
+observed -- so each sighting's own licence is shown in its popup rather
+than a single blanket statement here. The map footer carries `Data: GBIF`.

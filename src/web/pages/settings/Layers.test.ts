@@ -25,18 +25,24 @@ afterEach(() => {
 });
 
 describe('Layers section', () => {
-    it('renders one block per layer spec (ships, aircraft, roads), each with an enabled toggle and its own steppers', () => {
+    it('renders one block per layer spec (ships, aircraft, roads, transit, warnings, species), each with an enabled toggle and its own steppers', () => {
         const { store } = fakeStore(SettingsSchema.parse({}));
         const container = document.createElement('div');
         const dispose = mount(container, { store, loggedIn: true });
 
         const blocks = container.querySelectorAll('.settings-layer-block');
-        expect(blocks).toHaveLength(3);
+        expect(blocks).toHaveLength(6);
         // ships enabled + aircraft enabled + aircraft showOnGround + roads
-        // enabled + roads showPlanned + roads showCameras.
-        expect(container.querySelectorAll('.toggle-row')).toHaveLength(6);
-        // poll + max-age for ships and aircraft; poll alone for roads.
-        expect(container.querySelectorAll('.stepper')).toHaveLength(5);
+        // enabled + roads showPlanned + roads showCameras + transit enabled +
+        // transit showBuses + transit showFerries + warnings enabled +
+        // warnings showAvalanche + species enabled + species animalsOnly.
+        expect(container.querySelectorAll('.toggle-row')).toHaveLength(13);
+        // poll + max-age for ships, aircraft and transit; poll alone for
+        // roads, warnings and species.
+        expect(container.querySelectorAll('.stepper')).toHaveLength(9);
+        // Species' own day-window control -- a segmented `selectField`,
+        // not a stepper (see `Layers.ts`'s own comment on why).
+        expect(container.querySelectorAll('.select-field')).toHaveLength(1);
 
         dispose();
     });
@@ -136,6 +142,28 @@ describe('Layers section', () => {
         await vi.waitFor(() => {
             expect(container.querySelector('.settings-layer-credentials')?.textContent).toBe('BarentsWatch-nøkler er IKKE satt på serveren.');
         });
+
+        dispose();
+    });
+
+    it('gives species its own animalsOnly toggle and a 4-bucket day-window select, and no other layer them', () => {
+        const { store, patchSettings } = fakeStore(SettingsSchema.parse({}));
+        const container = document.createElement('div');
+        const dispose = mount(container, { store, loggedIn: true });
+
+        const blocks = [...container.querySelectorAll('.settings-layer-block')];
+        const speciesBlock = blocks[5];
+        expect(speciesBlock?.textContent).toContain('Bare dyr');
+        expect(speciesBlock?.textContent).toContain('Siste 30 dager');
+        expect(blocks[0]?.textContent).not.toContain('Bare dyr');
+
+        // The day-window tiles state every bucket in days, never as a live
+        // control -- the plan's own settled requirement.
+        const tiles = [...(speciesBlock?.querySelectorAll<HTMLButtonElement>('.select-field-tile') ?? [])];
+        expect(tiles.map((tile) => tile.textContent)).toEqual(['Siste 7 dager', 'Siste 30 dager', 'Siste 90 dager', 'Siste 365 dager']);
+
+        tiles[2]?.click();
+        expect(patchSettings).toHaveBeenCalledWith({ species: { enabled: true, pollSeconds: 3600, days: 90, animalsOnly: false } });
 
         dispose();
     });

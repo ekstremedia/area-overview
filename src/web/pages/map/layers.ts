@@ -17,6 +17,7 @@ import {
     emptyLayerCounts,
     LIVE_LAYER_GROUP_IDS,
     type LayerCounts,
+    type LiveLayerColors,
     type LiveLayerGroupId,
     type LiveLayerItem,
     type PageStatus,
@@ -26,6 +27,9 @@ import { followTarget, stopFollowing } from './follow.js';
 import { mountRoadCamerasLayer } from './roadCameras.js';
 import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
+import { mountSpeciesLayer } from './species.js';
+import { mountTransitLayer } from './transit.js';
+import { mountWarningsLayer } from './warnings.js';
 
 /** A layer's mount function: given the map, start whatever it needs and return its own disposer. */
 export type MapLayerMount = (map: Leaflet.Map) => () => void;
@@ -113,6 +117,11 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
     // the single combined figure the masthead shows.
     const hiddenByAge = new Map<LiveLayerGroupId, number>();
     const items = new Map<LiveLayerGroupId, LiveLayerItem[]>();
+    // Only `warnings` calls `reportColor` today (`LiveLayerCallbacks`'s own
+    // doc comment on why it is optional) -- a plain object rather than a
+    // `Map`, since `PageStatus.layerColors` takes the same partial-record
+    // shape directly, with no conversion at publish time.
+    const colors: LiveLayerColors = {};
 
     /**
      * Zoomed in far enough that the vessel fills the view rather than
@@ -149,6 +158,13 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         status.layerCounts({ ...counts });
     }
 
+    /** See `PageStatus.layerColors`'s doc comment -- currently `warnings` alone. */
+    function reportColor(id: LiveLayerGroupId, color: string | null): void {
+        if (disposed) return;
+        colors[id] = color;
+        status.layerColors({ ...colors });
+    }
+
     /**
      * De-duplicated **by text**, not just by layer id: the roads layer's
      * situations and its road cameras (Phase D) are both "Data: Statens
@@ -168,6 +184,7 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
     }
 
     status.layerCounts({ ...counts });
+    status.layerColors({ ...colors });
     publishListing();
 
     const disposeFollowChip = mountFollowChip(L, map);
@@ -227,6 +244,51 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeTransit = registerMapLayer(map, (m) =>
+        mountTransitLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('transit', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('transit', text);
+            },
+            reportItems: (next) => {
+                reportItems('transit', next);
+            },
+        }),
+    );
+
+    const disposeWarnings = registerMapLayer(map, (m) =>
+        mountWarningsLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('warnings', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('warnings', text);
+            },
+            reportItems: (next) => {
+                reportItems('warnings', next);
+            },
+            reportColor: (color) => {
+                reportColor('warnings', color);
+            },
+        }),
+    );
+
+    const disposeSpecies = registerMapLayer(map, (m) =>
+        mountSpeciesLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('species', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('species', text);
+            },
+            reportItems: (next) => {
+                reportItems('species', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -239,5 +301,8 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeAircraft();
         disposeRoads();
         disposeRoadCameras();
+        disposeTransit();
+        disposeWarnings();
+        disposeSpecies();
     };
 }

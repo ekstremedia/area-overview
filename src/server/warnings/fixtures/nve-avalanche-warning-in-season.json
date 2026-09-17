@@ -1,0 +1,10 @@
+[
+    {
+        "RegionId": 3003,
+        "RegionName": "Vesterålen",
+        "DangerLevel": "3",
+        "DangerLevelName": "Betydelig",
+        "MainText": "Vedvarende svakt lag av kantkorn. Unngå terreng brattere enn 30 grader i utsatte områder.",
+        "ValidFrom": "2026-01-15T00:00:00"
+    }
+]

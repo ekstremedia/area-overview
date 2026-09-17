@@ -6,7 +6,7 @@ const mockSettings = signal<Settings>(SettingsSchema.parse({}));
 vi.mock('../settings-resource.js', () => ({ settings: mockSettings }));
 
 const { mountMasthead } = await import('./Masthead.js');
-const { emptyLayerCounts, liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
+const { emptyLayerCounts, liveLayerColors, liveLayerCounts, liveLayerListing, pageAccountStatus, pageFreshness } = await import('./page-status.js');
 type LiveLayerItem = import('./page-status.js').LiveLayerItem;
 type LiveLayerGroupId = import('./page-status.js').LiveLayerGroupId;
 const { autoCycleArmed, autoCyclePaused } = await import('./autoCycle.js');
@@ -28,7 +28,7 @@ function counts(partial: Partial<ReturnType<typeof emptyLayerCounts>>): ReturnTy
 /** The listing with only the named groups populated; the rest arrive empty, as the map page really publishes them. */
 function listing(groups: Partial<Record<LiveLayerGroupId, LiveLayerItem[]>>, focus: (item: LiveLayerItem) => void) {
     return {
-        items: { ships: [], aircraft: [], roadSituations: [], roadCameras: [], ...groups },
+        items: { ships: [], aircraft: [], roadSituations: [], roadCameras: [], transit: [], warnings: [], species: [], ...groups },
         focus,
     };
 }
@@ -291,10 +291,10 @@ describe('mountMasthead', () => {
         dispose();
     });
 
-    it('renders all four keyed groups, each with its own numeral and unit word', () => {
+    it('renders all seven keyed groups, each with its own numeral and unit word', () => {
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set(counts({ ships: 14, aircraft: 3, roadSituations: 6, roadCameras: 19 }));
+        liveLayerCounts.set(counts({ ships: 14, aircraft: 3, roadSituations: 6, roadCameras: 19, transit: 7, warnings: 2, species: 5 }));
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
@@ -304,17 +304,31 @@ describe('mountMasthead', () => {
         expect(layerCounts?.textContent).toContain('3 fly');
         expect(layerCounts?.textContent).toContain('6 vegmeldinger');
         expect(layerCounts?.textContent).toContain('19 vegkamera');
+        expect(layerCounts?.textContent).toContain('7 kollektiv');
+        expect(layerCounts?.textContent).toContain('2 farevarsler');
+        expect(layerCounts?.textContent).toContain('5 arter');
 
         // Each numeral in its own colour-carrying element -- the glyph
         // inside it is an `<svg>`, so it contributes no text.
         expect(container.querySelector('.masthead-count-road-situations')?.textContent).toBe('6');
         expect(container.querySelector('.masthead-count-road-cameras')?.textContent).toBe('19');
+        expect(container.querySelector('.masthead-count-transit')?.textContent).toBe('7');
+        expect(container.querySelector('.masthead-count-warnings')?.textContent).toBe('2');
+        expect(container.querySelector('.masthead-count-species')?.textContent).toBe('5');
 
-        // Four interactive counts, in reading order; the hidden-by-age one
+        // Seven interactive counts, in reading order; the hidden-by-age one
         // is not a group and opens nothing.
         const buttons = [...container.querySelectorAll('.masthead-count--interactive')];
-        expect(buttons).toHaveLength(4);
-        expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['14 skip', '3 fly', '6 vegmeldinger', '19 vegkamera']);
+        expect(buttons).toHaveLength(7);
+        expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+            '14 skip',
+            '3 fly',
+            '6 vegmeldinger',
+            '19 vegkamera',
+            '7 kollektiv',
+            '2 farevarsler',
+            '5 arter',
+        ]);
 
         liveLayerCounts.set(null);
         dispose();
@@ -330,19 +344,21 @@ describe('mountMasthead', () => {
         // width behaviour itself was checked in a real browser.
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set(counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, hiddenByAge: 1 }));
+        liveLayerCounts.set(
+            counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, transit: 1, warnings: 1, species: 1, hiddenByAge: 1 }),
+        );
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
 
-        // Four groups plus the hidden-by-age count.
-        expect(container.querySelectorAll('.masthead-count-glyph svg')).toHaveLength(5);
-        for (const className of ['ships', 'aircraft', 'road-situations', 'road-cameras']) {
+        // Seven groups plus the hidden-by-age count.
+        expect(container.querySelectorAll('.masthead-count-glyph svg')).toHaveLength(8);
+        for (const className of ['ships', 'aircraft', 'road-situations', 'road-cameras', 'transit', 'warnings', 'species']) {
             expect(container.querySelector(`.masthead-count-${className} .masthead-count-glyph`)).not.toBeNull();
         }
         // And the word is in its own element, which is what the media
         // query switches off.
-        expect(container.querySelectorAll('.masthead-count-unit')).toHaveLength(5);
+        expect(container.querySelectorAll('.masthead-count-unit')).toHaveLength(8);
 
         liveLayerCounts.set(null);
         dispose();
@@ -420,6 +436,76 @@ describe('mountMasthead', () => {
 
         autoCyclePaused.set(false);
         autoCycleArmed.set(null);
+        dispose();
+    });
+
+    it('hides each of the seven count groups from the row entirely when its own count is zero, leaving the others untouched', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const classNameOf: Record<LiveLayerGroupId, string> = {
+            ships: 'masthead-count-ships',
+            aircraft: 'masthead-count-aircraft',
+            roadSituations: 'masthead-count-road-situations',
+            roadCameras: 'masthead-count-road-cameras',
+            transit: 'masthead-count-transit',
+            warnings: 'masthead-count-warnings',
+            species: 'masthead-count-species',
+        };
+        const groupIds = Object.keys(classNameOf) as LiveLayerGroupId[];
+        const buttonFor = (id: LiveLayerGroupId) => container.querySelector(`.${classNameOf[id]}`)?.closest('button');
+
+        const allNonZero = counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, transit: 1, warnings: 1, species: 1 });
+
+        for (const zeroId of groupIds) {
+            liveLayerCounts.set({ ...allNonZero, [zeroId]: 0 });
+            expect(buttonFor(zeroId)?.style.display).toBe('none');
+            for (const otherId of groupIds) {
+                if (otherId === zeroId) continue;
+                expect(buttonFor(otherId)?.style.display).not.toBe('none');
+            }
+        }
+
+        // Back to non-zero brings the group back.
+        liveLayerCounts.set(allNonZero);
+        for (const id of groupIds) expect(buttonFor(id)?.style.display).not.toBe('none');
+
+        liveLayerCounts.set(null);
+        dispose();
+    });
+
+    it('tints the warnings chip by the worst active colour reported by the layer, and leaves it untinted when nothing is active', () => {
+        setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
+        navigate('#/map');
+        liveLayerCounts.set(counts({ warnings: 2 }));
+        liveLayerColors.set(null);
+
+        const container = document.createElement('div');
+        const dispose = mountMasthead(container);
+
+        const warningsEl = container.querySelector<HTMLElement>('.masthead-count-warnings');
+        // Nothing active (the slot itself is `null`, or the group's own key
+        // is `null`): the custom property is unset, so CSS falls back to
+        // the static warning yellow -- no tint of its own.
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerColors.set({ warnings: null });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerColors.set({ warnings: '#edbb00' });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('#edbb00');
+
+        liveLayerColors.set({ warnings: '#c0392b' });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('#c0392b');
+
+        // Back to nothing active clears the tint again.
+        liveLayerColors.set({ warnings: null });
+        expect(warningsEl?.style.getPropertyValue('--masthead-live-color')).toBe('');
+
+        liveLayerCounts.set(null);
+        liveLayerColors.set(null);
         dispose();
     });
 
