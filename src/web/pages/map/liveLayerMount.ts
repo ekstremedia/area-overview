@@ -30,6 +30,23 @@ export interface LiveLayerCallbacks {
     reportItems(items: readonly LiveLayerItem[]): void;
     /** This layer's attribution text while active, or `undefined` while disabled/unconfigured -- feeds the footer's attribution line. */
     reportAttribution(text: string | undefined): void;
+    /**
+     * The worst active colour this layer is currently showing (from its own
+     * `liveLayerColors.ts` palette), or `null` when nothing active carries
+     * one -- disabled/unconfigured, or every item on screen is the
+     * "nothing to flag" tier (e.g. avalanche danger level 1).
+     *
+     * Optional, and the only optional member of this interface: it exists
+     * for the Warnings layer (`warnings.ts`) to feed a future masthead
+     * chip tint (Phase H), and no other layer has a colour scale worth
+     * summarising this way yet. Optional rather than a fifth required
+     * argument on `reportCount` (or a new required method every existing
+     * `mount<Name>Layer` would have to grow a call to) so `ships.ts`,
+     * `aircraft.ts`, `roads.ts`, `roadCameras.ts` and `transit.ts` need no
+     * change at all -- `layers.ts` simply omits this key from the
+     * `LiveLayerCallbacks` object it builds for each of them.
+     */
+    reportColor?(color: string | null): void;
 }
 
 /**

@@ -66,9 +66,10 @@ const freshnessSlot = statusSlot<Freshness>();
 const attributionSlot = statusSlot<string>();
 const layerCountsSlot = statusSlot<LayerCounts>();
 const layerListingSlot = statusSlot<LiveLayerListing>();
+const layerColorsSlot = statusSlot<LiveLayerColors>();
 const accountStatusSlot = statusSlot<AccountStatus>();
 
-const ALL_SLOTS = [freshnessSlot, attributionSlot, layerCountsSlot, layerListingSlot, accountStatusSlot];
+const ALL_SLOTS = [freshnessSlot, attributionSlot, layerCountsSlot, layerListingSlot, layerColorsSlot, accountStatusSlot];
 
 export const pageFreshness: Signal<Freshness | null> = freshnessSlot.signal;
 
@@ -84,6 +85,15 @@ export interface PageStatus {
     layerCounts: (value: LayerCounts | null) => void;
     /** What those counts open when tapped (map only). */
     layerListing: (value: LiveLayerListing | null) => void;
+    /**
+     * Each group's own "worst active colour", one per group that reports
+     * one at all (map only) -- currently only `warnings`
+     * (`LiveLayerCallbacks.reportColor` in `pages/map/liveLayerMount.ts`).
+     * Consumed by a future masthead chip tint (Phase H); surfaced here now
+     * so that phase needs no plumbing of its own, the same
+     * claim/release-per-slide safety every other slot on this page gets.
+     */
+    layerColors: (value: LiveLayerColors | null) => void;
     /** The masthead's login line (settings only). */
     accountStatus: (value: AccountStatus | null) => void;
     /** Gives the slots back on dispose. */
@@ -127,6 +137,9 @@ export function claimPageStatus(): PageStatus {
         layerListing: (value) => {
             layerListingSlot.write(claimed, value);
         },
+        layerColors: (value) => {
+            layerColorsSlot.write(claimed, value);
+        },
         accountStatus: (value) => {
             accountStatusSlot.write(claimed, value);
         },
@@ -157,7 +170,7 @@ export function claimPageStatus(): PageStatus {
  * pair until the fourth group arrived, which is exactly when that
  * stopped paying for itself.)
  */
-export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras', 'transit'] as const;
+export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras', 'transit', 'warnings'] as const;
 
 export type LiveLayerGroupId = (typeof LIVE_LAYER_GROUP_IDS)[number];
 
@@ -180,17 +193,29 @@ export type LayerCounts = Record<LiveLayerGroupId, number> & {
      * a permanent zero. `transit` contributes a permanent zero too, for a
      * different reason -- its age filter runs server-side
      * (`transit.ts`'s own header comment), so a fix dropped for being
-     * stale never reaches the client to be counted here at all.
+     * stale never reaches the client to be counted here at all. `warnings`
+     * is the same as the road groups: a warning is valid until it expires,
+     * not until it goes stale (`WARNINGS_LAYER`'s own doc comment).
      */
     hiddenByAge: number;
 };
 
 /** Every group at zero -- what the map page publishes before any layer has answered. */
 export function emptyLayerCounts(): LayerCounts {
-    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, transit: 0, hiddenByAge: 0 };
+    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, transit: 0, warnings: 0, hiddenByAge: 0 };
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = layerCountsSlot.signal;
+
+/**
+ * A group's own "worst active colour" (see `PageStatus.layerColors`'s doc
+ * comment) -- a partial record, since most groups never call
+ * `reportColor` at all and an absent key must mean exactly that, not "no
+ * colour right now" (which is a real, distinct state: `null`).
+ */
+export type LiveLayerColors = Partial<Record<LiveLayerGroupId, string | null>>;
+
+export const liveLayerColors: Signal<LiveLayerColors | null> = layerColorsSlot.signal;
 
 /**
  * One entry in the masthead's tap-through list of what is currently on

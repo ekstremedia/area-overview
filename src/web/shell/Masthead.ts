@@ -197,6 +197,17 @@ const ROAD_CAMERA_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/200
 const TRANSIT_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M4 5.8A2 2 0 0 1 6 3.8h12a2 2 0 0 1 2 2v8.4a1.8 1.8 0 0 1-1.6 1.79V17a1 1 0 1 1-2 0v-1H7.6v1a1 1 0 1 1-2 0v-1.01A1.8 1.8 0 0 1 4 14.2V5.8Zm2.2.7v3.8h4.3V6.5H6.2Zm5.9 0v3.8h4.3V6.5h-4.3Zm5.9 0v2.9a.9.9 0 0 0 .5-.8V6.9a.4.4 0 0 0-.4-.4h-.1Z"/><circle cx="7.6" cy="15" r="1.3"/><circle cx="16.4" cy="15" r="1.3"/></svg>`;
 
 /**
+ * The Warnings count's own glyph -- the same two-peak mountain silhouette
+ * `pages/map/glyphs/avalanche.svg` draws on the avalanche pin, copied
+ * rather than imported for the same reason `ROAD_CAMERA_GLYPH` and
+ * `TRANSIT_GLYPH` above are. It stands for both halves of the merged
+ * layer (MET Alerts and NVE Varsom), the way `TRANSIT_GLYPH` stands for
+ * both buses and ferries -- the masthead's row has no room for a second
+ * glyph.
+ */
+const WARNINGS_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M8.6 5.4a1 1 0 0 1 1.7 0l3 5-1.7 2.9-1-1.7-5.2 8.9H1.2L8.6 5.4Zm6.3 3.2a1 1 0 0 1 1.7 0l6.2 10.9a1 1 0 0 1-.9 1.5H9.3a1 1 0 0 1-.9-1.5l1.9-3.3 1 1.7 1-1.7-1.9-3.3 3.5-5.3Z"/></svg>`;
+
+/**
  * The hidden-by-age count is not a group -- nothing opens when it is
  * tapped -- but it sits in the same row and loses its word to the same
  * media query, and a bare unexplained numeral beside four labelled ones
@@ -211,6 +222,7 @@ const COUNT_GROUPS: Readonly<Record<LiveLayerGroupId, MastheadCountGroup>> = {
     roadSituations: { className: 'masthead-count-road-situations', unitKey: 'masthead.roadSituationsUnit', glyph: ROAD_SITUATION_GLYPH },
     roadCameras: { className: 'masthead-count-road-cameras', unitKey: 'masthead.roadCamerasUnit', glyph: ROAD_CAMERA_GLYPH },
     transit: { className: 'masthead-count-transit', unitKey: 'masthead.transitUnit', glyph: TRANSIT_GLYPH },
+    warnings: { className: 'masthead-count-warnings', unitKey: 'masthead.warningsUnit', glyph: WARNINGS_GLYPH },
 };
 
 /**

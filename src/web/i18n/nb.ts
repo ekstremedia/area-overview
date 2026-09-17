@@ -42,6 +42,7 @@ export const nb = {
     'masthead.roadSituationsUnit': 'vegmeldinger',
     'masthead.roadCamerasUnit': 'vegkamera',
     'masthead.transitUnit': 'kollektiv',
+    'masthead.warningsUnit': 'farevarsler',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
@@ -198,6 +199,19 @@ export const nb = {
     'map.transitModeBus': 'Buss',
     'map.transitModeFerry': 'Ferge',
     'map.transitRoute': '{from} → {to}',
+
+    // — Warnings (MET Alerts weather warnings + NVE Varsom avalanche
+    // regions) — MET's own `title`/`description`/`consequences`/
+    // `instruction` are shown verbatim in both UI languages, the same
+    // reasoning as `map.roadSource`'s comment above; only the ending-time
+    // line and the avalanche danger words below are this app's own text.
+    'map.warningEndsAt': 'til {when}',
+    // NVE Varsom's own scale words (varsom.no), levels 1-5.
+    'map.avalancheDanger.1': 'Liten',
+    'map.avalancheDanger.2': 'Moderat',
+    'map.avalancheDanger.3': 'Betydelig',
+    'map.avalancheDanger.4': 'Stor',
+    'map.avalancheDanger.5': 'Meget stor',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',
     'error.noData': 'Ingen data tilgjengelig.',
@@ -375,6 +389,9 @@ export const nb = {
     // `showPlanned`/`showCameras` above.
     'settings.layers.showBuses': 'Vis busser',
     'settings.layers.showFerries': 'Vis ferger',
+    // The Warnings layer's own filter -- the analogue of `showCameras`
+    // above: keep the weather warnings without the avalanche pins.
+    'settings.layers.showAvalanche': 'Vis snøskredvarsler',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

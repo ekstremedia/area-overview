@@ -243,6 +243,23 @@ export const mount: SectionMount = (container, ctx) => {
             block.append(showBusesRow.el, showFerriesRow.el);
         }
 
+        // Warnings-only field, the same deliberate id-branch: whether NVE's
+        // avalanche outlines+pins draw alongside MET's weather polygons,
+        // the analogue of `roads`' `showCameras` -- a way to keep half the
+        // merged layer without the other.
+        let showAvalancheToggle: ToggleHandle | undefined;
+        if (layer.id === 'warnings') {
+            showAvalancheToggle = toggle({
+                checked: initial.warnings.showAvalanche,
+                onChange: (checked) => {
+                    write({ showAvalanche: checked });
+                },
+            });
+            const showAvalancheRow = field({ label: t('settings.layers.showAvalanche'), control: showAvalancheToggle.el });
+            rows.push(showAvalancheRow);
+            block.append(showAvalancheRow.el);
+        }
+
         // Ships-only read-only credentials line.
         let credentialsLine: HTMLElement | undefined;
         if (layer.id === 'ships') {
@@ -275,6 +292,7 @@ export const mount: SectionMount = (container, ctx) => {
             if ('showCameras' in current) showCamerasToggle?.setState(current.showCameras, false);
             if ('showBuses' in current) showBusesToggle?.setState(current.showBuses, false);
             if ('showFerries' in current) showFerriesToggle?.setState(current.showFerries, false);
+            if ('showAvalanche' in current) showAvalancheToggle?.setState(current.showAvalanche, false);
         });
         disposers.push(disposeEffect);
     }

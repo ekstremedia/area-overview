@@ -198,6 +198,16 @@
     color: var(--color-muted);
 }
 
+/* Static for now, the same warning yellow the road-situations numeral
+   wears: the per-item severity (MET's three awareness tiers, NVE's five
+   danger levels) is already computed and reported per poll
+   (`LiveLayerCallbacks.reportColor`, `warnings.ts`'s `worstColorOf`) for a
+   future chip tint (Phase H) to read -- this rule is only the colour the
+   numeral wears until that phase wires it up. */
+.masthead-count-warnings {
+    color: var(--color-process-yellow);
+}
+
 /* The numeral and its glyph sit together and share the group's colour;
    the glyph is `currentColor` throughout, so there is no second place
    that names these colours. */
@@ -205,6 +215,7 @@
 .masthead-count-aircraft,
 .masthead-count-road-situations,
 .masthead-count-road-cameras,
+.masthead-count-warnings,
 .masthead-count-hidden {
     display: inline-flex;
     align-items: center;
