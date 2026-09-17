@@ -63,6 +63,8 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         nveMinIntervalMs: 60_000,
         nveBurst: 2,
         speciesCacheTtlMs: 20,
+        gbifMinIntervalMs: 10_000,
+        gbifBurst: 2,
         ...overrides,
     };
 }

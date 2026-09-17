@@ -53,6 +53,8 @@ function fakeConfig(): ServerConfig {
         nveMinIntervalMs: 60_000,
         nveBurst: 2,
         speciesCacheTtlMs: 1_800_000,
+        gbifMinIntervalMs: 10_000,
+        gbifBurst: 2,
     };
 }
 

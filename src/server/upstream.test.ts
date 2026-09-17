@@ -46,6 +46,8 @@ const config: ServerConfig = {
     nveMinIntervalMs: 60_000,
     nveBurst: 2,
     speciesCacheTtlMs: 1_800_000,
+    gbifMinIntervalMs: 10_000,
+    gbifBurst: 2,
 };
 
 const TestSchema = z.object({ value: z.number() });

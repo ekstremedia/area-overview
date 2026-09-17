@@ -16,6 +16,7 @@ import { registerRoadCamerasRoutes } from './routes/road-cameras.js';
 import { registerRoadSituationsRoutes } from './routes/road-situations.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShipsRoutes } from './routes/ships.js';
+import { registerSpeciesRoutes } from './routes/species.js';
 import { registerTransitRoutes } from './routes/transit.js';
 import { registerWarningsRoutes } from './routes/warnings.js';
 import { createOutboundGate } from './outbound-gate.js';
@@ -158,6 +159,13 @@ export function buildApp(config: ServerConfig, options: BuildAppOptions = {}): F
     const metGate = createOutboundGate({ minIntervalMs: config.metMinIntervalMs, burst: config.metBurst });
     const nveGate = createOutboundGate({ minIntervalMs: config.nveMinIntervalMs, burst: config.nveBurst });
     registerWarningsRoutes(app, config, { metGate, nveGate });
+
+    // The process-wide GBIF outbound budget: the occurrence search API is
+    // keyless, has no published quota and no SLA, so the politeness has
+    // to be ours, same reasoning as the other keyless-upstream gates
+    // above.
+    const gbifGate = createOutboundGate({ minIntervalMs: config.gbifMinIntervalMs, burst: config.gbifBurst });
+    registerSpeciesRoutes(app, config, { gate: gbifGate });
 
     registerStaticPlugin(app);
 

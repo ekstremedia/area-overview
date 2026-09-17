@@ -206,6 +206,16 @@ const ServerConfigSchema = z.object({
     nveBurst: z.coerce.number().int().positive().default(2),
     /** `GET /api/species` cache TTL, keyed per-bbox and per `settings.species.days` window. GBIF's occurrence index is itself a slow-moving snapshot, hence the long default. */
     speciesCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
+    /**
+     * The process-wide GBIF outbound budget: one request per
+     * `GBIF_MIN_INTERVAL_MS` on average, with up to `GBIF_BURST` banked
+     * for the flurry of `moveend`s a real pan produces. Same arrangement,
+     * and same reasoning, as the ADS-B/Vegvesen/Entur/MET/NVE gates above
+     * -- GBIF's occurrence search is keyless and free, with no quota to
+     * push back with, so raising the interval is the polite direction.
+     */
+    gbifMinIntervalMs: z.coerce.number().int().positive().default(10_000),
+    gbifBurst: z.coerce.number().int().positive().default(2),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -257,6 +267,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         nveMinIntervalMs: env.NVE_MIN_INTERVAL_MS,
         nveBurst: env.NVE_BURST,
         speciesCacheTtlMs: env.SPECIES_CACHE_TTL_MS,
+        gbifMinIntervalMs: env.GBIF_MIN_INTERVAL_MS,
+        gbifBurst: env.GBIF_BURST,
     });
 
     if (!parsed.success) {
