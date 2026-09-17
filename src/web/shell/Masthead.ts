@@ -208,6 +208,19 @@ const TRANSIT_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/sv
 const WARNINGS_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" fill-rule="evenodd"><path d="M8.6 5.4a1 1 0 0 1 1.7 0l3 5-1.7 2.9-1-1.7-5.2 8.9H1.2L8.6 5.4Zm6.3 3.2a1 1 0 0 1 1.7 0l6.2 10.9a1 1 0 0 1-.9 1.5H9.3a1 1 0 0 1-.9-1.5l1.9-3.3 1 1.7 1-1.7-1.9-3.3 3.5-5.3Z"/></svg>`;
 
 /**
+ * The Species count's own glyph -- a paw print, the same shape
+ * `pages/map/glyphs/mammal.svg` draws on a mammal sighting's own pin,
+ * copied rather than imported for the same reason `ROAD_CAMERA_GLYPH`,
+ * `TRANSIT_GLYPH` and `WARNINGS_GLYPH` above are. It stands for every
+ * `class` the layer can draw (bird, mammal, fish, insect, plant, ...) the
+ * same way `TRANSIT_GLYPH` stands for both buses and ferries -- the
+ * masthead's row has room for one glyph per group, not one per taxonomic
+ * class, and a paw reads as "wildlife" at a glance faster than any of the
+ * other five candidates would.
+ */
+const SPECIES_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><ellipse cx="12" cy="15.6" rx="5.4" ry="4.3"/><circle cx="5.2" cy="9.6" r="2.1"/><circle cx="9.6" cy="5.5" r="2.1"/><circle cx="14.4" cy="5.5" r="2.1"/><circle cx="18.8" cy="9.6" r="2.1"/></svg>`;
+
+/**
  * The hidden-by-age count is not a group -- nothing opens when it is
  * tapped -- but it sits in the same row and loses its word to the same
  * media query, and a bare unexplained numeral beside four labelled ones
@@ -223,6 +236,7 @@ const COUNT_GROUPS: Readonly<Record<LiveLayerGroupId, MastheadCountGroup>> = {
     roadCameras: { className: 'masthead-count-road-cameras', unitKey: 'masthead.roadCamerasUnit', glyph: ROAD_CAMERA_GLYPH },
     transit: { className: 'masthead-count-transit', unitKey: 'masthead.transitUnit', glyph: TRANSIT_GLYPH },
     warnings: { className: 'masthead-count-warnings', unitKey: 'masthead.warningsUnit', glyph: WARNINGS_GLYPH },
+    species: { className: 'masthead-count-species', unitKey: 'masthead.speciesUnit', glyph: SPECIES_GLYPH },
 };
 
 /**

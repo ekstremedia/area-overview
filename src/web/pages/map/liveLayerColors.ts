@@ -132,3 +132,18 @@ export const AVALANCHE_NEUTRAL_COLOR = ROAD_PLANNED_COLOR;
  * reads as a hole on the dark basemap.
  */
 export const ROAD_LINE_CASING_COLOR = '#16191c';
+
+/**
+ * The Species (GBIF) layer's one pin colour (`species.ts`). Unlike every
+ * other layer's colour set, this is not a severity/state scale -- a
+ * sighting has no "worse" or "better" tier -- so every pin plate takes the
+ * same colour regardless of `class`, and only the glyph inside it (see
+ * `glyphs/README.md`) says what was seen. A freestanding literal for the
+ * same reason every colour in this file is (a `L.divIcon`'s inline style
+ * can't resolve `var(--token)`, and Broadsheet's ramp has no green to
+ * mirror): a herbal green reads as "living thing" and is not already
+ * claimed for a whole layer elsewhere (`SHIP_GLYPH_COLOR_UNDERWAY_ENGINE`
+ * tags a single AIS status, not a layer, and sits far enough from this hue
+ * that the two are not mistaken for each other at a glance).
+ */
+export const SPECIES_PIN_COLOR = '#7cb85c';

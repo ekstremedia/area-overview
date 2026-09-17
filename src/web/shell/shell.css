@@ -208,6 +208,16 @@
     color: var(--color-process-yellow);
 }
 
+/* The same herbal green every species pin's plate wears
+   (`SPECIES_PIN_COLOR` in `pages/map/liveLayerColors.ts`) -- "the same
+   thing counted and drawn should look the same", the road-camera rule's
+   own reasoning above. A freestanding literal, not a design token, for
+   the same reason `liveLayerColors.ts` carries one at all: Broadsheet's
+   ramp has no green to mirror. */
+.masthead-count-species {
+    color: #7cb85c;
+}
+
 /* The numeral and its glyph sit together and share the group's colour;
    the glyph is `currentColor` throughout, so there is no second place
    that names these colours. */
@@ -216,6 +226,7 @@
 .masthead-count-road-situations,
 .masthead-count-road-cameras,
 .masthead-count-warnings,
+.masthead-count-species,
 .masthead-count-hidden {
     display: inline-flex;
     align-items: center;

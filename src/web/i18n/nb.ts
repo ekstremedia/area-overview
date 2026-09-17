@@ -43,6 +43,7 @@ export const nb = {
     'masthead.roadCamerasUnit': 'vegkamera',
     'masthead.transitUnit': 'kollektiv',
     'masthead.warningsUnit': 'farevarsler',
+    'masthead.speciesUnit': 'arter',
     'masthead.hiddenUnit': 'skjult',
     'masthead.livePanelEmpty': 'Ingenting i sikte',
     'masthead.settings': 'Innstillinger',
@@ -212,6 +213,19 @@ export const nb = {
     'map.avalancheDanger.3': 'Betydelig',
     'map.avalancheDanger.4': 'Stor',
     'map.avalancheDanger.5': 'Meget stor',
+
+    // — Species (GBIF occurrence sightings) — deliberately not "live":
+    // every string here talks about a past observation, never a current
+    // position, matching the plan's "nothing in the UI calls it live".
+    'map.speciesObservedOn': 'Observert {when}',
+    'map.speciesObservationCount': '{count} observasjoner',
+    'map.speciesIndividualCount': '{count} individer',
+    'map.speciesDatasets': 'Datasett: {datasets}',
+    'map.speciesLicense': 'Lisens: {license}',
+    'map.speciesUncertainty': 'Posisjon usikker: ca. {meters}',
+    // Appended to the layer's own attribution line when the server capped
+    // the response -- see `species.ts`'s `render`.
+    'map.speciesTruncatedSuffix': 'viser et utvalg',
 
     'error.staleData': 'Kunne ikke oppdatere · viser tidligere data.',
     'error.noData': 'Ingen data tilgjengelig.',
@@ -392,6 +406,15 @@ export const nb = {
     // The Warnings layer's own filter -- the analogue of `showCameras`
     // above: keep the weather warnings without the avalanche pins.
     'settings.layers.showAvalanche': 'Vis snøskredvarsler',
+    // Species' own two filters. The day-window label states the window in
+    // days, deliberately -- this data is never live, and the control must
+    // not read as if it were (see `species.ts`'s own header comment).
+    'settings.layers.animalsOnly': 'Bare dyr',
+    'settings.layers.speciesDays': 'Tidsvindu',
+    'settings.layers.speciesDays7': 'Siste 7 dager',
+    'settings.layers.speciesDays30': 'Siste 30 dager',
+    'settings.layers.speciesDays90': 'Siste 90 dager',
+    'settings.layers.speciesDays365': 'Siste 365 dager',
     'settings.layers.shipsCredentialsSet': 'BarentsWatch-nøkler er satt på serveren.',
     'settings.layers.shipsCredentialsMissing': 'BarentsWatch-nøkler er IKKE satt på serveren.',
 

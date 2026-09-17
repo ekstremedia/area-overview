@@ -28,7 +28,7 @@ function counts(partial: Partial<ReturnType<typeof emptyLayerCounts>>): ReturnTy
 /** The listing with only the named groups populated; the rest arrive empty, as the map page really publishes them. */
 function listing(groups: Partial<Record<LiveLayerGroupId, LiveLayerItem[]>>, focus: (item: LiveLayerItem) => void) {
     return {
-        items: { ships: [], aircraft: [], roadSituations: [], roadCameras: [], transit: [], warnings: [], ...groups },
+        items: { ships: [], aircraft: [], roadSituations: [], roadCameras: [], transit: [], warnings: [], species: [], ...groups },
         focus,
     };
 }
@@ -291,10 +291,10 @@ describe('mountMasthead', () => {
         dispose();
     });
 
-    it('renders all six keyed groups, each with its own numeral and unit word', () => {
+    it('renders all seven keyed groups, each with its own numeral and unit word', () => {
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set(counts({ ships: 14, aircraft: 3, roadSituations: 6, roadCameras: 19, transit: 7, warnings: 2 }));
+        liveLayerCounts.set(counts({ ships: 14, aircraft: 3, roadSituations: 6, roadCameras: 19, transit: 7, warnings: 2, species: 5 }));
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
@@ -306,6 +306,7 @@ describe('mountMasthead', () => {
         expect(layerCounts?.textContent).toContain('19 vegkamera');
         expect(layerCounts?.textContent).toContain('7 kollektiv');
         expect(layerCounts?.textContent).toContain('2 farevarsler');
+        expect(layerCounts?.textContent).toContain('5 arter');
 
         // Each numeral in its own colour-carrying element -- the glyph
         // inside it is an `<svg>`, so it contributes no text.
@@ -313,11 +314,12 @@ describe('mountMasthead', () => {
         expect(container.querySelector('.masthead-count-road-cameras')?.textContent).toBe('19');
         expect(container.querySelector('.masthead-count-transit')?.textContent).toBe('7');
         expect(container.querySelector('.masthead-count-warnings')?.textContent).toBe('2');
+        expect(container.querySelector('.masthead-count-species')?.textContent).toBe('5');
 
-        // Six interactive counts, in reading order; the hidden-by-age one
+        // Seven interactive counts, in reading order; the hidden-by-age one
         // is not a group and opens nothing.
         const buttons = [...container.querySelectorAll('.masthead-count--interactive')];
-        expect(buttons).toHaveLength(6);
+        expect(buttons).toHaveLength(7);
         expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
             '14 skip',
             '3 fly',
@@ -325,6 +327,7 @@ describe('mountMasthead', () => {
             '19 vegkamera',
             '7 kollektiv',
             '2 farevarsler',
+            '5 arter',
         ]);
 
         liveLayerCounts.set(null);
@@ -341,19 +344,21 @@ describe('mountMasthead', () => {
         // width behaviour itself was checked in a real browser.
         setSettings({ enabledPages: ['map', 'weather', 'aurora', 'tide', 'cameras'] });
         navigate('#/map');
-        liveLayerCounts.set(counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, transit: 1, warnings: 1, hiddenByAge: 1 }));
+        liveLayerCounts.set(
+            counts({ ships: 1, aircraft: 1, roadSituations: 1, roadCameras: 1, transit: 1, warnings: 1, species: 1, hiddenByAge: 1 }),
+        );
 
         const container = document.createElement('div');
         const dispose = mountMasthead(container);
 
-        // Six groups plus the hidden-by-age count.
-        expect(container.querySelectorAll('.masthead-count-glyph svg')).toHaveLength(7);
-        for (const className of ['ships', 'aircraft', 'road-situations', 'road-cameras', 'transit', 'warnings']) {
+        // Seven groups plus the hidden-by-age count.
+        expect(container.querySelectorAll('.masthead-count-glyph svg')).toHaveLength(8);
+        for (const className of ['ships', 'aircraft', 'road-situations', 'road-cameras', 'transit', 'warnings', 'species']) {
             expect(container.querySelector(`.masthead-count-${className} .masthead-count-glyph`)).not.toBeNull();
         }
         // And the word is in its own element, which is what the media
         // query switches off.
-        expect(container.querySelectorAll('.masthead-count-unit')).toHaveLength(7);
+        expect(container.querySelectorAll('.masthead-count-unit')).toHaveLength(8);
 
         liveLayerCounts.set(null);
         dispose();

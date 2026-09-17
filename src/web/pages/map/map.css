@@ -1130,3 +1130,96 @@
     color: var(--color-muted);
     font-size: 13px;
 }
+
+/* — Species (GBIF occurrence sightings) — same 44px tap-target/32px badge
+   arrangement as `.transit-pin`/`.avalanche-pin`, but `--species-pin-color`
+   is a single fixed value (`SPECIES_PIN_COLOR` in `liveLayerColors.ts`) set
+   the same "colour from JS, shape from CSS" way regardless: a sighting
+   carries no severity/state, only a `class`, so every plate takes the same
+   colour and only the glyph inside it (per-class, see `glyphs/README.md`)
+   varies. */
+.species-pin {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.species-pin-plate {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow:
+        0 0 0 2px var(--species-pin-color),
+        0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.species-pin-glyph,
+.species-pin-glyph svg {
+    width: 19px;
+    height: 19px;
+    display: block;
+    color: var(--species-pin-color);
+}
+
+/* — species popup — same dark-card treatment as `.avalanche-popup-wrapper`. */
+.species-popup-wrapper .leaflet-popup-content-wrapper {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+}
+.species-popup-wrapper .leaflet-popup-tip-container {
+    display: none;
+}
+.species-popup-wrapper .leaflet-popup-close-button {
+    width: var(--tap-min) !important;
+    height: var(--tap-min) !important;
+}
+
+.species-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.species-popup-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--font-heading-weight);
+    font-size: 16px;
+}
+
+/* The scientific-name fallback (no vernacular name from GBIF) -- the `<i>`
+   itself carries the italic, this class exists only for the popup's own
+   layout, not for its style. */
+.species-popup-scientific-name {
+    font-style: italic;
+}
+
+.species-popup-date,
+.species-popup-count,
+.species-popup-individuals,
+.species-popup-datasets,
+.species-popup-license {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* An honest caveat, not a fact stated as plainly as the others -- shown
+   only when GBIF reported an uncertainty radius at all. */
+.species-popup-uncertainty {
+    margin-top: 2px;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-style: italic;
+}

@@ -31,7 +31,8 @@ import {
     type LiveLayerId,
     type LiveLayerSpec,
 } from '../../../shared/layers.js';
-import type { Settings, SettingsPatch } from '../../../shared/schemas/settings.js';
+import type { Settings, SettingsPatch, SpeciesDays } from '../../../shared/schemas/settings.js';
+import { selectField, type SelectFieldHandle, type SelectFieldOption } from '../../components/SelectField.js';
 import { stepper, type StepperHandle } from '../../components/Stepper.js';
 import { toggle, type ToggleHandle } from '../../components/Toggle.js';
 import { effect } from '../../core/signal.js';
@@ -260,6 +261,49 @@ export const mount: SectionMount = (container, ctx) => {
             block.append(showAvalancheRow.el);
         }
 
+        // Species-only fields, the same deliberate id-branch: a
+        // client-side kingdom filter, and the GBIF lookback window.
+        //
+        // The window is a `selectField` (segmented tiles), not a stepper:
+        // a stepper implies a continuous range with a meaningful step
+        // between values, and `settings.species.days` is a closed set of
+        // four buckets the server caches its GBIF query by
+        // (`SpeciesDaysSchema`). Every label states the window in days,
+        // deliberately -- this data is never live, and the control must
+        // not read as if it were (`species.ts`'s own header comment).
+        // `selectField` is generic over `string`, so the four numbers are
+        // carried in their own string form and parsed back to
+        // `SpeciesDays` on write.
+        let animalsOnlyToggle: ToggleHandle | undefined;
+        let daysSelect: SelectFieldHandle<`${SpeciesDays}`> | undefined;
+        if (layer.id === 'species') {
+            animalsOnlyToggle = toggle({
+                checked: initial.species.animalsOnly,
+                onChange: (checked) => {
+                    write({ animalsOnly: checked });
+                },
+            });
+            const animalsOnlyRow = field({ label: t('settings.layers.animalsOnly'), control: animalsOnlyToggle.el });
+
+            const daysOptions: SelectFieldOption<`${SpeciesDays}`>[] = [
+                { value: '7', label: t('settings.layers.speciesDays7') },
+                { value: '30', label: t('settings.layers.speciesDays30') },
+                { value: '90', label: t('settings.layers.speciesDays90') },
+                { value: '365', label: t('settings.layers.speciesDays365') },
+            ];
+            daysSelect = selectField({
+                value: String(initial.species.days) as `${SpeciesDays}`,
+                options: daysOptions,
+                onChange: (next) => {
+                    write({ days: Number(next) as SpeciesDays });
+                },
+            });
+            const daysRow = field({ label: t('settings.layers.speciesDays'), control: daysSelect.el });
+
+            rows.push(animalsOnlyRow, daysRow);
+            block.append(animalsOnlyRow.el, daysRow.el);
+        }
+
         // Ships-only read-only credentials line.
         let credentialsLine: HTMLElement | undefined;
         if (layer.id === 'ships') {
@@ -293,6 +337,8 @@ export const mount: SectionMount = (container, ctx) => {
             if ('showBuses' in current) showBusesToggle?.setState(current.showBuses, false);
             if ('showFerries' in current) showFerriesToggle?.setState(current.showFerries, false);
             if ('showAvalanche' in current) showAvalancheToggle?.setState(current.showAvalanche, false);
+            if ('animalsOnly' in current) animalsOnlyToggle?.setState(current.animalsOnly, false);
+            if ('days' in current) daysSelect?.setState(String(current.days) as `${SpeciesDays}`, false);
         });
         disposers.push(disposeEffect);
     }

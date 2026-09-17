@@ -27,6 +27,7 @@ import { followTarget, stopFollowing } from './follow.js';
 import { mountRoadCamerasLayer } from './roadCameras.js';
 import { mountRoadsLayer } from './roads.js';
 import { mountShipsLayer } from './ships.js';
+import { mountSpeciesLayer } from './species.js';
 import { mountTransitLayer } from './transit.js';
 import { mountWarningsLayer } from './warnings.js';
 
@@ -274,6 +275,20 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         }),
     );
 
+    const disposeSpecies = registerMapLayer(map, (m) =>
+        mountSpeciesLayer(L, m, {
+            reportCount: (count, hidden) => {
+                reportCount('species', count, hidden);
+            },
+            reportAttribution: (text) => {
+                reportAttribution('species', text);
+            },
+            reportItems: (next) => {
+                reportItems('species', next);
+            },
+        }),
+    );
+
     return function dispose(): void {
         disposed = true;
         // Before the layers, so the follow's own timer and map listener are
@@ -288,5 +303,6 @@ export function mountLiveLayers(L: typeof Leaflet, map: Leaflet.Map, status: Pag
         disposeRoadCameras();
         disposeTransit();
         disposeWarnings();
+        disposeSpecies();
     };
 }

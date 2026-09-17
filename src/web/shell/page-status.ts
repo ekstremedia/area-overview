@@ -170,7 +170,7 @@ export function claimPageStatus(): PageStatus {
  * pair until the fourth group arrived, which is exactly when that
  * stopped paying for itself.)
  */
-export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras', 'transit', 'warnings'] as const;
+export const LIVE_LAYER_GROUP_IDS = ['ships', 'aircraft', 'roadSituations', 'roadCameras', 'transit', 'warnings', 'species'] as const;
 
 export type LiveLayerGroupId = (typeof LIVE_LAYER_GROUP_IDS)[number];
 
@@ -196,13 +196,18 @@ export type LayerCounts = Record<LiveLayerGroupId, number> & {
      * stale never reaches the client to be counted here at all. `warnings`
      * is the same as the road groups: a warning is valid until it expires,
      * not until it goes stale (`WARNINGS_LAYER`'s own doc comment).
+     * `species` contributes a permanent zero too: a sighting is already
+     * weeks old by the time GBIF publishes it, so "hidden for being stale"
+     * has no meaning here either (`SPECIES_LAYER`'s own doc comment) --
+     * `settings.species.animalsOnly` filters what is *counted*, not what
+     * is hidden for age.
      */
     hiddenByAge: number;
 };
 
 /** Every group at zero -- what the map page publishes before any layer has answered. */
 export function emptyLayerCounts(): LayerCounts {
-    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, transit: 0, warnings: 0, hiddenByAge: 0 };
+    return { ships: 0, aircraft: 0, roadSituations: 0, roadCameras: 0, transit: 0, warnings: 0, species: 0, hiddenByAge: 0 };
 }
 
 export const liveLayerCounts: Signal<LayerCounts | null> = layerCountsSlot.signal;
