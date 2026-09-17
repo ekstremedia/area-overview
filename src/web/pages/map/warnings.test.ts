@@ -333,4 +333,41 @@ describe('mountWarningsLayer', () => {
 
         dispose();
     });
+
+    it('applies a settings.warnings.pollSeconds change to subsequent polls immediately, not only after remount', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        // A fresh `Response` per call -- see `transit.test.ts`'s identical
+        // test for why `mockResolvedValue` (one shared, single-read body)
+        // would be wrong here.
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(response([galeWarning], [lofotenRegion]))));
+        vi.stubGlobal('fetch', fetchMock);
+
+        mockSettings.set(enabled({ pollSeconds: 300 }));
+        const dispose = mountWarningsLayer(fakeLeaflet({ markers: [], polygons: [] }), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Rebuilding the underlying resource at the new interval fetches
+        // once immediately (the same "felt now" contract every other
+        // live-layer setting already gets) -- accounted for here before
+        // checking the new *interval* takes effect below.
+        mockSettings.set(enabled({ pollSeconds: 600 }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // The OLD 300s interval must no longer govern.
+        await vi.advanceTimersByTimeAsync(300_000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // The full NEW 600s interval (since the change) does poll.
+        await vi.advanceTimersByTimeAsync(300_000);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+
+        dispose();
+    });
 });

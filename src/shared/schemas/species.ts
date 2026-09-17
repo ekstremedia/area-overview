@@ -22,12 +22,12 @@ export const SightingSchema = z.object({
     kingdom: z.string(),
     /** GBIF's taxonomic class (`Aves`, `Mammalia`, `Actinopterygii`, `Insecta`, `Magnoliopsida`/`Pinopsida`, ...), passed through as a plain string -- separate from `kingdom`, which only serves the `animalsOnly` filter. */
     class: z.string(),
-    /** The distinct dataset keys this group's records span, each with its human-readable title for the popup's "source dataset" line. A group can span more than one dataset. */
-    datasets: z.array(z.object({ key: z.string(), title: z.string() })),
+    /** The distinct dataset keys this group's records span, each with its human-readable title for the popup's "source dataset" line. A group can span more than one dataset. At least one: every positive-count group folds together at least one GBIF occurrence, and GBIF's own `datasetKey` is non-nullable, so an empty array here can only mean a mapping bug, not a real answer. */
+    datasets: z.array(z.object({ key: z.string(), title: z.string() })).min(1),
     /** The record's own licence, passed through to the popup. */
     license: z.string(),
-    /** The coordinate uncertainty in metres, when a record in the group reports one; null otherwise. Shown in the popup when present. */
-    coordinateUncertaintyMeters: z.number().nullable(),
+    /** The coordinate uncertainty in metres, when a record in the group reports one; null otherwise. Shown in the popup when present. Never negative -- it is a distance, and GBIF never reports one below zero. */
+    coordinateUncertaintyMeters: z.number().nonnegative().nullable(),
     /** How many raw GBIF occurrence records this pin folds together -- record count, not individual count. At least one. */
     count: z.number().int().positive(),
     /** The summed `individualCount` across this group's records that reported one. Null when no record in the group had one -- distinct from `count`, which counts records regardless of whether they carried an individual count. */

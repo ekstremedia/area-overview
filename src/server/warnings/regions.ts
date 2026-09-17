@@ -125,6 +125,21 @@ export async function fetchRegions(options: FetchRegionsOptions): Promise<Result
         if (outline.length < 3) continue;
         regions.push({ regionId: String(raw.Id), regionName: raw.Name, typeName: raw.TypeName ?? '', outline });
     }
+
+    // NVE always has ~46 regions in practice -- a genuinely empty roster
+    // (`parsed.data.length === 0`) never happens, but is still a valid
+    // answer if it ever did (nothing to serve is not the same as garbage).
+    // A NON-empty raw roster that maps down to zero usable regions,
+    // though, means every entry was missing or had a too-short `Polygon`
+    // -- a degraded/malformed upstream answer, not "NVE has no regions
+    // today" -- and must not be read as the latter: the caller would
+    // otherwise make zero region-intersection attempts and confidently
+    // report "no avalanche warnings anywhere", indistinguishable from a
+    // real all-clear.
+    if (parsed.data.length > 0 && regions.length === 0) {
+        return err({ message: 'NVE Region response parsed but yielded no usable regions (every entry lacked a usable Polygon)' });
+    }
+
     return ok(regions);
 }
 

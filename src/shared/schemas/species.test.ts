@@ -51,6 +51,14 @@ describe('SightingSchema', () => {
         expect(SightingSchema.safeParse(omitKey(validSighting, 'datasets')).success).toBe(false);
     });
 
+    it('rejects an empty datasets array, since every positive-count group has at least one source dataset', () => {
+        expect(SightingSchema.safeParse({ ...validSighting, datasets: [] }).success).toBe(false);
+    });
+
+    it('rejects a negative coordinateUncertaintyMeters', () => {
+        expect(SightingSchema.safeParse({ ...validSighting, coordinateUncertaintyMeters: -1 }).success).toBe(false);
+    });
+
     it('rejects a sighting missing license', () => {
         expect(SightingSchema.safeParse(omitKey(validSighting, 'license')).success).toBe(false);
     });

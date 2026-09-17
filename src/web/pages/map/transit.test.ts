@@ -190,6 +190,53 @@ describe('mountTransitLayer', () => {
         dispose();
     });
 
+    it('applies a settings.transit.pollSeconds change to subsequent polls immediately, not only after remount', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));
+        // A fresh `Response` per call -- unlike every other test in this
+        // file, this one polls more than once off the same mock, and a
+        // `Response` body can only be read (`.json()`) once: reusing one
+        // instance across calls would make the second/third poll fail
+        // with a "body already read" error, which this layer's own
+        // `resource()` backoff would then (correctly) read as a real
+        // upstream failure and silently double the next interval --
+        // exactly the kind of test bug that would make this test's own
+        // interval assertions meaningless.
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(response([bus754]))));
+        vi.stubGlobal('fetch', fetchMock);
+        const created = { markers: [] as FakeMarker[] };
+
+        mockSettings.set(enabled({ pollSeconds: 15 }));
+        const dispose = mountTransitLayer(fakeLeaflet(created), fakeMap(), {
+            reportCount: vi.fn(),
+            reportAttribution: vi.fn(),
+            reportItems: vi.fn(),
+        });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Rebuilding the underlying resource at the new interval fetches
+        // once immediately, the same "a settings change is felt now, not
+        // next poll" contract every other live-layer setting already gets
+        // (`showBuses`/`showFerries` filter in place; `days` on the
+        // species layer refetches) -- accounted for here before checking
+        // the new *interval* takes effect below.
+        mockSettings.set(enabled({ pollSeconds: 30 }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // The OLD 15s interval must no longer govern -- advancing by
+        // exactly that must not poll again.
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // The full NEW 30s interval (since the change) does poll.
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+
+        dispose();
+    });
+
     it('removes a marker whose vehicle disappears from a later poll, and updates one that persists', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-16T12:00:30Z'));

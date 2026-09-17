@@ -201,9 +201,18 @@ const ServerConfigSchema = z.object({
      * `NVE_MIN_INTERVAL_MS` on average, with up to `NVE_BURST` banked for
      * a viewport that touches several regions at once. Same reasoning as
      * the other keyless-upstream gates above.
+     *
+     * `nveBurst`'s default covers "roster fetch + ~4 regions + 1 margin"
+     * in a single cold request: probing found a 2-degree viewport meets
+     * at most ~4 NVE forecast regions, and every one of those region
+     * fetches shares this same gate with the roster fetch that always
+     * precedes them. A burst too small for that starves a legitimate
+     * multi-region viewport, silently refusing the tail regions in the
+     * same request tick (see `routes/warnings.ts`'s own doc comment on
+     * this gate, next to the region-fetch loop).
      */
     nveMinIntervalMs: z.coerce.number().int().positive().default(60_000),
-    nveBurst: z.coerce.number().int().positive().default(2),
+    nveBurst: z.coerce.number().int().positive().default(6),
     /** `GET /api/species` cache TTL, keyed per-bbox and per `settings.species.days` window. GBIF's occurrence index is itself a slow-moving snapshot, hence the long default. */
     speciesCacheTtlMs: z.coerce.number().int().positive().default(1_800_000),
     /**

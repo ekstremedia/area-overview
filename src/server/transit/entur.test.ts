@@ -85,6 +85,35 @@ describe('fetchVehicles', () => {
         expect(result.ok).toBe(false);
     });
 
+    it('treats a response with neither data nor errors as a failure, not zero vehicles', async () => {
+        // Distinct from the `errors`-array case above: this is a malformed
+        // response with no signal at all, not a documented GraphQL failure
+        // shape -- both must be told apart from a genuine empty bbox.
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+
+        const result = await fetchVehicles(VESTERALEN, { upstreamTimeoutMs: 1000, clientName: 'area-overview-test', fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('treats data:null with no errors as a failure, not zero vehicles', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: null }));
+
+        const result = await fetchVehicles(VESTERALEN, { upstreamTimeoutMs: 1000, clientName: 'area-overview-test', fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('treats data: { vehicles: null } as a legitimate empty answer, not a failure', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: { vehicles: null } }));
+
+        const result = await fetchVehicles(VESTERALEN, { upstreamTimeoutMs: 1000, clientName: 'area-overview-test', fetchImpl: fetchMock });
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.value).toEqual([]);
+    });
+
     it('reports a network failure as an error', async () => {
         const result = await fetchVehicles(VESTERALEN, {
             upstreamTimeoutMs: 1000,

@@ -44,7 +44,6 @@ import type * as Leaflet from 'leaflet';
 import { WARNINGS_LAYER } from '../../../shared/layers.js';
 import { WarningsResponseSchema, type AvalancheWarning, type WarningsResponse, type WeatherWarning } from '../../../shared/schemas/warnings.js';
 import { err, ok, type Result } from '../../../shared/result.js';
-import { resource } from '../../core/resource.js';
 import { effect } from '../../core/signal.js';
 import { formatShortDate, formatTime, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
@@ -52,7 +51,7 @@ import { formatAge } from '../../shell/staleness.js';
 import type { LiveLayerItem } from '../../shell/page-status.js';
 import { sharedCanvasRenderer } from './canvasRenderer.js';
 import { AVALANCHE_NEUTRAL_COLOR, WARNING_ORANGE_COLOR, WARNING_RED_COLOR, WARNING_UNKNOWN_COLOR, WARNING_YELLOW_COLOR } from './liveLayerColors.js';
-import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
+import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, resourceWithDynamicInterval, type LiveLayerCallbacks } from './liveLayerMount.js';
 /*
  * Original artwork for this project, not vendored -- see
  * `glyphs/README.md`, same convention `transit.ts`'s bus/ferry glyphs
@@ -411,11 +410,17 @@ export function mountWarningsLayer(L: typeof Leaflet, map: Leaflet.Map, callback
                 callbacks.reportColor?.(worstColorOf(activeColors));
             }
 
-            const pollSeconds = Math.max(settings.get().warnings.pollSeconds, WARNINGS_LAYER.minPollSeconds);
-            const res = resource(() => fetchWarnings(map), { intervalMs: pollSeconds * 1000 });
+            // `resourceWithDynamicInterval`, not a plain `resource()` call:
+            // a `settings.warnings.pollSeconds` change must take effect on
+            // the next poll, not wait for the layer to remount -- see its
+            // own doc comment (`liveLayerMount.ts`).
+            const res = resourceWithDynamicInterval(
+                () => fetchWarnings(map),
+                () => Math.max(settings.get().warnings.pollSeconds, WARNINGS_LAYER.minPollSeconds) * 1000,
+            );
 
             const disposeEffect = effect(() => {
-                const state = res.state.get();
+                const state = res.current.get().state.get();
                 if (state.status !== 'ready') return;
                 if (!state.data.configured) {
                     clear();

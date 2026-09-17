@@ -61,7 +61,7 @@ export function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         avalancheCacheTtlMs: 20,
         avalancheRegionsCacheTtlMs: 20,
         nveMinIntervalMs: 60_000,
-        nveBurst: 2,
+        nveBurst: 6,
         speciesCacheTtlMs: 20,
         gbifMinIntervalMs: 10_000,
         gbifBurst: 2,

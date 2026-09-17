@@ -38,13 +38,12 @@ import type * as Leaflet from 'leaflet';
 import { TRANSIT_LAYER } from '../../../shared/layers.js';
 import { TransitResponseSchema, type TransitMode, type TransitResponse, type TransitVehicle } from '../../../shared/schemas/transit.js';
 import { err, ok, type Result } from '../../../shared/result.js';
-import { resource } from '../../core/resource.js';
 import { effect } from '../../core/signal.js';
 import { formatNumber, t } from '../../i18n/index.js';
 import { settings } from '../../settings-resource.js';
 import { formatAge } from '../../shell/staleness.js';
 import { TRANSIT_LATE_COLOR, TRANSIT_ON_TIME_COLOR } from './liveLayerColors.js';
-import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, type LiveLayerCallbacks } from './liveLayerMount.js';
+import { mapToBboxQuery, mountWhileEnabled, refetchOnMapMove, resourceWithDynamicInterval, type LiveLayerCallbacks } from './liveLayerMount.js';
 /*
  * Original artwork for this project, not vendored -- see
  * `glyphs/README.md` for why that distinction matters here (unlike
@@ -329,11 +328,17 @@ export function mountTransitLayer(L: typeof Leaflet, map: Leaflet.Map, callbacks
                 callbacks.reportAttribution(undefined);
             }
 
-            const pollSeconds = Math.max(settings.get().transit.pollSeconds, TRANSIT_LAYER.minPollSeconds);
-            const res = resource(() => fetchTransit(map), { intervalMs: pollSeconds * 1000 });
+            // `resourceWithDynamicInterval`, not a plain `resource()` call:
+            // a `settings.transit.pollSeconds` change must take effect on
+            // the next poll, not wait for the layer to remount -- see its
+            // own doc comment (`liveLayerMount.ts`).
+            const res = resourceWithDynamicInterval(
+                () => fetchTransit(map),
+                () => Math.max(settings.get().transit.pollSeconds, TRANSIT_LAYER.minPollSeconds) * 1000,
+            );
 
             const disposeEffect = effect(() => {
-                const state = res.state.get();
+                const state = res.current.get().state.get();
                 if (state.status !== 'ready') return;
                 if (!state.data.configured) {
                     clear();

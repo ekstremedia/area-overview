@@ -65,9 +65,22 @@ export interface WarningsRouteDependencies {
     nveGate?: OutboundGate | undefined;
 }
 
-/** `YYYY-MM-DD` for "today", in UTC. NVE updates a region's warning at most a few times a day, so a few hours' difference from Norway's own local midnight is not worth the complexity of a timezone-aware "today" -- the 1800s per-region cache TTL is a far bigger source of latency than this ever could be. */
-function todayDateStr(): string {
-    return new Date().toISOString().slice(0, 10);
+/**
+ * `YYYY-MM-DD` for "today", in Norway's own calendar date (`Europe/Oslo`),
+ * not UTC. For one to two hours after midnight in Norway (UTC+1 in
+ * winter, UTC+2 under summer DST -- Oslo is always ahead of UTC, never
+ * behind), UTC is still on the *previous* calendar date, so reading UTC's
+ * own date during that window asks NVE for, and caches, YESTERDAY's
+ * warning under a key that looks like today's.
+ *
+ * `Intl.DateTimeFormat` with the `en-CA` locale formats as `YYYY-MM-DD`
+ * directly -- no manual zero-padding or field reassembly needed.
+ *
+ * Takes `now` so a test can inject a fixed instant; defaults to the
+ * current time for every real caller.
+ */
+export function todayDateStr(now: Date = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Oslo' }).format(now);
 }
 
 export function registerWarningsRoutes(app: FastifyInstance, config: ServerConfig, dependencies: WarningsRouteDependencies = {}): void {
@@ -131,6 +144,24 @@ export function registerWarningsRoutes(app: FastifyInstance, config: ServerConfi
             const entries: AvalancheWarning[] = [];
             let attemptedRegions = 0;
             let failedRegions = 0;
+            // The region roster fetch and every per-region fetch below
+            // share one process-wide NVE gate (`config.nveMinIntervalMs`/
+            // `nveBurst`), with no queueing or retry: a `tryTake()` refusal
+            // here just becomes this iteration's `regionResult`, exactly
+            // like a real upstream failure. `nveBurst`'s default is sized
+            // to comfortably cover one cold viewport's roster-plus-regions
+            // in a single tick (`config.ts`'s own doc comment), but it can
+            // still be exhausted in principle -- several distinct cold
+            // viewports polling inside the same 60s window, say -- and
+            // refuse a region fetch that a moment later would have
+            // succeeded. That is no longer a silent hole: a gate refusal
+            // here is a `regionResult.ok === false`, which increments
+            // `failedRegions` below and, via the `staleAvalanche` flag just
+            // after this loop, marks the whole response degraded rather
+            // than letting it be cached as a complete, fresh answer. A
+            // queued/retrying fetcher would close the gap entirely, but
+            // that is a heavier change deliberately left for later --
+            // surfacing the degradation honestly is this pass's fix.
             for (const hit of regionsIntersecting(regions.regions, bbox)) {
                 attemptedRegions += 1;
                 const regionResult = await loadWithStaleFallback(regionWarningCache, `${hit.region.regionId}:${dateStr}`, () =>
@@ -159,6 +190,15 @@ export function registerWarningsRoutes(app: FastifyInstance, config: ServerConfi
                 const mapped = mapAvalancheWarning(regionResult.value, hit.region, hit.point);
                 if (mapped) entries.push(mapped);
             }
+            // Any per-region failure -- even when other regions in the
+            // same bbox succeeded -- makes this response degraded, not
+            // fresh: the successfully-fetched entries are kept (a partial
+            // answer beats none), but `sendJson` must not hand out a
+            // public cache `max-age` on a response that is silently
+            // missing regions that could well succeed on the very next
+            // poll. Without this, a partial failure was indistinguishable
+            // from a complete, fresh answer to every downstream cache.
+            if (failedRegions > 0) staleAvalanche = true;
             if (attemptedRegions > 0 && failedRegions === attemptedRegions) {
                 // Every intersecting region's fetch failed with nothing
                 // stale to fall back on -- this is a total NVE per-region

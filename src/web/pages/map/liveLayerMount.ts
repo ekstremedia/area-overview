@@ -13,7 +13,9 @@
  * this file, not `layers.ts` itself.
  */
 import type * as Leaflet from 'leaflet';
-import { effect } from '../../core/signal.js';
+import { resource, type Resource } from '../../core/resource.js';
+import { effect, signal, type ReadonlySignal } from '../../core/signal.js';
+import type { Result } from '../../../shared/result.js';
 import type { LiveLayerItem } from '../../shell/page-status.js';
 import { isProgrammaticMove } from './follow.js';
 
@@ -72,6 +74,72 @@ export function mountWhileEnabled(isEnabled: () => boolean, mount: () => () => v
         disposeEffect();
         disposeInner?.();
         disposeInner = undefined;
+    };
+}
+
+/**
+ * A `resource()` (`core/resource.ts`) whose poll interval can actually
+ * change after construction -- `resource()` itself captures `intervalMs`
+ * once and has no way to update it later (its own header comment), so a
+ * `settings.<layer>.pollSeconds` change otherwise has no visible effect
+ * until the whole layer remounts. `transit.ts` and `warnings.ts` both hit
+ * this the same way (their layers poll on a viewport-parameterised
+ * fetch), hence one shared helper here rather than duplicating the fix
+ * twice.
+ *
+ * The fix is not a `refresh()` (species.ts's own `settings.species.days`
+ * fix is exactly that, and is not enough here): a changed interval needs
+ * the underlying timer replaced, which `resource()` has no API for, so
+ * this disposes the old instance and builds a fresh one at the new
+ * interval whenever `getIntervalMs()`'s tracked value actually changes.
+ *
+ * `current` is a signal *of* the active `Resource`, not of its state --
+ * reading `current.get().state.get()` inside a tracking context (an
+ * `effect`/`computed`) subscribes to both: the current-resource pointer,
+ * and whichever resource's own state signal is current at the time. So a
+ * caller's render effect automatically re-subscribes to the freshly built
+ * resource's state the moment this rebuilds one, with no extra wiring at
+ * the call site -- the "signal of a signal" composition, built from the
+ * two existing primitives (`signal`, `effect`) rather than a new one in
+ * `core/signal.ts`.
+ *
+ * The interval-tracking effect below deliberately never reads `current`
+ * itself (only `getIntervalMs()`): reading a signal and `.set()`-ing it
+ * again inside the very same tracked run would make the effect an
+ * (accidental) subscriber to its own write, since `signal.get()` inside a
+ * tracking context in this codebase's reactivity registers *any* running
+ * tracked computation, not just render effects.
+ */
+export function resourceWithDynamicInterval<T>(
+    fetcher: () => Promise<Result<T>>,
+    getIntervalMs: () => number,
+): { current: ReadonlySignal<Resource<T>>; refresh(): void; dispose(): void } {
+    let activeResource = resource(fetcher, { intervalMs: getIntervalMs() });
+    const current = signal<Resource<T>>(activeResource);
+    // Matches `getIntervalMs()`'s value at construction, exactly like
+    // `species.ts`'s own `previousDays` guard against the effect below
+    // rebuilding immediately and duplicating `resource()`'s own initial
+    // fetch for nothing.
+    let previousIntervalMs = getIntervalMs();
+
+    const disposeIntervalEffect = effect(() => {
+        const intervalMs = getIntervalMs();
+        if (intervalMs === previousIntervalMs) return;
+        previousIntervalMs = intervalMs;
+        activeResource.dispose();
+        activeResource = resource(fetcher, { intervalMs });
+        current.set(activeResource);
+    });
+
+    return {
+        current,
+        refresh(): void {
+            activeResource.refresh();
+        },
+        dispose(): void {
+            disposeIntervalEffect();
+            activeResource.dispose();
+        },
     };
 }
 

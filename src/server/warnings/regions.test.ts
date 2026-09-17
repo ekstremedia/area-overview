@@ -55,6 +55,26 @@ describe('fetchRegions', () => {
         expect(notJson.ok).toBe(false);
     });
 
+    it('reports an error when a non-empty roster has no region with a usable Polygon, rather than ok([])', async () => {
+        const degraded = [
+            { Id: 3003, Name: 'Vesterålen', TypeName: 'A', Polygon: null },
+            { Id: 3004, Name: 'Ofoten', TypeName: 'A' }, // Polygon absent entirely
+            { Id: 3010, Name: 'Nord-Troms', TypeName: 'A', Polygon: ['68.1,15.4'] }, // one point only, < 3
+        ];
+
+        const result = await fetchRegions({ upstreamTimeoutMs: 1000, fetchImpl: vi.fn().mockResolvedValue(jsonResponse(degraded)) });
+
+        expect(result.ok).toBe(false);
+    });
+
+    it('still returns ok([]) for a genuinely empty roster (zero raw entries)', async () => {
+        const result = await fetchRegions({ upstreamTimeoutMs: 1000, fetchImpl: vi.fn().mockResolvedValue(jsonResponse([])) });
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.value).toEqual([]);
+    });
+
     it('reports a shut gate as an ordinary error without calling upstream', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse(regionsFixture));
         const gate = createOutboundGate({ minIntervalMs: 600_000, burst: 1 });

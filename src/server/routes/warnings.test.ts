@@ -7,6 +7,7 @@ import regionsFixture from '../warnings/fixtures/nve-regions-northern-norway.jso
 import { MET_ALERTS_URL } from '../warnings/met-alerts.js';
 import { NVE_REGIONS_URL } from '../warnings/regions.js';
 import { buildTestApp, jsonResponse, sleep } from './test-helpers.js';
+import { todayDateStr } from './warnings.js';
 
 /** The Vesterålen/Ofoten viewport from `warnings/fixtures/README.md` -- touches regions 3003 and 3004. */
 const VALID_BBOX = 'bbox=14.5,68.35,16.5,69.05';
@@ -243,6 +244,30 @@ describe('GET /api/warnings', () => {
         expect(body.weatherWarnings).not.toBeNull();
     });
 
+    it('marks the response stale when one of several intersecting regions fails but others succeed (partial failure is degraded, not fresh)', async () => {
+        // 3003 is in-season and produces an entry; 3004 is out-of-season
+        // and produces none even on success (see the fixture-comment two
+        // tests up), so failing 3004 here is what leaves exactly one
+        // successful entry to assert on.
+        vi.stubGlobal('fetch', buildFetchMock({ regionWarnings: { 3004: 'fail' } }));
+        const app = buildTestApp();
+
+        const response = await app.inject({ method: 'GET', url: `/api/warnings?${VALID_BBOX}` });
+
+        expect(response.statusCode).toBe(200);
+        // The successfully-fetched region (3003) is still served -- a
+        // partial failure must not null out the whole avalanche half.
+        const body = WarningsResponseSchema.parse(response.json());
+        if (!body.configured) throw new Error('expected configured:true');
+        expect(body.avalancheWarnings).toHaveLength(1);
+        // But the response as a whole must be flagged stale/degraded, so a
+        // client does not cache this incomplete answer as if it were
+        // complete -- the same `X-Cache: stale` mechanism a genuine
+        // upstream outage already gets.
+        expect(response.headers['x-cache']).toBe('stale');
+        expect(response.headers['cache-control']).toBe('no-cache');
+    });
+
     it('responds 502 on a cold cache only when both MET and NVE are unreachable', async () => {
         vi.stubGlobal('fetch', buildFetchMock({ met: 'fail', regions: 'fail' }));
         const app = buildTestApp();
@@ -298,5 +323,27 @@ describe('GET /api/warnings', () => {
         const response = await app.inject({ method: 'GET', url: `/api/warnings?${VALID_BBOX}` });
 
         expect(response.headers['cache-control']).toBe('public, max-age=5, stale-while-revalidate=60');
+    });
+});
+
+describe('todayDateStr', () => {
+    it("uses Norway's own calendar date, not UTC's, shortly after midnight in Norway", () => {
+        // 2026-01-01T23:30:00Z: Norway is UTC+1 in January (no DST), so
+        // Oslo's clock already reads 2026-01-02T00:30 -- past its own
+        // midnight into a new calendar date -- while UTC's own date is
+        // still 2026-01-01. The bug this guards against reads the UTC
+        // date here and reports/caches yesterday's (Oslo's terms) warning.
+        expect(todayDateStr(new Date('2026-01-01T23:30:00Z'))).toBe('2026-01-02');
+    });
+
+    it("uses Norway's own calendar date under summer DST (UTC+2) too", () => {
+        // 2026-07-01T22:30:00Z: Norway is UTC+2 in July (DST), so Oslo's
+        // clock already reads 2026-07-02T00:30, two hours into the new
+        // date, while UTC is still on 2026-07-01.
+        expect(todayDateStr(new Date('2026-07-01T22:30:00Z'))).toBe('2026-07-02');
+    });
+
+    it('agrees with UTC outside the midnight-crossing window', () => {
+        expect(todayDateStr(new Date('2026-06-15T12:00:00Z'))).toBe('2026-06-15');
     });
 });

@@ -66,7 +66,7 @@ export type RawVehicleRecord = z.infer<typeof RawVehicleRecordSchema>;
  */
 const VehiclesGraphqlSchema = z.object({
     data: z
-        .object({ vehicles: z.array(RawVehicleRecordSchema).nullish() })
+        .object({ vehicles: z.array(RawVehicleRecordSchema).nullable() })
         .nullable()
         .catch(null),
     errors: z.array(z.unknown()).nullish(),
@@ -131,5 +131,16 @@ export async function fetchVehicles(bbox: Bbox, options: FetchVehiclesOptions): 
         return err({ message: 'Entur vehicles endpoint returned GraphQL errors', cause: parsed.data.errors });
     }
 
-    return ok(parsed.data.data?.vehicles ?? []);
+    // `data` absent or `null` with no accompanying `errors` is not a valid
+    // GraphQL response at all -- distinct from a genuine `errors`-carrying
+    // failure (handled above) and from `data: { vehicles: null }` (a
+    // legitimate answer, read as "zero vehicles" by the `?? []` below).
+    // Falling through here would read a malformed response the same as a
+    // real empty bbox, and a route caching that would serve it as a fresh
+    // successful answer instead of falling back to stale data or 502.
+    if (!parsed.data.data) {
+        return err({ message: 'Entur vehicles response had no data and no errors' });
+    }
+
+    return ok(parsed.data.data.vehicles ?? []);
 }
